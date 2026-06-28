@@ -103,11 +103,11 @@ export default function Session() {
     workout.rest_time_ms ? { label: 'Rest Time', value: formatTimePrecise(workout.rest_time_ms), icon: Timer } : null,
   ].filter(Boolean);
 
-  const metricTiles = [
-    workout.metrics?.fade_index != null ? { label: 'Fade Index', value: `${workout.metrics.fade_index.toFixed(1)}%` } : null,
-    workout.metrics?.consistency != null ? { label: 'Consistency', value: workout.metrics.consistency.toFixed(0) } : null,
-    workout.metrics?.effort_score != null ? { label: 'Effort', value: workout.metrics.effort_score.toFixed(0) } : null,
-    workout.metrics?.drag_delta != null ? { label: 'Drag Delta', value: signed(workout.metrics.drag_delta) } : null,
+  const computedRows = [
+    workout.metrics?.fade_index != null ? { label: 'Fade Index', value: `${workout.metrics.fade_index.toFixed(1)}%`, icon: Activity } : null,
+    workout.metrics?.consistency != null ? { label: 'Consistency', value: workout.metrics.consistency.toFixed(0), icon: Activity } : null,
+    workout.metrics?.effort_score != null ? { label: 'Effort Score', value: workout.metrics.effort_score.toFixed(0), icon: Gauge } : null,
+    workout.metrics?.drag_delta != null ? { label: 'Drag Delta', value: signed(workout.metrics.drag_delta), icon: Gauge } : null,
   ].filter(Boolean);
 
   return (
@@ -145,7 +145,7 @@ export default function Session() {
         </div>
       </header>
 
-      <div className={styles.primaryGrid}>
+      <div className={hasAnalysis ? styles.primaryGrid : styles.singleColumnGrid}>
         <section className={styles.panel} aria-labelledby="workout-summary-title">
           <div className={styles.panelHeader}>
             <div className={styles.panelTitle} id="workout-summary-title">
@@ -156,16 +156,16 @@ export default function Session() {
           <StatRows rows={summaryRows} />
         </section>
 
-        <section className={`${styles.panel} ${styles.analysisPanel}`} aria-labelledby="analysis-title">
-          <div className={styles.panelHeader}>
-            <div className={styles.panelTitle} id="analysis-title">
-              <span className={styles.panelIcon}><Activity size={18} /></span>
-              Workout Analysis
+        {hasAnalysis && (
+          <section className={`${styles.panel} ${styles.analysisPanel}`} aria-labelledby="analysis-title">
+            <div className={styles.panelHeader}>
+              <div className={styles.panelTitle} id="analysis-title">
+                <span className={styles.panelIcon}><Activity size={18} /></span>
+                Workout Analysis
+              </div>
+              <span className={styles.panelKicker}>{strokeData.length} points</span>
             </div>
-            {hasAnalysis && <span className={styles.panelKicker}>{strokeData.length} points</span>}
-          </div>
 
-          {hasAnalysis ? (
             <div className={styles.chartStack}>
               <div className={styles.chartBlock}>
                 <div className={styles.chartLabel}>
@@ -213,24 +213,11 @@ export default function Session() {
                 </div>
               )}
             </div>
-          ) : (
-            <div className={styles.emptyAnalysis}>Stroke-level data is not available for this workout yet.</div>
-          )}
-        </section>
+          </section>
+        )}
       </div>
 
       {workout.strokes?.length > 0 && <PaceRibbon strokes={workout.strokes} height={58} />}
-
-      {metricTiles.length > 0 && (
-        <div className={styles.metricsGrid}>
-          {metricTiles.map(metric => (
-            <div className={styles.metricTile} key={metric.label}>
-              <div className={styles.metricLabel}>{metric.label}</div>
-              <div className={styles.metricValue}>{metric.value}</div>
-            </div>
-          ))}
-        </div>
-      )}
 
       {workout.ai_note && (
         <div className={styles.aiNote}>
@@ -238,17 +225,16 @@ export default function Session() {
         </div>
       )}
 
-      <div className={styles.detailGrid}>
-        <section className={styles.panel} aria-labelledby="splits-title">
-          <div className={styles.panelHeader}>
-            <div className={styles.panelTitle} id="splits-title">
-              <span className={styles.panelIcon}><BarChart3 size={18} /></span>
-              Splits Table
+      <div className={splitRows.length > 0 ? styles.detailGrid : styles.singleColumnGrid}>
+        {splitRows.length > 0 && (
+          <section className={styles.panel} aria-labelledby="splits-title">
+            <div className={styles.panelHeader}>
+              <div className={styles.panelTitle} id="splits-title">
+                <span className={styles.panelIcon}><BarChart3 size={18} /></span>
+                Splits Table
+              </div>
+              <span className={styles.panelKicker}>{splitRows.length} rows</span>
             </div>
-            <span className={styles.panelKicker}>{splitRows.length ? `${splitRows.length} rows` : 'No rows'}</span>
-          </div>
-
-          {splitRows.length > 0 ? (
             <div className={styles.tableWrap}>
               <table className={styles.splitsTable}>
                 <thead>
@@ -273,10 +259,8 @@ export default function Session() {
                 </tbody>
               </table>
             </div>
-          ) : (
-            <div className={styles.emptyAnalysis}>No split data is available for this workout.</div>
-          )}
-        </section>
+          </section>
+        )}
 
         <section className={styles.panel} aria-labelledby="details-title">
           <div className={styles.panelHeader}>
@@ -285,7 +269,7 @@ export default function Session() {
               Details
             </div>
           </div>
-          <StatRows rows={detailRows} compact />
+          <StatRows rows={[...detailRows, ...computedRows]} />
           {comments && (
             <div className={styles.note}>
               <div className={styles.panelTitle}>

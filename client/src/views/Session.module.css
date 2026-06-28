@@ -111,6 +111,13 @@
   align-items: start;
 }
 
+.singleColumnGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+
 .panel {
   overflow: hidden;
   border: 1px solid var(--rule);
@@ -257,35 +264,6 @@
   line-height: 1.5;
 }
 
-.metricsGrid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--space-3);
-}
-
-.metricTile {
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  padding: var(--space-4);
-}
-
-.metricLabel {
-  color: var(--ink-3);
-  font-size: 0.7rem;
-  font-weight: 650;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.metricValue {
-  margin-top: var(--space-2);
-  color: var(--ink);
-  font-family: var(--font-mono);
-  font-size: 1.25rem;
-  font-weight: 650;
-}
-
 .detailGrid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(300px, 420px);
@@ -357,10 +335,6 @@
     grid-template-columns: 1fr;
   }
 
-  .metricsGrid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .sessionTitle {
     font-size: 3.5rem;
   }
@@ -382,10 +356,6 @@
 
   .statValue {
     font-size: 1.15rem;
-  }
-
-  .metricsGrid {
-    grid-template-columns: 1fr;
   }
 
   .panelHeader,
