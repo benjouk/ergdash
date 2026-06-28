@@ -4,5 +4,9 @@ dist/
 *.sqlite
 *.sqlite-wal
 *.sqlite-shm
+*.db
+*.db-wal
+*.db-shm
 /data/
+server/data/
 .DS_Store
