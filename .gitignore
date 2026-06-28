@@ -10,3 +10,6 @@ dist/
 /data/
 server/data/
 .DS_Store
+
+# Local agent scratch space
+agents/
