@@ -97,7 +97,7 @@ export default function Connect() {
         }}>
           {[
             { title: 'Track', desc: 'Every session, pace, and stroke' },
-            { title: 'Analyse', desc: 'Trends, comparisons, PB predictions' },
+            { title: 'Analyse', desc: 'Trends, comparisons, personal bests' },
             { title: 'Improve', desc: 'AI coaching insights and fitness tracking' },
           ].map(f => (
             <div key={f.title} style={{

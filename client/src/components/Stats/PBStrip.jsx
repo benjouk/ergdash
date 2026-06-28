@@ -39,7 +39,7 @@ export default function PBStrip() {
         <button
           key={pb.distance}
           type="button"
-          className={`${styles.pbCard} ${pb.prediction?.window_start ? styles.pbCardPredicted : ''}`}
+          className={styles.pbCard}
           onClick={() => navigate(`/session/${pb.workout_id}`)}
           aria-label={`Open ${DISTANCE_LABELS[pb.distance] || `${pb.distance}m`} personal best`}
         >
@@ -47,11 +47,6 @@ export default function PBStrip() {
           <span className={styles.pbTime}>{formatTime(pb.time_ms)}</span>
           <span className={styles.pbPace}>{formatPace(pb.pace_ms)}</span>
           <span className={styles.pbDate}>{new Date(pb.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' })}</span>
-          {pb.prediction?.window_start && (
-            <span className={styles.pbPrediction}>
-              Window {new Date(pb.prediction.window_start).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-            </span>
-          )}
         </button>
       ))}
     </div>

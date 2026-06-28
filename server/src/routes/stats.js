@@ -162,11 +162,8 @@ router.get('/personal-bests', (req, res) => {
   const pbs = [];
   for (const dist of standardDistances) {
     const row = db.prepare(`
-      SELECT
-        w.id, w.date, w.time_ms, w.pace_ms, w.distance,
-        p.predicted_time, p.confidence, p.window_start, p.window_end
+      SELECT w.id, w.date, w.time_ms, w.pace_ms, w.distance
       FROM workouts w
-      LEFT JOIN predictions p ON p.distance = w.distance
       WHERE w.type = 'rower' AND w.distance = ? AND w.pace_ms > 0${dateFilter}
       ORDER BY w.pace_ms ASC LIMIT 1
     `).get(dist, ...dateParams);
@@ -178,12 +175,6 @@ router.get('/personal-bests', (req, res) => {
         date: row.date,
         time_ms: row.time_ms,
         pace_ms: row.pace_ms,
-        prediction: row.predicted_time ? {
-          predicted_time: row.predicted_time,
-          confidence: row.confidence,
-          window_start: row.window_start,
-          window_end: row.window_end,
-        } : null,
       });
     }
   }
