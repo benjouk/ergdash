@@ -1,18 +1,43 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { ArrowLeft } from 'lucide-react';
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  Line,
+  LineChart,
+  ReferenceLine,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
+import {
+  Activity,
+  ArrowLeft,
+  BarChart3,
+  CalendarDays,
+  Flame,
+  Gauge,
+  HeartPulse,
+  Lock,
+  MessageSquare,
+  Share2,
+  Timer,
+  Zap,
+} from 'lucide-react';
 import { api } from '../api.js';
 import { useUnits } from '../context/UnitsContext.jsx';
 import PaceRibbon from '../components/PaceRibbon/PaceRibbon.jsx';
-import MetricsBar from '../components/Stats/MetricsBar.jsx';
+import styles from './Session.module.css';
 
 export default function Session() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [workout, setWorkout] = useState(null);
   const [loading, setLoading] = useState(true);
-  const { formatPace, formatDistanceFull, formatTime } = useUnits();
+  const [copied, setCopied] = useState(false);
+  const { units, formatPace, formatDistanceFull, formatTime } = useUnits();
 
   useEffect(() => {
     setLoading(true);
@@ -22,140 +47,482 @@ export default function Session() {
       .finally(() => setLoading(false));
   }, [id]);
 
+  const handleShare = useCallback(async () => {
+    if (!workout) return;
+
+    const title = `${formatTime(workout.time_ms)} Row`;
+    const text = `${title} - ${formatDistanceFull(workout.distance)} at ${formatPace(workout.pace_ms)}`;
+
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: 'RowDash workout', text, url: window.location.href });
+      } else if (navigator.clipboard) {
+        await navigator.clipboard.writeText(window.location.href);
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 1600);
+      }
+    } catch {
+      setCopied(false);
+    }
+  }, [formatDistanceFull, formatPace, formatTime, workout]);
+
+  const strokeData = useMemo(() => buildStrokeSeries(workout?.strokes), [workout?.strokes]);
+  const splitRows = useMemo(() => buildSplitRows(workout), [workout]);
+
   if (loading) return <div style={{ padding: 'var(--space-6)', color: 'var(--ink-3)' }}>Loading...</div>;
   if (!workout) return <div style={{ padding: 'var(--space-6)', color: 'var(--ink-3)' }}>Workout not found</div>;
 
+  const date = new Date(workout.date);
   const tag = workout.inferred_tag;
-  const tagColor = tag === 'interval' ? 'var(--accent-2)' : 'var(--accent)';
+  const isInterval = tag === 'interval';
+  const avgWatts = paceToWatts(workout.pace_ms);
+  const avgCalHr = wattsToCalHr(avgWatts);
+  const hasStrokeRate = strokeData.some(d => d.stroke_rate > 0);
+  const hasHeartRate = strokeData.some(d => d.heart_rate > 0);
+  const hasAnalysis = strokeData.length > 1;
+  const comments = workout.comments?.trim();
+  const primaryMetric = getPrimaryMetric(units);
 
-  const strokePaceData = workout.strokes?.length > 0
-    ? workout.strokes.filter((_, i) => i % Math.max(1, Math.floor(workout.strokes.length / 200)) === 0)
-        .map(s => ({ distance: Math.round(s.distance_m), pace_ms: s.pace_ms, stroke_rate: s.stroke_rate, heart_rate: s.heart_rate }))
-    : null;
+  const summaryRows = [
+    { label: 'Time', value: formatTimePrecise(workout.time_ms) },
+    { label: 'Distance', value: formatDistanceNumber(workout.distance), unit: 'm' },
+    { label: primaryMetric.averageLabel, value: formatPace(workout.pace_ms), unit: primaryMetric.unit, accent: true },
+    { label: primaryMetric.targetLabel, value: '--' },
+  ];
+
+  const detailRows = [
+    { label: 'Ave. Stroke Rate', value: formatRate(workout.stroke_rate), unit: 's/m', icon: Activity },
+    { label: 'Ave. Power', value: formatNumber(avgWatts), unit: 'watt', icon: Zap },
+    { label: 'Total Calories', value: formatNumber(workout.calories), unit: 'cal', icon: Flame },
+    { label: 'Ave. Calories Per Hour', value: formatNumber(avgCalHr), unit: 'cal/hr', icon: Flame },
+    { label: 'Drag Factor', value: formatNumber(workout.drag_factor), icon: Gauge },
+    { label: 'Stroke Count', value: formatNumber(workout.stroke_count), icon: BarChart3 },
+    { label: 'Ave. Heart Rate', value: formatNumber(workout.heart_rate_avg), unit: 'bpm', icon: HeartPulse },
+    { label: 'Max Heart Rate', value: formatNumber(workout.heart_rate_max), unit: 'bpm', icon: HeartPulse },
+    workout.rest_distance ? { label: 'Rest Distance', value: formatDistanceNumber(workout.rest_distance), unit: 'm', icon: Timer } : null,
+    workout.rest_time_ms ? { label: 'Rest Time', value: formatTimePrecise(workout.rest_time_ms), icon: Timer } : null,
+  ].filter(Boolean);
+
+  const metricTiles = [
+    workout.metrics?.fade_index != null ? { label: 'Fade Index', value: `${workout.metrics.fade_index.toFixed(1)}%` } : null,
+    workout.metrics?.consistency != null ? { label: 'Consistency', value: workout.metrics.consistency.toFixed(0) } : null,
+    workout.metrics?.effort_score != null ? { label: 'Effort', value: workout.metrics.effort_score.toFixed(0) } : null,
+    workout.metrics?.drag_delta != null ? { label: 'Drag Delta', value: signed(workout.metrics.drag_delta) } : null,
+  ].filter(Boolean);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
-      <button onClick={() => navigate(-1)} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', color: 'var(--ink-2)', fontSize: '0.85rem', padding: 0 }}>
-        <ArrowLeft size={16} /> Back
-      </button>
-
-      <div style={{
-        display: 'flex', gap: 'var(--space-6)', alignItems: 'baseline', flexWrap: 'wrap',
-        padding: 'var(--space-5)', background: 'var(--surface)', border: '1px solid var(--rule)', borderRadius: 'var(--radius-md)',
-      }}>
-        <div>
-          <div style={{ fontSize: '0.7rem', color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 500 }}>Date</div>
-          <div style={{ fontFamily: 'var(--font-mono)', fontSize: '1.1rem', fontWeight: 600 }}>
-            {new Date(workout.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
-          </div>
-        </div>
-        <StatCell label="Distance" value={formatDistanceFull(workout.distance)} />
-        <StatCell label="Time" value={formatTime(workout.time_ms)} />
-        <StatCell label="Pace" value={formatPace(workout.pace_ms)} accent />
-        <StatCell label="Rate" value={workout.stroke_rate ? `${workout.stroke_rate} spm` : '—'} />
-        <StatCell label="Avg HR" value={workout.heart_rate_avg ? `${workout.heart_rate_avg} bpm` : '—'} />
-        {tag && (
-          <span style={{
-            fontSize: '0.65rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em',
-            padding: '2px 8px', borderRadius: '3px', color: tagColor, background: `${tagColor}15`,
-          }}>{tag}</span>
-        )}
+    <div className={styles.session}>
+      <div className={styles.topbar}>
+        <button onClick={() => navigate(-1)} className={styles.backButton}>
+          <ArrowLeft size={17} /> Back
+        </button>
+        <button onClick={handleShare} className={styles.iconButton} title={copied ? 'Link copied' : 'Share workout'} aria-label="Share workout">
+          <Share2 size={18} />
+        </button>
       </div>
 
-      {workout.strokes?.length > 0 && <PaceRibbon strokes={workout.strokes} />}
+      <header className={styles.hero}>
+        <div className={styles.titleRow}>
+          <div className={styles.titleGroup}>
+            <h1 className={styles.sessionTitle}>{formatTime(workout.time_ms)} Row</h1>
+            <div className={styles.metaLine}>
+              <CalendarDays size={18} />
+              <span>{formatDateShort(date)}</span>
+              <span>-</span>
+              <span>{formatClock(date)}</span>
+            </div>
+            <div className={styles.privacyLine}>
+              <Lock size={17} />
+              <span>Training Partners</span>
+            </div>
+          </div>
+
+          {tag && (
+            <span className={`${styles.tag} ${isInterval ? styles.tagInterval : ''}`}>
+              {tag}
+            </span>
+          )}
+        </div>
+      </header>
+
+      <div className={styles.primaryGrid}>
+        <section className={styles.panel} aria-labelledby="workout-summary-title">
+          <div className={styles.panelHeader}>
+            <div className={styles.panelTitle} id="workout-summary-title">
+              <span className={styles.panelIcon}><Timer size={18} /></span>
+              Summary
+            </div>
+          </div>
+          <StatRows rows={summaryRows} />
+        </section>
+
+        <section className={`${styles.panel} ${styles.analysisPanel}`} aria-labelledby="analysis-title">
+          <div className={styles.panelHeader}>
+            <div className={styles.panelTitle} id="analysis-title">
+              <span className={styles.panelIcon}><Activity size={18} /></span>
+              Workout Analysis
+            </div>
+            {hasAnalysis && <span className={styles.panelKicker}>{strokeData.length} points</span>}
+          </div>
+
+          {hasAnalysis ? (
+            <div className={styles.chartStack}>
+              <div className={styles.chartBlock}>
+                <div className={styles.chartLabel}>
+                  {primaryMetric.chartLabel} <span className={styles.chartUnit}>{primaryMetric.chartUnit}</span>
+                </div>
+                <div className={styles.chartBox}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={strokeData} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+                      <defs>
+                        <linearGradient id="paceFill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="var(--accent-2)" stopOpacity={0.34} />
+                          <stop offset="100%" stopColor="var(--accent-2)" stopOpacity={0.04} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid stroke="var(--rule)" strokeDasharray="5 7" />
+                      <XAxis dataKey="distance" tick={{ fontSize: 11, fill: 'var(--ink-3)' }} tickFormatter={v => `${v}m`} axisLine={false} tickLine={false} />
+                      <YAxis reversed tick={{ fontSize: 11, fill: 'var(--ink-3)' }} tickFormatter={v => formatPace(v)} axisLine={false} tickLine={false} width={58} domain={['dataMin - 1500', 'dataMax + 1500']} />
+                      <ReferenceLine y={workout.pace_ms} stroke="var(--ink-2)" strokeDasharray="4 4" />
+                      <Tooltip content={<ChartTooltip formatPace={formatPace} />} />
+                      <Area type="monotone" dataKey="pace_ms" stroke="var(--accent)" strokeWidth={2} fill="url(#paceFill)" dot={false} activeDot={{ r: 4 }} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {(hasStrokeRate || hasHeartRate) && (
+                <div className={styles.chartBlock}>
+                  <div className={styles.chartLabel}>
+                    Stroke Rate <span className={styles.chartUnit}>s/m</span>
+                  </div>
+                  <div className={`${styles.chartBox} ${styles.chartBoxShort}`}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={strokeData} margin={{ top: 8, right: hasHeartRate ? 8 : 0, bottom: 0, left: 0 }}>
+                        <CartesianGrid stroke="var(--rule)" strokeDasharray="5 7" />
+                        <XAxis dataKey="distance" tick={{ fontSize: 11, fill: 'var(--ink-3)' }} tickFormatter={v => `${v}m`} axisLine={false} tickLine={false} />
+                        <YAxis yAxisId="rate" tick={{ fontSize: 11, fill: 'var(--ink-3)' }} axisLine={false} tickLine={false} width={38} domain={['dataMin - 2', 'dataMax + 2']} />
+                        {hasHeartRate && <YAxis yAxisId="hr" orientation="right" tick={{ fontSize: 11, fill: 'var(--ink-3)' }} axisLine={false} tickLine={false} width={38} domain={['dataMin - 5', 'dataMax + 5']} />}
+                        {workout.stroke_rate && <ReferenceLine yAxisId="rate" y={workout.stroke_rate} stroke="var(--ink-2)" strokeDasharray="4 4" />}
+                        <Tooltip content={<ChartTooltip formatPace={formatPace} />} />
+                        {hasStrokeRate && <Line yAxisId="rate" type="stepAfter" dataKey="stroke_rate" stroke="var(--accent-2)" strokeWidth={2} dot={false} />}
+                        {hasHeartRate && <Line yAxisId="hr" type="monotone" dataKey="heart_rate" stroke="var(--hot)" strokeWidth={1.8} dot={false} />}
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className={styles.emptyAnalysis}>Stroke-level data is not available for this workout yet.</div>
+          )}
+        </section>
+      </div>
+
+      {workout.strokes?.length > 0 && <PaceRibbon strokes={workout.strokes} height={58} />}
+
+      {metricTiles.length > 0 && (
+        <div className={styles.metricsGrid}>
+          {metricTiles.map(metric => (
+            <div className={styles.metricTile} key={metric.label}>
+              <div className={styles.metricLabel}>{metric.label}</div>
+              <div className={styles.metricValue}>{metric.value}</div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {workout.ai_note && (
-        <div style={{
-          padding: 'var(--space-4)', background: 'var(--accent-bg)', border: '1px solid var(--accent)',
-          borderRadius: 'var(--radius-md)', fontSize: '0.85rem', color: 'var(--ink)', lineHeight: 1.5,
-        }}>
+        <div className={styles.aiNote}>
           {workout.ai_note}
         </div>
       )}
 
-      {strokePaceData && (
-        <div style={{ background: 'var(--surface)', border: '1px solid var(--rule)', borderRadius: 'var(--radius-md)', padding: 'var(--space-5)' }}>
-          <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--ink-2)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 'var(--space-4)' }}>
-            Pace Over Distance
+      <div className={styles.detailGrid}>
+        <section className={styles.panel} aria-labelledby="splits-title">
+          <div className={styles.panelHeader}>
+            <div className={styles.panelTitle} id="splits-title">
+              <span className={styles.panelIcon}><BarChart3 size={18} /></span>
+              Splits Table
+            </div>
+            <span className={styles.panelKicker}>{splitRows.length ? `${splitRows.length} rows` : 'No rows'}</span>
           </div>
-          <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={strokePaceData}>
-              <XAxis dataKey="distance" tick={{ fontSize: 11, fill: 'var(--ink-3)' }} tickFormatter={v => `${v}m`} axisLine={{ stroke: 'var(--rule)' }} tickLine={false} />
-              <YAxis reversed tick={{ fontSize: 11, fill: 'var(--ink-3)' }} tickFormatter={v => formatPace(v)} axisLine={false} tickLine={false} width={55} domain={['dataMin - 1000', 'dataMax + 1000']} />
-              <Tooltip contentStyle={{ background: 'var(--surface)', border: '1px solid var(--rule)', borderRadius: 'var(--radius-sm)', fontSize: '0.8rem' }} formatter={v => [formatPace(v), 'Pace']} />
-              <Line type="monotone" dataKey="pace_ms" stroke="var(--accent)" strokeWidth={1.5} dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      )}
 
-      {strokePaceData && strokePaceData.some(d => d.stroke_rate > 0) && (
-        <div style={{ background: 'var(--surface)', border: '1px solid var(--rule)', borderRadius: 'var(--radius-md)', padding: 'var(--space-5)' }}>
-          <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--ink-2)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 'var(--space-4)' }}>
-            Stroke Rate
-          </div>
-          <ResponsiveContainer width="100%" height={150}>
-            <LineChart data={strokePaceData}>
-              <XAxis dataKey="distance" tick={{ fontSize: 11, fill: 'var(--ink-3)' }} tickFormatter={v => `${v}m`} axisLine={{ stroke: 'var(--rule)' }} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: 'var(--ink-3)' }} axisLine={false} tickLine={false} width={35} />
-              <Tooltip contentStyle={{ background: 'var(--surface)', border: '1px solid var(--rule)', borderRadius: 'var(--radius-sm)', fontSize: '0.8rem' }} formatter={v => [v?.toFixed(1), 'spm']} />
-              <Line type="monotone" dataKey="stroke_rate" stroke="var(--accent-2)" strokeWidth={1.5} dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-
-      {workout.intervals?.length > 0 && (
-        <div style={{ background: 'var(--surface)', border: '1px solid var(--rule)', borderRadius: 'var(--radius-md)', padding: 'var(--space-5)' }}>
-          <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--ink-2)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 'var(--space-4)' }}>
-            Intervals
-          </div>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'var(--font-mono)', fontSize: '0.85rem' }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid var(--rule)' }}>
-                <th style={thStyle}>#</th>
-                <th style={thStyle}>Dist</th>
-                <th style={thStyle}>Time</th>
-                <th style={thStyle}>Pace</th>
-                <th style={thStyle}>Rate</th>
-                <th style={thStyle}>HR</th>
-              </tr>
-            </thead>
-            <tbody>
-              {workout.intervals.map((iv, i) => {
-                const isBest = workout.intervals.every(other => iv.pace_ms <= other.pace_ms || other === iv);
-                return (
-                  <tr key={i} style={{ borderBottom: '1px solid var(--rule)', background: isBest ? 'var(--accent-bg)' : 'transparent' }}>
-                    <td style={tdStyle}>{i + 1}</td>
-                    <td style={tdStyle}>{iv.distance}m</td>
-                    <td style={tdStyle}>{formatTime(iv.time_ms)}</td>
-                    <td style={tdStyle}>{formatPace(iv.pace_ms)}</td>
-                    <td style={tdStyle}>{iv.stroke_rate || '—'}</td>
-                    <td style={tdStyle}>{iv.heart_rate_avg || '—'}</td>
+          {splitRows.length > 0 ? (
+            <div className={styles.tableWrap}>
+              <table className={styles.splitsTable}>
+                <thead>
+                  <tr>
+                    <th>Split</th>
+                    <th>Time</th>
+                    <th>Pace</th>
+                    <th>Rate</th>
+                    <th>HR</th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+                </thead>
+                <tbody>
+                  {splitRows.map(row => (
+                    <tr key={row.key}>
+                      <td>{row.label}</td>
+                      <td>{formatTimePrecise(row.time_ms)}</td>
+                      <td className={row.best ? styles.bestSplit : undefined}>{formatPace(row.pace_ms)}</td>
+                      <td>{row.stroke_rate ? row.stroke_rate.toFixed(1) : '--'}</td>
+                      <td>{row.heart_rate ? Math.round(row.heart_rate) : '--'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className={styles.emptyAnalysis}>No split data is available for this workout.</div>
+          )}
+        </section>
 
-      <MetricsBar metrics={workout.metrics} />
+        <section className={styles.panel} aria-labelledby="details-title">
+          <div className={styles.panelHeader}>
+            <div className={styles.panelTitle} id="details-title">
+              <span className={styles.panelIcon}><Gauge size={18} /></span>
+              Details
+            </div>
+          </div>
+          <StatRows rows={detailRows} compact />
+          {comments && (
+            <div className={styles.note}>
+              <div className={styles.panelTitle}>
+                <MessageSquare size={17} />
+                Notes
+              </div>
+              <p style={{ marginTop: 'var(--space-3)' }}>{comments}</p>
+            </div>
+          )}
+        </section>
+      </div>
     </div>
   );
 }
 
-function StatCell({ label, value, accent }) {
+function StatRows({ rows }) {
   return (
-    <div>
-      <div style={{ fontSize: '0.7rem', color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 500 }}>{label}</div>
-      <div style={{
-        fontFamily: 'var(--font-mono)', fontSize: '1.1rem', fontWeight: 600,
-        color: accent ? 'var(--accent)' : 'var(--ink)', letterSpacing: '-0.02em',
-      }}>{value}</div>
+    <div className={styles.statRows}>
+      {rows.map(row => {
+        const Icon = row.icon;
+        return (
+          <div className={styles.statRow} key={row.label}>
+            <div className={styles.statLabel}>
+              {Icon && <Icon className={styles.statRowIcon} size={16} />}
+              {row.label}
+            </div>
+            <div className={`${styles.statValue} ${row.accent ? styles.accentValue : ''}`}>
+              {row.value}
+              {row.unit && <span className={styles.statUnit}>{row.unit}</span>}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-const thStyle = { textAlign: 'left', padding: '6px 8px', fontSize: '0.7rem', color: 'var(--ink-3)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.04em' };
-const tdStyle = { padding: '6px 8px' };
+function ChartTooltip({ active, payload, label, formatPace }) {
+  if (!active || !payload?.length) return null;
+
+  return (
+    <div style={{
+      background: 'var(--surface)',
+      border: '1px solid var(--rule)',
+      borderRadius: 'var(--radius-sm)',
+      padding: 'var(--space-2) var(--space-3)',
+      color: 'var(--ink)',
+      fontSize: '0.78rem',
+      boxShadow: '0 12px 30px rgba(0, 0, 0, 0.18)',
+    }}>
+      <div style={{ color: 'var(--ink-3)', fontFamily: 'var(--font-mono)', marginBottom: 4 }}>{Math.round(label)}m</div>
+      {payload.map(item => (
+        <div key={item.dataKey} style={{ display: 'flex', gap: 10, justifyContent: 'space-between', color: item.color }}>
+          <span>{tooltipLabel(item.dataKey)}</span>
+          <strong>{tooltipValue(item.dataKey, item.value, formatPace)}</strong>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function tooltipLabel(key) {
+  if (key === 'pace_ms') return 'Pace';
+  if (key === 'stroke_rate') return 'Rate';
+  if (key === 'heart_rate') return 'HR';
+  return key;
+}
+
+function tooltipValue(key, value, formatPace) {
+  if (value == null) return '--';
+  if (key === 'pace_ms') return formatPace(value);
+  if (key === 'stroke_rate') return `${Number(value).toFixed(1)} s/m`;
+  if (key === 'heart_rate') return `${Math.round(value)} bpm`;
+  return value;
+}
+
+function buildStrokeSeries(strokes = []) {
+  const valid = strokes.filter(s => s?.pace_ms > 0 && s?.distance_m >= 0);
+  if (valid.length <= 260) {
+    return valid.map(formatStrokePoint);
+  }
+
+  const step = Math.max(1, Math.floor(valid.length / 260));
+  const sampled = valid.filter((_, index) => index % step === 0);
+  const last = valid[valid.length - 1];
+  if (sampled[sampled.length - 1] !== last) sampled.push(last);
+  return sampled.map(formatStrokePoint);
+}
+
+function formatStrokePoint(stroke) {
+  return {
+    distance: Math.round(stroke.distance_m),
+    pace_ms: stroke.pace_ms,
+    stroke_rate: stroke.stroke_rate,
+    heart_rate: stroke.heart_rate,
+  };
+}
+
+function buildSplitRows(workout) {
+  if (!workout) return [];
+
+  if (workout.intervals?.length > 0) {
+    const rows = workout.intervals.map((interval, index) => ({
+      key: `interval-${interval.id || index}`,
+      label: `${index + 1}`,
+      time_ms: interval.time_ms,
+      pace_ms: interval.pace_ms,
+      stroke_rate: interval.stroke_rate,
+      heart_rate: interval.heart_rate_avg,
+      best: false,
+    }));
+    return markBest(rows);
+  }
+
+  const strokes = (workout.strokes || []).filter(s => s?.pace_ms > 0 && s?.distance_m >= 0);
+  if (strokes.length < 2 || !workout.distance) return [];
+
+  const splitSize = workout.distance <= 3000 ? 500 : 1000;
+  const splitCount = Math.ceil(workout.distance / splitSize);
+  const rows = [];
+
+  for (let index = 0; index < splitCount; index += 1) {
+    const start = index * splitSize;
+    const end = Math.min((index + 1) * splitSize, workout.distance);
+    const bucket = strokes.filter(stroke => stroke.distance_m >= start && stroke.distance_m <= end);
+    if (bucket.length === 0) continue;
+
+    const distance = end - start;
+    const pace = average(bucket.map(stroke => stroke.pace_ms));
+    rows.push({
+      key: `distance-${index}`,
+      label: `${start}-${end}m`,
+      time_ms: pace ? (distance / 500) * pace : null,
+      pace_ms: pace,
+      stroke_rate: average(bucket.map(stroke => stroke.stroke_rate)),
+      heart_rate: average(bucket.map(stroke => stroke.heart_rate)),
+      best: false,
+    });
+  }
+
+  return markBest(rows);
+}
+
+function markBest(rows) {
+  const bestPace = Math.min(...rows.map(row => row.pace_ms).filter(Boolean));
+  return rows.map(row => ({ ...row, best: row.pace_ms === bestPace }));
+}
+
+function average(values) {
+  const valid = values.filter(value => Number.isFinite(Number(value)) && Number(value) > 0);
+  if (valid.length === 0) return null;
+  return valid.reduce((sum, value) => sum + Number(value), 0) / valid.length;
+}
+
+function paceToWatts(paceMs) {
+  if (!paceMs || paceMs <= 0) return null;
+  const paceSeconds = paceMs / 1000;
+  return Math.round(2.8 / Math.pow(paceSeconds / 500, 3));
+}
+
+function wattsToCalHr(watts) {
+  if (!watts) return null;
+  return Math.round(watts * 0.86 + 300);
+}
+
+function getPrimaryMetric(units) {
+  if (units === 'watts') {
+    return {
+      averageLabel: 'Ave. Power',
+      targetLabel: 'Target Power',
+      chartLabel: 'Power',
+      chartUnit: 'watt',
+      unit: undefined,
+    };
+  }
+
+  if (units === 'calhr') {
+    return {
+      averageLabel: 'Ave. Calories Per Hour',
+      targetLabel: 'Target Calories Per Hour',
+      chartLabel: 'Calories',
+      chartUnit: 'cal/hr',
+      unit: undefined,
+    };
+  }
+
+  return {
+    averageLabel: 'Ave. Pace',
+    targetLabel: 'Target Pace',
+    chartLabel: 'Pace',
+    chartUnit: '/500m',
+    unit: '/500m',
+  };
+}
+
+function formatDateShort(date) {
+  return date.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' });
+}
+
+function formatClock(date) {
+  return date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+}
+
+function formatTimePrecise(timeMs) {
+  if (!timeMs || timeMs <= 0) return '--';
+  const totalTenths = Math.round(timeMs / 100);
+  const totalSeconds = Math.floor(totalTenths / 10);
+  const tenths = totalTenths % 10;
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const secondText = `${String(seconds).padStart(2, '0')}.${tenths}`;
+
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, '0')}:${secondText}`;
+  }
+  return `${minutes}:${secondText}`;
+}
+
+function formatDistanceNumber(meters) {
+  if (!meters) return '--';
+  return Math.round(meters).toLocaleString();
+}
+
+function formatNumber(value) {
+  if (value == null || value === '' || Number.isNaN(Number(value))) return '--';
+  return Math.round(Number(value)).toLocaleString();
+}
+
+function formatRate(value) {
+  if (!value) return '--';
+  const numeric = Number(value);
+  return Number.isInteger(numeric) ? String(numeric) : numeric.toFixed(1);
+}
+
+function signed(value) {
+  if (value == null) return '--';
+  const rounded = Math.round(Number(value));
+  return rounded > 0 ? `+${rounded}` : String(rounded);
+}

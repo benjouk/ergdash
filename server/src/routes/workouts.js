@@ -107,6 +107,8 @@ function formatWorkout(row) {
     heart_rate_avg: row.heart_rate_avg,
     heart_rate_max: row.heart_rate_max,
     drag_factor: row.drag_factor,
+    rest_distance: row.rest_distance,
+    rest_time_ms: row.rest_time_ms,
     comments: row.comments,
     has_stroke_data: !!row.has_stroke_data,
     metrics: {
