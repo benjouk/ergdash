@@ -1,0 +1,132 @@
+.ticker {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--ticker-height);
+  background: var(--ticker-bg);
+  color: var(--ticker-text);
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-5);
+  gap: var(--space-5);
+  z-index: 100;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.logo {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.15rem;
+  letter-spacing: -0.03em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.logoSlash {
+  color: var(--ticker-accent);
+}
+
+.stats {
+  display: flex;
+  gap: var(--space-5);
+  flex-shrink: 0;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+}
+
+.statLabel {
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ticker-dim);
+  font-weight: 500;
+}
+
+.statValue {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--ticker-text);
+  letter-spacing: -0.02em;
+}
+
+.traceContainer {
+  flex: 1;
+  min-width: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.nav {
+  display: flex;
+  gap: var(--space-1);
+  flex-shrink: 0;
+}
+
+.navLink {
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--ticker-dim);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  transition: color 150ms, background 150ms;
+}
+
+.navLink:hover {
+  color: var(--ticker-text);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.navLinkActive {
+  color: var(--ticker-accent);
+}
+
+.themeToggle {
+  color: var(--ticker-dim);
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  transition: color 150ms;
+}
+
+.themeToggle:hover {
+  color: var(--ticker-text);
+}
+
+.syncDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ticker-accent);
+  flex-shrink: 0;
+}
+
+.syncDotSyncing {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+@media (max-width: 768px) {
+  .stats, .traceContainer {
+    display: none;
+  }
+  .ticker {
+    padding: 0 var(--space-3);
+    gap: var(--space-3);
+  }
+}

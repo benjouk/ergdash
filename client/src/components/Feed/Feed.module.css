@@ -1,0 +1,100 @@
+.feed {
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.feedHeader {
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+  padding: var(--space-2) var(--space-2) var(--space-1);
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 150ms;
+  border: 1px solid transparent;
+}
+
+.item:hover {
+  background: var(--surface-alt);
+  border-color: var(--rule);
+}
+
+.itemActive {
+  background: var(--accent-bg);
+  border-color: var(--accent);
+}
+
+.itemTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.itemDate {
+  font-size: 0.75rem;
+  color: var(--ink-3);
+}
+
+.itemTag {
+  font-size: 0.6rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+
+.tagEndurance {
+  color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.tagInterval {
+  color: var(--accent-2);
+  background: var(--accent-2-bg);
+}
+
+.tagTest {
+  color: var(--hot);
+  background: var(--hot-bg);
+}
+
+.tagWarmup {
+  color: var(--ink-3);
+  background: var(--surface-alt);
+}
+
+.itemMetrics {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+.itemPace {
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: -0.02em;
+}
+
+.itemDetail {
+  font-size: 0.75rem;
+  color: var(--ink-2);
+}
+
+.sparklineRow {
+  height: 20px;
+}
