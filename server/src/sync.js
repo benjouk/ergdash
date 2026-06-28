@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import { getDb } from './db.js';
 import { getValidToken, fetchC2Api } from './auth.js';
+import { tagAllWorkouts, computeAllMetrics, computeFitnessLog } from './analytics.js';
 
 let syncInProgress = false;
 
@@ -48,8 +49,9 @@ function insertWorkout(db, workout) {
     )
   `);
 
-  const paceMs = workout.workout?.pace?.value
-    ? Math.round(workout.workout.pace.value * 10)
+  const timeMs = workout.time ? Math.round(workout.time * 100) : 0;
+  const paceMs = (timeMs > 0 && workout.distance > 0)
+    ? Math.round((timeMs / workout.distance) * 500)
     : null;
 
   stmt.run(
@@ -60,7 +62,7 @@ function insertWorkout(db, workout) {
     workout.type || 'rower',
     workout.workout_type || 'FixedDistanceSplits',
     workout.distance,
-    workout.time ? Math.round(workout.time * 100) : 0,
+    timeMs,
     paceMs,
     workout.stroke_rate,
     workout.stroke_count,
@@ -83,10 +85,13 @@ function insertWorkout(db, workout) {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     workout.intervals.forEach((iv, idx) => {
+      const ivTimeMs = iv.time ? Math.round(iv.time * 100) : null;
+      const ivPaceMs = (ivTimeMs > 0 && iv.distance > 0)
+        ? Math.round((ivTimeMs / iv.distance) * 500)
+        : null;
       intervalStmt.run(
         workout.id, idx, iv.type || 'work',
-        iv.distance, iv.time ? Math.round(iv.time * 100) : null,
-        iv.pace ? Math.round(iv.pace * 10) : null,
+        iv.distance, ivTimeMs, ivPaceMs,
         iv.stroke_rate, iv.stroke_count, iv.calories_total,
         iv.heart_rate?.average || null, iv.heart_rate?.max || null
       );
@@ -134,6 +139,8 @@ export async function runFullSync() {
       await delay(200);
     }
 
+    console.log(`Full sync complete: ${totalSynced} workouts synced`);
+    runPostSyncAnalytics();
     setSyncState('last_sync_completed', new Date().toISOString());
     setSyncState('sync_status', 'idle');
   } catch (err) {
@@ -170,6 +177,8 @@ export async function runIncrementalSync() {
           insertWorkout(db, workout);
         }
       })();
+      console.log(`Incremental sync: ${results.length} new workouts`);
+      runPostSyncAnalytics();
     }
 
     setSyncState('last_sync_completed', new Date().toISOString());
@@ -182,14 +191,30 @@ export async function runIncrementalSync() {
   }
 }
 
+function runPostSyncAnalytics() {
+  try {
+    tagAllWorkouts();
+    computeAllMetrics();
+    computeFitnessLog();
+    console.log('Post-sync analytics complete');
+  } catch (err) {
+    console.error('Post-sync analytics error:', err);
+  }
+}
+
 export async function runStrokeEnrichment() {
   const token = await getValidToken();
   if (!token) return;
 
   const db = getDb();
+  const remaining = db.prepare('SELECT COUNT(*) as c FROM workouts WHERE has_stroke_data = 0').get().c;
+  if (remaining === 0) return;
+
   const workouts = db.prepare(
     'SELECT id FROM workouts WHERE has_stroke_data = 0 ORDER BY date DESC LIMIT 10'
   ).all();
+
+  console.log(`Stroke enrichment: processing ${workouts.length} of ${remaining} remaining`);
 
   const strokeStmt = db.prepare(`
     INSERT OR IGNORE INTO strokes (
@@ -206,18 +231,29 @@ export async function runStrokeEnrichment() {
       if (strokeData.length > 0) {
         db.transaction(() => {
           strokeData.forEach((s, idx) => {
+            const timeS = s.t != null ? s.t / 10 : s.time || null;
+            const distM = s.d != null ? s.d : s.distance || null;
+            let sPaceMs = s.p ? Math.round(s.p * 100) : null;
+            if (!sPaceMs && timeS > 0 && distM > 0 && idx > 0) {
+              const prevD = strokeData[idx - 1]?.d ?? strokeData[idx - 1]?.distance ?? 0;
+              const prevT = strokeData[idx - 1]?.t != null ? strokeData[idx - 1].t / 10 : strokeData[idx - 1]?.time ?? 0;
+              const deltaD = distM - prevD;
+              const deltaT = timeS - prevT;
+              if (deltaD > 0 && deltaT > 0) {
+                sPaceMs = Math.round((deltaT / deltaD) * 500 * 1000);
+              }
+            }
             strokeStmt.run(
-              id, idx,
-              s.t || s.time || null,
-              s.d || s.distance || null,
-              s.p ? Math.round(s.p * 10) : null,
-              s.watts || null,
-              s.cal_hr || null,
+              id, idx, timeS, distM, sPaceMs,
+              s.watts || null, s.cal_hr || null,
               s.spm || s.stroke_rate || null,
               s.hr || s.heart_rate || null
             );
           });
         })();
+        console.log(`  Workout ${id}: ${strokeData.length} strokes`);
+      } else {
+        console.log(`  Workout ${id}: no stroke data available`);
       }
 
       db.prepare('UPDATE workouts SET has_stroke_data = 1 WHERE id = ?').run(id);

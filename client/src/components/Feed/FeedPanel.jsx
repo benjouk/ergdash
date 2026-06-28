@@ -26,6 +26,14 @@ const TAG_CLASS = {
   warmup: styles.tagWarmup,
 };
 
+function workoutTitle(w) {
+  const dist = w.distance >= 1000 ? `${(w.distance / 1000).toFixed(w.distance % 1000 === 0 ? 0 : 1)}k` : `${w.distance}m`;
+  if (w.inferred_tag === 'interval') return `${dist} intervals`;
+  if (w.inferred_tag === 'test') return `${dist} test`;
+  if (w.inferred_tag === 'warmup') return `${dist} warmup`;
+  return `${dist} steady`;
+}
+
 export default function FeedPanel() {
   const [workouts, setWorkouts] = useState([]);
   const navigate = useNavigate();
@@ -37,6 +45,13 @@ export default function FeedPanel() {
       .then(data => setWorkouts(data.data || []))
       .catch(() => {});
   }, []);
+
+  if (workouts.length === 0) return (
+    <div className={styles.feed}>
+      <div className={styles.feedHeader}>Recent Sessions</div>
+      <div style={{ padding: 'var(--space-4)', color: 'var(--ink-3)', fontSize: '0.8rem' }}>No workouts yet</div>
+    </div>
+  );
 
   return (
     <div className={styles.feed}>
@@ -55,20 +70,14 @@ export default function FeedPanel() {
               </span>
             )}
           </div>
+          <div className={styles.itemTitle}>{workoutTitle(w)}</div>
           <div className={styles.itemMetrics}>
             <span className={styles.itemPace}>{formatPace(w.pace_ms)}</span>
             <span className={styles.itemDetail}>
               {formatDistance(w.distance)} · {formatTime(w.time_ms)}
+              {w.stroke_rate ? ` · ${w.stroke_rate}spm` : ''}
             </span>
           </div>
-          {w.has_stroke_data && (
-            <div className={styles.sparklineRow}>
-              <Sparkline
-                data={[w.pace_ms * 0.97, w.pace_ms, w.pace_ms * 1.01, w.pace_ms * 0.99, w.pace_ms * 1.02]}
-                color={w.inferred_tag === 'interval' ? 'var(--accent-2)' : 'var(--accent)'}
-              />
-            </div>
-          )}
         </div>
       ))}
     </div>

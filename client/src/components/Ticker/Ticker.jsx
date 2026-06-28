@@ -18,7 +18,11 @@ export default function Ticker() {
   useEffect(() => {
     api.getSummary().then(setSummary).catch(() => {});
     api.getTrends({ metric: 'pace', period: '90d' }).then(data => {
-      setPaceTrend(data.pace_trend?.slice(-30) || []);
+      const rows = data.pace_trend || [];
+      if (rows.length > 0) return setPaceTrend(rows.slice(-30));
+      return api.getTrends({ metric: 'pace', period: 'all' }).then(d2 => {
+        setPaceTrend((d2.pace_trend || []).slice(-30));
+      });
     }).catch(() => {});
   }, []);
 
@@ -32,21 +36,21 @@ export default function Ticker() {
 
       <div className={styles.stats}>
         <div className={styles.stat}>
-          <span className={styles.statLabel}>Season</span>
+          <span className={styles.statLabel}>{summary?.season_meters > 0 ? 'Season' : 'Total'}</span>
           <span className={styles.statValue}>
-            {summary ? formatDistanceFull(summary.season_meters) : '—'}
+            {summary ? formatDistanceFull(summary.season_meters > 0 ? summary.season_meters : summary.total_meters) : '—'}
           </span>
         </div>
         <div className={styles.stat}>
           <span className={styles.statLabel}>Avg Pace</span>
           <span className={styles.statValue}>
-            {summary ? formatPace(summary.avg_pace_30d) : '—'}
+            {summary ? formatPace(summary.avg_pace) : '—'}
           </span>
         </div>
         <div className={styles.stat}>
           <span className={styles.statLabel}>Streak</span>
           <span className={styles.statValue}>
-            {summary ? `${summary.current_streak}d` : '—'}
+            {summary ? `${summary.current_streak_weeks}w` : '—'}
           </span>
         </div>
       </div>

@@ -5,11 +5,12 @@ import compression from 'compression';
 import morgan from 'morgan';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { initDb } from './src/db.js';
+import { initDb, getDb } from './src/db.js';
 import { startSyncSchedule } from './src/sync.js';
 import { isAuthenticated } from './src/auth.js';
 import { errorHandler } from './src/middleware/error.js';
 import { seedDatabase } from './src/seed.js';
+import { tagAllWorkouts, computeAllMetrics, computeFitnessLog } from './src/analytics.js';
 
 import healthRouter from './src/routes/health.js';
 import authRouter from './src/routes/auth.js';
@@ -67,8 +68,30 @@ app.get('*', (req, res, next) => {
 
 app.use(errorHandler);
 
+tagAllWorkouts();
+computeAllMetrics();
+computeFitnessLog();
+
 if (isAuthenticated()) {
   startSyncSchedule();
+}
+
+recomputePacesIfMissing();
+
+function recomputePacesIfMissing() {
+  const db = getDb();
+  const missing = db.prepare(
+    'SELECT COUNT(*) as c FROM workouts WHERE pace_ms IS NULL AND time_ms > 0 AND distance > 0'
+  ).get().c;
+  if (missing > 0) {
+    db.prepare(
+      'UPDATE workouts SET pace_ms = ROUND((CAST(time_ms AS REAL) / distance) * 500) WHERE pace_ms IS NULL AND time_ms > 0 AND distance > 0'
+    ).run();
+    db.prepare(
+      'UPDATE intervals SET pace_ms = ROUND((CAST(time_ms AS REAL) / distance) * 500) WHERE pace_ms IS NULL AND time_ms > 0 AND distance > 0'
+    ).run();
+    console.log(`Recomputed pace for ${missing} workouts`);
+  }
 }
 
 app.listen(PORT, () => {

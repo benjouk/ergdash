@@ -76,6 +76,13 @@
   background: var(--surface-alt);
 }
 
+.itemTitle {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+
 .itemMetrics {
   display: flex;
   align-items: baseline;

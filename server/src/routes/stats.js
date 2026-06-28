@@ -14,9 +14,9 @@ router.get('/summary', (req, res) => {
   `).get();
 
   const now = new Date();
-  const seasonStart = now.getMonth() >= 8
-    ? `${now.getFullYear()}-09-01`
-    : `${now.getFullYear() - 1}-09-01`;
+  const seasonStart = now.getMonth() >= 4
+    ? `${now.getFullYear()}-05-01`
+    : `${now.getFullYear() - 1}-05-01`;
 
   const season = db.prepare(`
     SELECT COALESCE(SUM(distance), 0) as season_meters,
@@ -28,7 +28,7 @@ router.get('/summary', (req, res) => {
   const sixtyDaysAgo = new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10);
 
   const pace30d = db.prepare(`
-    SELECT AVG(pace_ms) as avg_pace FROM workouts
+    SELECT AVG(pace_ms) as avg_pace, COUNT(*) as count FROM workouts
     WHERE type = 'rower' AND pace_ms > 0 AND date >= ?
   `).get(thirtyDaysAgo);
 
@@ -37,13 +37,22 @@ router.get('/summary', (req, res) => {
     WHERE type = 'rower' AND pace_ms > 0 AND date >= ? AND date < ?
   `).get(sixtyDaysAgo, thirtyDaysAgo);
 
+  const paceAll = db.prepare(`
+    SELECT AVG(pace_ms) as avg_pace FROM workouts
+    WHERE type = 'rower' AND pace_ms > 0
+  `).get();
+
+  const hasRecentData = pace30d?.count > 0;
+  const avgPace = hasRecentData ? pace30d.avg_pace : paceAll?.avg_pace;
+  const avgPacePrior = hasRecentData ? pacePrior30d?.avg_pace : null;
+
   const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
   const thisWeek = db.prepare(`
     SELECT COUNT(*) as count FROM workouts
     WHERE type = 'rower' AND date >= ?
   `).get(sevenDaysAgo);
 
-  const streak = computeStreak(db);
+  const streak = computeWeekStreak(db);
 
   const lastWorkout = db.prepare(`
     SELECT date FROM workouts WHERE type = 'rower' ORDER BY date DESC LIMIT 1
@@ -55,10 +64,11 @@ router.get('/summary', (req, res) => {
     total_time_ms: totals.total_time_ms,
     season_meters: season.season_meters,
     season_workouts: season.season_workouts,
-    avg_pace_30d: pace30d?.avg_pace ? Math.round(pace30d.avg_pace) : null,
-    avg_pace_prior_30d: pacePrior30d?.avg_pace ? Math.round(pacePrior30d.avg_pace) : null,
+    avg_pace: avgPace ? Math.round(avgPace) : null,
+    avg_pace_prior: avgPacePrior ? Math.round(avgPacePrior) : null,
+    avg_pace_label: hasRecentData ? '30d Avg Pace' : 'Avg Pace',
     sessions_this_week: thisWeek.count,
-    current_streak: streak,
+    current_streak_weeks: streak,
     last_workout_date: lastWorkout?.date || null,
   });
 });
@@ -68,7 +78,8 @@ router.get('/trends', (req, res) => {
   const { metric = 'volume', period = '12w' } = req.query;
 
   let fromDate;
-  if (period === '12w') fromDate = new Date(Date.now() - 84 * 86400000);
+  if (period === 'all') fromDate = new Date(0);
+  else if (period === '12w') fromDate = new Date(Date.now() - 84 * 86400000);
   else if (period === '30d') fromDate = new Date(Date.now() - 30 * 86400000);
   else if (period === '90d') fromDate = new Date(Date.now() - 90 * 86400000);
   else if (period === '1y') fromDate = new Date(Date.now() - 365 * 86400000);
@@ -266,20 +277,20 @@ router.get('/decay-curve', (req, res) => {
   res.json(result);
 });
 
-function computeStreak(db) {
-  const dates = db.prepare(`
-    SELECT DISTINCT date(date) as d FROM workouts
-    WHERE type = 'rower' ORDER BY d DESC
-  `).all();
+function computeWeekStreak(db) {
+  const weeks = db.prepare(`
+    SELECT DISTINCT strftime('%Y-%W', date) as w FROM workouts
+    WHERE type = 'rower' ORDER BY w DESC
+  `).all().map(r => r.w);
 
-  if (dates.length === 0) return 0;
+  if (weeks.length === 0) return 0;
 
   let streak = 1;
-  for (let i = 1; i < dates.length; i++) {
-    const prev = new Date(dates[i - 1].d);
-    const curr = new Date(dates[i].d);
-    const diffDays = (prev - curr) / 86400000;
-    if (diffDays <= 1) streak++;
+  for (let i = 1; i < weeks.length; i++) {
+    const [y1, w1] = weeks[i - 1].split('-').map(Number);
+    const [y2, w2] = weeks[i].split('-').map(Number);
+    const weekDiff = (y1 - y2) * 52 + (w1 - w2);
+    if (weekDiff === 1) streak++;
     else break;
   }
   return streak;

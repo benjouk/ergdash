@@ -23,7 +23,12 @@ export default function PaceChart() {
 
   useEffect(() => {
     api.getTrends({ metric: 'pace', period: '90d' })
-      .then(d => setData(d.pace_trend || []))
+      .then(d => {
+        const rows = d.pace_trend || [];
+        if (rows.length > 0) return setData(rows);
+        return api.getTrends({ metric: 'pace', period: 'all' })
+          .then(d2 => setData(d2.pace_trend || []));
+      })
       .catch(() => {});
   }, []);
 

@@ -9,7 +9,14 @@ export default function FitnessChart({ compact = false }) {
   useEffect(() => {
     const from = new Date(Date.now() - (compact ? 30 : 90) * 86400000).toISOString().slice(0, 10);
     api.getFitness({ from })
-      .then(d => setData(d.fitness_log || []))
+      .then(d => {
+        const rows = d.fitness_log || [];
+        if (rows.length > 0) return setData(rows);
+        return api.getFitness({}).then(d2 => {
+          const all = d2.fitness_log || [];
+          return setData(compact ? all.slice(-30) : all);
+        });
+      })
       .catch(() => {});
   }, [compact]);
 

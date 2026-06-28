@@ -8,7 +8,12 @@ export default function VolumeChart() {
 
   useEffect(() => {
     api.getTrends({ metric: 'volume', period: '12w' })
-      .then(d => setData(d.weekly_volume || []))
+      .then(d => {
+        const rows = d.weekly_volume || [];
+        if (rows.length > 0) return setData(rows);
+        return api.getTrends({ metric: 'volume', period: 'all' })
+          .then(d2 => setData((d2.weekly_volume || []).slice(-12)));
+      })
       .catch(() => {});
   }, []);
 
