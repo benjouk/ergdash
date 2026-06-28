@@ -39,7 +39,7 @@ app.use('/health', healthRouter);
 app.use('/auth', authRouter);
 
 function requireAuth(req, res, next) {
-  if (process.env.NODE_ENV !== 'production' && !isAuthenticated()) {
+  if (process.env.NODE_ENV !== 'production') {
     return next();
   }
   if (!isAuthenticated()) {

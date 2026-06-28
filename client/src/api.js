@@ -6,7 +6,6 @@ async function request(path, options = {}) {
   });
 
   if (res.status === 401) {
-    window.location.href = '/';
     throw new Error('Not authenticated');
   }
 
