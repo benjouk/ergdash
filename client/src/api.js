@@ -23,6 +23,7 @@ export const api = {
 
   getWorkouts: (params = {}) => request(`/api/workouts?${new URLSearchParams(params)}`),
   getWorkout: (id) => request(`/api/workouts/${id}`),
+  enrichWorkout: (id) => request(`/api/workouts/${id}/enrich`, { method: 'POST' }),
 
   getSummary: (params = {}) => request(`/api/stats/summary?${new URLSearchParams(params)}`),
   getTrends: (params = {}) => request(`/api/stats/trends?${new URLSearchParams(params)}`),

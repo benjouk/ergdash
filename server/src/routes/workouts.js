@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { getDb } from '../db.js';
+import { enrichSingleWorkout } from '../sync.js';
 
 const router = Router();
 
@@ -156,5 +157,15 @@ function getPaceProfile(db, workoutId) {
 
   return intervals.length >= 2 ? intervals : [];
 }
+
+router.post('/:id/enrich', async (req, res) => {
+  const id = Number(req.params.id);
+  try {
+    const result = await enrichSingleWorkout(id);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 export default router;

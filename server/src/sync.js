@@ -203,6 +203,59 @@ function runPostSyncAnalytics() {
   }
 }
 
+async function fetchAndStoreStrokes(db, id, token) {
+  const detail = await fetchC2Api(`/api/users/me/results/${id}`, token);
+  const strokeData = detail.strokes || detail.stroke_data || [];
+
+  const strokeStmt = db.prepare(`
+    INSERT OR IGNORE INTO strokes (
+      workout_id, stroke_number, time_s, distance_m,
+      pace_ms, watts, cal_hr, stroke_rate, heart_rate
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  if (strokeData.length > 0) {
+    db.transaction(() => {
+      strokeData.forEach((s, idx) => {
+        const timeS = s.t != null ? s.t / 10 : s.time || null;
+        const distM = s.d != null ? s.d : s.distance || null;
+        let sPaceMs = s.p ? Math.round(s.p * 100) : null;
+        if (!sPaceMs && timeS > 0 && distM > 0 && idx > 0) {
+          const prevD = strokeData[idx - 1]?.d ?? strokeData[idx - 1]?.distance ?? 0;
+          const prevT = strokeData[idx - 1]?.t != null ? strokeData[idx - 1].t / 10 : strokeData[idx - 1]?.time ?? 0;
+          const deltaD = distM - prevD;
+          const deltaT = timeS - prevT;
+          if (deltaD > 0 && deltaT > 0) {
+            sPaceMs = Math.round((deltaT / deltaD) * 500 * 1000);
+          }
+        }
+        strokeStmt.run(
+          id, idx, timeS, distM, sPaceMs,
+          s.watts || null, s.cal_hr || null,
+          s.spm || s.stroke_rate || null,
+          s.hr || s.heart_rate || null
+        );
+      });
+    })();
+  }
+
+  db.prepare('UPDATE workouts SET has_stroke_data = 1 WHERE id = ?').run(id);
+  return { strokes: strokeData.length };
+}
+
+export async function enrichSingleWorkout(id) {
+  const token = await getValidToken();
+  if (!token) throw new Error('Not authenticated');
+
+  const db = getDb();
+  db.prepare('DELETE FROM strokes WHERE workout_id = ?').run(id);
+  db.prepare('UPDATE workouts SET has_stroke_data = 0 WHERE id = ?').run(id);
+
+  const result = await fetchAndStoreStrokes(db, id, token);
+  console.log(`Manual enrichment for workout ${id}: ${result.strokes} strokes`);
+  return result;
+}
+
 export async function runStrokeEnrichment() {
   const token = await getValidToken();
   if (!token) return;
@@ -217,47 +270,10 @@ export async function runStrokeEnrichment() {
 
   console.log(`Stroke enrichment: processing ${workouts.length} of ${remaining} remaining`);
 
-  const strokeStmt = db.prepare(`
-    INSERT OR IGNORE INTO strokes (
-      workout_id, stroke_number, time_s, distance_m,
-      pace_ms, watts, cal_hr, stroke_rate, heart_rate
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-
   for (const { id } of workouts) {
     try {
-      const detail = await fetchC2Api(`/api/users/me/results/${id}`, token);
-      const strokeData = detail.strokes || detail.stroke_data || [];
-
-      if (strokeData.length > 0) {
-        db.transaction(() => {
-          strokeData.forEach((s, idx) => {
-            const timeS = s.t != null ? s.t / 10 : s.time || null;
-            const distM = s.d != null ? s.d : s.distance || null;
-            let sPaceMs = s.p ? Math.round(s.p * 100) : null;
-            if (!sPaceMs && timeS > 0 && distM > 0 && idx > 0) {
-              const prevD = strokeData[idx - 1]?.d ?? strokeData[idx - 1]?.distance ?? 0;
-              const prevT = strokeData[idx - 1]?.t != null ? strokeData[idx - 1].t / 10 : strokeData[idx - 1]?.time ?? 0;
-              const deltaD = distM - prevD;
-              const deltaT = timeS - prevT;
-              if (deltaD > 0 && deltaT > 0) {
-                sPaceMs = Math.round((deltaT / deltaD) * 500 * 1000);
-              }
-            }
-            strokeStmt.run(
-              id, idx, timeS, distM, sPaceMs,
-              s.watts || null, s.cal_hr || null,
-              s.spm || s.stroke_rate || null,
-              s.hr || s.heart_rate || null
-            );
-          });
-        })();
-        console.log(`  Workout ${id}: ${strokeData.length} strokes`);
-      } else {
-        console.log(`  Workout ${id}: no stroke data available`);
-      }
-
-      db.prepare('UPDATE workouts SET has_stroke_data = 1 WHERE id = ?').run(id);
+      const result = await fetchAndStoreStrokes(db, id, token);
+      console.log(`  Workout ${id}: ${result.strokes} strokes`);
       await delay(1000);
     } catch (err) {
       console.error(`Stroke enrichment failed for workout ${id}:`, err);
