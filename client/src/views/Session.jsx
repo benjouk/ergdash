@@ -29,6 +29,7 @@ import {
 import { api } from '../api.js';
 import { useUnits } from '../context/UnitsContext.jsx';
 import PaceRibbon from '../components/PaceRibbon/PaceRibbon.jsx';
+import Sparkline from '../components/Feed/Sparkline.jsx';
 import styles from './Session.module.css';
 
 export default function Session() {
@@ -80,6 +81,7 @@ export default function Session() {
   const hasStrokeRate = strokeData.some(d => d.stroke_rate > 0);
   const hasHeartRate = strokeData.some(d => d.heart_rate > 0);
   const hasAnalysis = strokeData.length > 1;
+  const hasPaceProfile = !hasAnalysis && workout.pace_profile?.length >= 2;
   const comments = workout.comments?.trim();
   const primaryMetric = getPrimaryMetric(units);
 
@@ -158,6 +160,27 @@ export default function Session() {
       {workout.ai_note && (
         <div className={styles.aiNote}>
           {workout.ai_note}
+        </div>
+      )}
+
+      {hasPaceProfile && (
+        <div className={styles.card}>
+          <div className={styles.chartStack}>
+            <div className={styles.chartBlock}>
+              <div className={styles.chartLabel}>
+                Pace profile
+              </div>
+              <div className={styles.sparklineBox}>
+                <Sparkline
+                  data={workout.pace_profile}
+                  color={isInterval ? 'var(--accent-2)' : 'var(--accent)'}
+                  width={600}
+                  height={80}
+                  strokeWidth={2}
+                />
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

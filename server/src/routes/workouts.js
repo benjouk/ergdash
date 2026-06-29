@@ -86,6 +86,7 @@ router.get('/:id', (req, res) => {
     ...formatWorkout(workout),
     intervals,
     strokes,
+    pace_profile: getPaceProfile(db, id),
     ai_note: aiNotes?.content || null,
   });
 });
