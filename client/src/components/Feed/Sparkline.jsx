@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 
-export default function Sparkline({ data, color = 'var(--accent)', width = 60, height = 18 }) {
+export default function Sparkline({ data, color = 'var(--accent)', width = 60, height = 18, strokeWidth = 1.2 }) {
   const path = useMemo(() => {
     if (!data || data.length < 2) return null;
 
@@ -22,7 +22,7 @@ export default function Sparkline({ data, color = 'var(--accent)', width = 60, h
 
   return (
     <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
-      <path d={path} fill="none" stroke={color} strokeWidth="1.2" strokeLinejoin="round" />
+      <path d={path} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinejoin="round" />
     </svg>
   );
 }
