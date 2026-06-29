@@ -4,6 +4,7 @@ import { Download, ChevronUp, ChevronDown } from 'lucide-react';
 import { api } from '../api.js';
 import { useUnits } from '../context/UnitsContext.jsx';
 import { useTimeRange } from '../context/TimeRangeContext.jsx';
+import Sparkline from '../components/Feed/Sparkline.jsx';
 
 const TAGS = ['', 'endurance', 'interval'];
 
@@ -137,6 +138,7 @@ export default function Workouts() {
               <Th onClick={() => toggleSort('pace')}>Pace <SortIcon field="pace" /></Th>
               <Th>Rate</Th>
               <Th>HR</Th>
+              <Th></Th>
             </tr>
           </thead>
           <tbody>
@@ -153,6 +155,16 @@ export default function Workouts() {
                 <td style={{ ...tdStyle, color: 'var(--accent)', fontWeight: 600 }}>{formatPace(w.pace_ms)}</td>
                 <td style={tdStyle}>{w.stroke_rate || '—'}</td>
                 <td style={tdStyle}>{w.heart_rate_avg || '—'}</td>
+                <td style={tdStyle}>
+                  {w.pace_profile?.length >= 2 && (
+                    <Sparkline
+                      data={w.pace_profile}
+                      color={w.inferred_tag === 'interval' ? 'var(--accent-2)' : 'var(--accent)'}
+                      width={80}
+                      height={20}
+                    />
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>
