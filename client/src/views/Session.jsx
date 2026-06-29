@@ -83,41 +83,37 @@ export default function Session() {
   const comments = workout.comments?.trim();
   const primaryMetric = getPrimaryMetric(units);
 
-  const summaryRows = [
+  const summaryItems = [
     { label: 'Time', value: formatTimePrecise(workout.time_ms) },
     { label: 'Distance', value: formatDistanceNumber(workout.distance), unit: 'm' },
     { label: primaryMetric.averageLabel, value: formatPace(workout.pace_ms), unit: primaryMetric.unit, accent: true },
-    { label: primaryMetric.targetLabel, value: '--' },
+    { label: 'Power', value: formatNumber(avgWatts), unit: 'w' },
+    { label: 'Rate', value: formatRate(workout.stroke_rate), unit: 'spm' },
+    { label: 'Cal/hr', value: formatNumber(avgCalHr) },
   ];
 
   const detailRows = [
-    { label: 'Ave. Stroke Rate', value: formatRate(workout.stroke_rate), unit: 's/m', icon: Activity },
-    { label: 'Ave. Power', value: formatNumber(avgWatts), unit: 'watt', icon: Zap },
-    { label: 'Total Calories', value: formatNumber(workout.calories), unit: 'cal', icon: Flame },
-    { label: 'Ave. Calories Per Hour', value: formatNumber(avgCalHr), unit: 'cal/hr', icon: Flame },
-    { label: 'Drag Factor', value: formatNumber(workout.drag_factor), icon: Gauge },
     { label: 'Stroke Count', value: formatNumber(workout.stroke_count), icon: BarChart3 },
+    { label: 'Total Calories', value: formatNumber(workout.calories), unit: 'cal', icon: Flame },
+    { label: 'Drag Factor', value: formatNumber(workout.drag_factor), icon: Gauge },
     { label: 'Ave. Heart Rate', value: formatNumber(workout.heart_rate_avg), unit: 'bpm', icon: HeartPulse },
     { label: 'Max Heart Rate', value: formatNumber(workout.heart_rate_max), unit: 'bpm', icon: HeartPulse },
-    workout.rest_distance ? { label: 'Rest Distance', value: formatDistanceNumber(workout.rest_distance), unit: 'm', icon: Timer } : null,
-    workout.rest_time_ms ? { label: 'Rest Time', value: formatTimePrecise(workout.rest_time_ms), icon: Timer } : null,
-  ].filter(Boolean);
-
-  const computedRows = [
+    workout.metrics?.drag_delta != null ? { label: 'Drag Delta', value: signed(workout.metrics.drag_delta), icon: Gauge } : null,
     workout.metrics?.fade_index != null ? { label: 'Fade Index', value: `${workout.metrics.fade_index.toFixed(1)}%`, icon: Activity } : null,
     workout.metrics?.consistency != null ? { label: 'Consistency', value: workout.metrics.consistency.toFixed(0), icon: Activity } : null,
     workout.metrics?.effort_score != null ? { label: 'Effort Score', value: workout.metrics.effort_score.toFixed(0), icon: Gauge } : null,
-    workout.metrics?.drag_delta != null ? { label: 'Drag Delta', value: signed(workout.metrics.drag_delta), icon: Gauge } : null,
+    workout.rest_distance ? { label: 'Rest Distance', value: formatDistanceNumber(workout.rest_distance), unit: 'm', icon: Timer } : null,
+    workout.rest_time_ms ? { label: 'Rest Time', value: formatTimePrecise(workout.rest_time_ms), icon: Timer } : null,
   ].filter(Boolean);
 
   return (
     <div className={styles.session}>
       <div className={styles.topbar}>
         <button onClick={() => navigate(-1)} className={styles.backButton}>
-          <ArrowLeft size={17} /> Back
+          <ArrowLeft size={15} /> Back
         </button>
         <button onClick={handleShare} className={styles.iconButton} title={copied ? 'Link copied' : 'Share workout'} aria-label="Share workout">
-          <Share2 size={18} />
+          <Share2 size={15} />
         </button>
       </div>
 
@@ -126,13 +122,13 @@ export default function Session() {
           <div className={styles.titleGroup}>
             <h1 className={styles.sessionTitle}>{formatTime(workout.time_ms)} Row</h1>
             <div className={styles.metaLine}>
-              <CalendarDays size={18} />
+              <CalendarDays size={14} />
               <span>{formatDateShort(date)}</span>
-              <span>-</span>
+              <span>·</span>
               <span>{formatClock(date)}</span>
             </div>
             <div className={styles.privacyLine}>
-              <Lock size={17} />
+              <Lock size={13} />
               <span>Training Partners</span>
             </div>
           </div>
@@ -145,27 +141,29 @@ export default function Session() {
         </div>
       </header>
 
-      <div className={hasAnalysis ? styles.primaryGrid : styles.singleColumnGrid}>
-        <section className={styles.panel} aria-labelledby="workout-summary-title">
-          <div className={styles.panelHeader}>
-            <div className={styles.panelTitle} id="workout-summary-title">
-              <span className={styles.panelIcon}><Timer size={18} /></span>
-              Summary
-            </div>
+      <div className={styles.summaryStrip}>
+        {summaryItems.map(item => (
+          <div className={styles.summaryCell} key={item.label}>
+            <span className={styles.summaryCellLabel}>{item.label}</span>
+            <span className={`${styles.summaryCellValue} ${item.accent ? styles.accentValue : ''}`}>
+              {item.value}
+              {item.unit && <span className={styles.summaryCellUnit}>{item.unit}</span>}
+            </span>
           </div>
-          <StatRows rows={summaryRows} />
-        </section>
+        ))}
+      </div>
 
-        {hasAnalysis && (
-          <section className={`${styles.panel} ${styles.analysisPanel}`} aria-labelledby="analysis-title">
-            <div className={styles.panelHeader}>
-              <div className={styles.panelTitle} id="analysis-title">
-                <span className={styles.panelIcon}><Activity size={18} /></span>
-                Workout Analysis
-              </div>
-              <span className={styles.panelKicker}>{strokeData.length} points</span>
-            </div>
+      {workout.strokes?.length > 0 && <PaceRibbon strokes={workout.strokes} height={48} />}
 
+      {workout.ai_note && (
+        <div className={styles.aiNote}>
+          {workout.ai_note}
+        </div>
+      )}
+
+      {hasAnalysis && (
+        <div className={styles.primaryGrid}>
+          <div className={styles.card}>
             <div className={styles.chartStack}>
               <div className={styles.chartBlock}>
                 <div className={styles.chartLabel}>
@@ -190,13 +188,18 @@ export default function Session() {
                   </ResponsiveContainer>
                 </div>
               </div>
+            </div>
+          </div>
 
-              {(hasStrokeRate || hasHeartRate) && (
+          {(hasStrokeRate || hasHeartRate) && (
+            <div className={styles.card}>
+              <div className={styles.chartStack}>
                 <div className={styles.chartBlock}>
                   <div className={styles.chartLabel}>
-                    Stroke Rate <span className={styles.chartUnit}>s/m</span>
+                    Stroke Rate <span className={styles.chartUnit}>spm</span>
+                    {hasHeartRate && <> · Heart Rate <span className={styles.chartUnit}>bpm</span></>}
                   </div>
-                  <div className={`${styles.chartBox} ${styles.chartBoxShort}`}>
+                  <div className={`${styles.chartBox}`}>
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={strokeData} margin={{ top: 8, right: hasHeartRate ? 8 : 0, bottom: 0, left: 0 }}>
                         <CartesianGrid stroke="var(--rule)" strokeDasharray="5 7" />
@@ -211,98 +214,76 @@ export default function Session() {
                     </ResponsiveContainer>
                   </div>
                 </div>
-              )}
+              </div>
             </div>
-          </section>
-        )}
-      </div>
-
-      {workout.strokes?.length > 0 && <PaceRibbon strokes={workout.strokes} height={58} />}
-
-      {workout.ai_note && (
-        <div className={styles.aiNote}>
-          {workout.ai_note}
+          )}
         </div>
       )}
 
-      <div className={splitRows.length > 0 ? styles.detailGrid : styles.singleColumnGrid}>
-        {splitRows.length > 0 && (
-          <section className={styles.panel} aria-labelledby="splits-title">
-            <div className={styles.panelHeader}>
-              <div className={styles.panelTitle} id="splits-title">
-                <span className={styles.panelIcon}><BarChart3 size={18} /></span>
-                Splits Table
-              </div>
-              <span className={styles.panelKicker}>{splitRows.length} rows</span>
-            </div>
-            <div className={styles.tableWrap}>
-              <table className={styles.splitsTable}>
-                <thead>
-                  <tr>
-                    <th>Split</th>
-                    <th>Time</th>
-                    <th>Pace</th>
-                    <th>Rate</th>
-                    <th>HR</th>
+      {splitRows.length > 0 && (
+        <div className={styles.card}>
+          <div className={styles.cardHeader}>
+            <div className={styles.cardTitle}>Splits</div>
+            <span className={styles.cardKicker}>{splitRows.length} splits</span>
+          </div>
+          <div className={styles.tableWrap}>
+            <table className={styles.splitsTable}>
+              <thead>
+                <tr>
+                  <th>Split</th>
+                  <th>Time</th>
+                  <th>Pace</th>
+                  <th>Rate</th>
+                  <th>HR</th>
+                </tr>
+              </thead>
+              <tbody>
+                {splitRows.map(row => (
+                  <tr key={row.key}>
+                    <td>{row.label}</td>
+                    <td>{formatTimePrecise(row.time_ms)}</td>
+                    <td className={row.best ? styles.bestSplit : undefined}>{formatPace(row.pace_ms)}</td>
+                    <td>{row.stroke_rate ? row.stroke_rate.toFixed(1) : '--'}</td>
+                    <td>{row.heart_rate ? Math.round(row.heart_rate) : '--'}</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {splitRows.map(row => (
-                    <tr key={row.key}>
-                      <td>{row.label}</td>
-                      <td>{formatTimePrecise(row.time_ms)}</td>
-                      <td className={row.best ? styles.bestSplit : undefined}>{formatPace(row.pace_ms)}</td>
-                      <td>{row.stroke_rate ? row.stroke_rate.toFixed(1) : '--'}</td>
-                      <td>{row.heart_rate ? Math.round(row.heart_rate) : '--'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-        )}
-
-        <section className={styles.panel} aria-labelledby="details-title">
-          <div className={styles.panelHeader}>
-            <div className={styles.panelTitle} id="details-title">
-              <span className={styles.panelIcon}><Gauge size={18} /></span>
-              Details
-            </div>
+                ))}
+              </tbody>
+            </table>
           </div>
-          <StatRows rows={[...detailRows, ...computedRows]} />
-          {comments && (
-            <div className={styles.note}>
-              <div className={styles.panelTitle}>
-                <MessageSquare size={17} />
-                Notes
+        </div>
+      )}
+
+      <div className={styles.card}>
+        <div className={styles.cardHeader}>
+          <div className={styles.cardTitle}>Details</div>
+        </div>
+        <div className={styles.detailRows}>
+          {detailRows.map(row => {
+            const Icon = row.icon;
+            return (
+              <div className={styles.detailRow} key={row.label}>
+                <div className={styles.detailLabel}>
+                  {Icon && <Icon className={styles.detailIcon} size={14} />}
+                  {row.label}
+                </div>
+                <div className={styles.detailValue}>
+                  {row.value}
+                  {row.unit && <span className={styles.detailUnit}>{row.unit}</span>}
+                </div>
               </div>
-              <p style={{ marginTop: 'var(--space-3)' }}>{comments}</p>
+            );
+          })}
+        </div>
+        {comments && (
+          <div className={styles.note}>
+            <div className={styles.noteLabel}>
+              <MessageSquare size={13} />
+              Notes
             </div>
-          )}
-        </section>
-      </div>
-    </div>
-  );
-}
-
-function StatRows({ rows }) {
-  return (
-    <div className={styles.statRows}>
-      {rows.map(row => {
-        const Icon = row.icon;
-        return (
-          <div className={styles.statRow} key={row.label}>
-            <div className={styles.statLabel}>
-              {Icon && <Icon className={styles.statRowIcon} size={16} />}
-              {row.label}
-            </div>
-            <div className={`${styles.statValue} ${row.accent ? styles.accentValue : ''}`}>
-              {row.value}
-              {row.unit && <span className={styles.statUnit}>{row.unit}</span>}
-            </div>
+            <p>{comments}</p>
           </div>
-        );
-      })}
+        )}
+      </div>
     </div>
   );
 }
