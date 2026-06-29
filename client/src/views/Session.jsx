@@ -17,7 +17,6 @@ import {
   ArrowLeft,
   BarChart3,
   CalendarDays,
-  Download,
   Flame,
   Gauge,
   HeartPulse,
@@ -46,7 +45,17 @@ export default function Session() {
   useEffect(() => {
     setLoading(true);
     api.getWorkout(id)
-      .then(setWorkout)
+      .then(data => {
+        setWorkout(data);
+        if (!data.has_stroke_data) {
+          setEnriching(true);
+          api.enrichWorkout(id)
+            .then(() => api.getWorkout(id))
+            .then(setWorkout)
+            .catch(() => {})
+            .finally(() => setEnriching(false));
+        }
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [id]);
@@ -69,18 +78,6 @@ export default function Session() {
       setCopied(false);
     }
   }, [formatDistanceFull, formatPace, formatTime, workout]);
-
-  const handleEnrich = useCallback(async () => {
-    setEnriching(true);
-    try {
-      await api.enrichWorkout(id);
-      const updated = await api.getWorkout(id);
-      setWorkout(updated);
-    } catch {
-    } finally {
-      setEnriching(false);
-    }
-  }, [id]);
 
   const strokeData = useMemo(() => buildStrokeSeries(workout?.strokes), [workout?.strokes]);
   const splitRows = useMemo(() => buildSplitRows(workout), [workout]);
@@ -202,12 +199,17 @@ export default function Session() {
       {!hasAnalysis && !hasPaceProfile && (
         <div className={styles.card}>
           <div className={styles.emptyState}>
-            <BarChart3 size={28} className={styles.emptyIcon} />
-            <p className={styles.emptyText}>Stroke data hasn't been fetched yet for this workout.</p>
-            <button className={styles.enrichButton} onClick={handleEnrich} disabled={enriching}>
-              {enriching ? <Loader2 size={15} className={styles.spinner} /> : <Download size={15} />}
-              {enriching ? 'Fetching…' : 'Fetch stroke data'}
-            </button>
+            {enriching ? (
+              <>
+                <Loader2 size={28} className={`${styles.emptyIcon} ${styles.spinner}`} />
+                <p className={styles.emptyText}>Fetching stroke data from Concept2…</p>
+              </>
+            ) : (
+              <>
+                <BarChart3 size={28} className={styles.emptyIcon} />
+                <p className={styles.emptyText}>No stroke-level data available for this workout.</p>
+              </>
+            )}
           </div>
         </div>
       )}
