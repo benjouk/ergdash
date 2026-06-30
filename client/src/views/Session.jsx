@@ -65,11 +65,13 @@ export default function Session() {
             .finally(() => setEnriching(false));
         }
 
-        // Load comparison options: other workouts of the same distance
+        // Load comparison options: other workouts of the same distance (±100m tolerance)
+        // This range accommodates slight variations in actual distance rowed vs. workout distance target
         return api.getWorkouts({ min_distance: data.distance - 100, limit: 50 });
       })
       .then(data => {
         if (workout) {
+          // Filter to workouts within ±100m and exclude current workout, limit to 20 most recent
           const options = data.workouts
             .filter(w => w.id !== workout.id && Math.abs(w.distance - workout.distance) < 100)
             .slice(0, 20);
@@ -172,7 +174,7 @@ export default function Session() {
         </button>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 'var(--space-3)' }}>
           {compareOptions.length > 0 && (
-            <div style={{ position: 'relative' }}>
+            <div className={styles.compareWrapper}>
               <select
                 onChange={(e) => {
                   if (e.target.value) {
@@ -181,19 +183,7 @@ export default function Session() {
                 }}
                 value={compareId || ''}
                 disabled={comparisonLoading}
-                style={{
-                  appearance: 'none',
-                  background: 'var(--surface)',
-                  border: '1px solid var(--rule)',
-                  borderRadius: 'var(--radius-sm)',
-                  color: 'var(--ink)',
-                  padding: 'var(--space-2) var(--space-3)',
-                  fontSize: '0.8rem',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 'var(--space-2)',
-                }}
+                className={styles.compareSelect}
               >
                 <option value="">Compare with...</option>
                 {compareOptions.map(w => (
@@ -202,17 +192,7 @@ export default function Session() {
                   </option>
                 ))}
               </select>
-              <GitCompare
-                size={15}
-                style={{
-                  position: 'absolute',
-                  right: 'var(--space-3)',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  pointerEvents: 'none',
-                  color: 'var(--ink-2)',
-                }}
-              />
+              <GitCompare size={15} className={styles.compareIcon} />
             </div>
           )}
           <button onClick={handleShare} className={styles.iconButton} title={copied ? 'Link copied' : 'Share workout'} aria-label="Share workout">

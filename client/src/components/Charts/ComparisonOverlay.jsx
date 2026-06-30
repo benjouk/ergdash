@@ -29,6 +29,12 @@ export default function ComparisonOverlay({ workout1, workout2, onBack }) {
   const stats2 = getComparisonStats(workout2);
   const deltas = computeDeltas(stats1, stats2);
 
+  // Calculate dynamic Y-axis padding based on pace range to scale for fast/slow rowers
+  const yAxisPadding = useMemo(() => {
+    const maxPace = Math.max(workout1?.pace_ms || 0, workout2?.pace_ms || 0);
+    return Math.max(1000, Math.round(maxPace * 0.1));
+  }, [workout1?.pace_ms, workout2?.pace_ms]);
+
   return (
     <div className={styles.comparison}>
       <div className={styles.topbar}>
@@ -114,7 +120,7 @@ export default function ComparisonOverlay({ workout1, workout2, onBack }) {
                   axisLine={false}
                   tickLine={false}
                   width={58}
-                  domain={['dataMin - 2000', 'dataMax + 2000']}
+                  domain={[`dataMin - ${yAxisPadding}`, `dataMax + ${yAxisPadding}`]}
                 />
                 <Tooltip content={<ComparisonTooltip formatPace={formatPace} />} />
 
