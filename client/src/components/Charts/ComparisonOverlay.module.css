@@ -1,0 +1,268 @@
+.comparison {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.backButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.8rem;
+  color: var(--ink-2);
+  transition: color 150ms ease;
+  padding: 0;
+}
+
+.backButton:hover {
+  color: var(--accent);
+}
+
+.header {
+  padding-bottom: var(--space-3);
+}
+
+.headerTitle {
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 1.8rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+/* Dual Header */
+.dualHeader {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+
+.sessionColumn {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  padding: var(--space-4) var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.columnTitle {
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.columnMeta {
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: var(--space-3);
+}
+
+.statCell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.statLabel {
+  color: var(--ink-3);
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.statValue {
+  font-family: var(--font-mono);
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+
+.statUnit {
+  font-family: var(--font-body);
+  font-size: 0.7rem;
+  color: var(--ink-3);
+  margin-left: 2px;
+  font-weight: 500;
+}
+
+.statDelta {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--ink-3);
+  margin-top: 1px;
+}
+
+.deltaPositive {
+  color: var(--hot);
+}
+
+.deltaNegative {
+  color: var(--accent);
+}
+
+/* Card */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.chartLabel {
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ink-2);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--rule);
+}
+
+.chartBox {
+  height: 360px;
+  padding: var(--space-4) var(--space-5);
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--rule);
+}
+
+.cardTitle {
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ink-2);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* Splits Table */
+.tableWrap {
+  overflow-x: auto;
+}
+
+.splitsTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.splitsTable thead {
+  background: var(--surface-alt);
+  border-bottom: 1px solid var(--rule);
+}
+
+.splitsTable th {
+  padding: var(--space-3) var(--space-4);
+  text-align: right;
+  color: var(--ink-3);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-size: 0.7rem;
+  border-right: 1px solid var(--rule);
+}
+
+.splitsTable th:last-child {
+  border-right: none;
+}
+
+.splitsTable th:first-child {
+  text-align: left;
+}
+
+.splitsTable tbody tr {
+  border-bottom: 1px solid var(--rule);
+  transition: background 150ms ease;
+}
+
+.splitsTable tbody tr:hover {
+  background: var(--surface-alt);
+}
+
+.splitsTable td {
+  padding: var(--space-3) var(--space-4);
+  text-align: right;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-weight: 500;
+  border-right: 1px solid var(--rule);
+}
+
+.splitsTable td:last-child {
+  border-right: none;
+}
+
+.splitLabel {
+  text-align: left;
+  color: var(--ink-2);
+  font-family: var(--font-body);
+  font-weight: 500;
+}
+
+.paceCell {
+  position: relative;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.bestSplit {
+  color: var(--accent);
+}
+
+/* Legend */
+.legend {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-6);
+  padding: var(--space-4);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  flex-wrap: wrap;
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--ink-2);
+  font-size: 0.85rem;
+}
+
+.legendBox {
+  width: 12px;
+  height: 12px;
+  border-radius: 1px;
+  flex: 0 0 auto;
+}
