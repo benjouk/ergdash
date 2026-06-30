@@ -32,15 +32,8 @@
 }
 
 .itemActive {
-  background: rgba(0, 232, 152, 0.12);
+  background: var(--accent-bg);
   border-color: var(--accent);
-  box-shadow: inset 3px 0 0 var(--accent);
-}
-
-.itemActive:hover {
-  background: rgba(0, 232, 152, 0.16);
-  border-color: var(--accent);
-  box-shadow: inset 3px 0 0 var(--accent);
 }
 
 .itemTop {
