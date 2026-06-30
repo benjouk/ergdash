@@ -110,10 +110,10 @@
 
 .summaryCell {
   flex: 1;
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-4) var(--space-5);
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-1);
   border-right: 1px solid var(--rule);
 }
 
@@ -157,6 +157,10 @@
   overflow: hidden;
 }
 
+.cardVisible {
+  overflow: visible;
+}
+
 .cardTitle {
   font-family: var(--font-display);
   font-size: 0.8rem;
@@ -195,6 +199,11 @@
   gap: var(--space-3);
   padding: var(--space-3) var(--space-5);
   border-bottom: 1px solid var(--rule);
+  transition: background 150ms ease;
+}
+
+.detailRow:hover {
+  background: var(--surface-alt);
 }
 
 .detailRow:nth-last-child(-n+2) {
@@ -212,7 +221,7 @@
 .detailIcon {
   color: var(--ink-3);
   flex: 0 0 auto;
-  opacity: 0.6;
+  opacity: 0.8;
 }
 
 .detailValue {
@@ -365,6 +374,33 @@
 
 .bestSplit {
   color: var(--accent);
+}
+
+.splitsTable tr {
+  transition: background 150ms ease;
+}
+
+.splitsTable tbody tr:hover {
+  background: var(--surface-alt);
+}
+
+.bestRow {
+  border-left: 2px solid var(--accent);
+}
+
+.paceCell {
+  position: relative;
+}
+
+.paceBar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: var(--accent);
+  opacity: 0.08;
+  border-radius: 0 2px 2px 0;
+  pointer-events: none;
 }
 
 /* Notes */

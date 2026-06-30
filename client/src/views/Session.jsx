@@ -167,7 +167,16 @@ export default function Session() {
         ))}
       </div>
 
-      {workout.strokes?.length > 0 && <PaceRibbon strokes={workout.strokes} height={48} />}
+      {workout.strokes?.length > 0 && (
+        <div className={`${styles.card} ${styles.cardVisible}`}>
+          <div className={styles.chartStack}>
+            <div className={styles.chartBlock}>
+              <div className={styles.chartLabel}>Pace Ribbon</div>
+              <PaceRibbon strokes={workout.strokes} height={48} />
+            </div>
+          </div>
+        </div>
+      )}
 
       {workout.ai_note && (
         <div className={styles.aiNote}>
@@ -291,15 +300,24 @@ export default function Session() {
                 </tr>
               </thead>
               <tbody>
-                {splitRows.map(row => (
-                  <tr key={row.key}>
-                    <td>{row.label}</td>
-                    <td>{formatTimePrecise(row.time_ms)}</td>
-                    <td className={row.best ? styles.bestSplit : undefined}>{formatPace(row.pace_ms)}</td>
-                    <td>{row.stroke_rate ? row.stroke_rate.toFixed(1) : '--'}</td>
-                    <td>{row.heart_rate ? Math.round(row.heart_rate) : '--'}</td>
-                  </tr>
-                ))}
+                {(() => {
+                  const bestPace = Math.min(...splitRows.map(r => r.pace_ms).filter(Boolean));
+                  return splitRows.map(row => {
+                  const barWidth = row.pace_ms && bestPace && Number.isFinite(bestPace) ? (bestPace / row.pace_ms) * 100 : 0;
+                  return (
+                    <tr key={row.key} className={row.best ? styles.bestRow : undefined}>
+                      <td>{row.label}</td>
+                      <td>{formatTimePrecise(row.time_ms)}</td>
+                      <td className={`${styles.paceCell} ${row.best ? styles.bestSplit : ''}`}>
+                        {barWidth > 0 && <div className={styles.paceBar} style={{ width: `${barWidth}%` }} />}
+                        {formatPace(row.pace_ms)}
+                      </td>
+                      <td>{row.stroke_rate ? row.stroke_rate.toFixed(1) : '--'}</td>
+                      <td>{row.heart_rate ? Math.round(row.heart_rate) : '--'}</td>
+                    </tr>
+                  );
+                });
+                })()}
               </tbody>
             </table>
           </div>
@@ -344,10 +362,13 @@ export default function Session() {
 function ChartTooltip({ active, payload, label, formatPace }) {
   if (!active || !payload?.length) return null;
 
+  const borderColor = payload[0]?.color || 'var(--accent)';
+
   return (
     <div style={{
       background: 'var(--surface)',
       border: '1px solid var(--rule)',
+      borderLeft: `2px solid ${borderColor}`,
       borderRadius: 'var(--radius-sm)',
       padding: 'var(--space-2) var(--space-3)',
       color: 'var(--ink)',
