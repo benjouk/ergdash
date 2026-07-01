@@ -4,25 +4,24 @@
 
 ---
 
-## Status Update (2026-06-30)
+## Status Update (2026-07-01)
 
-### Implementation Progress: **75% Complete** (Phases 1-4 ✅, Phase 5 Stubbed ❌, Phase 6 Partial ⚠️)
+### Implementation Progress: **~80% Complete** (Phases 1-4 ✅, Phase 5 Stubbed ❌, Phase 6 Partial ⚠️)
 
-**Latest Work (PR #20):** Fixed 6 critical security/data integrity issues:
-- SESSION_SECRET now generated safely (no weak defaults)
-- Stroke enrichment cursor persists (no lost progress on restart)
-- Input validation middleware prevents 500 errors
-- Progress endpoint returns ETA for enrichment
+**Latest Work (PR #22):** Session comparison overlay is now live. It was originally built and merged (PR #21), then reverted directly on `main` outside of a PR, then restored and fixed:
+- Fixed the comparison dropdown never appearing — `/api/workouts` returns `{ data: [...] }`, but the options-loading code read `.workouts` (undefined), so the option list silently stayed empty
+- Fixed a stale-closure bug in the same effect (it checked `workout` state before React had committed it)
+- Replaced the native `<select>` with a themed dropdown — the old version's icon overlapped its own label text, and its native browser popup didn't match the app's styling; each option now shows date, tag, distance, pace, and duration instead of just date and duration
 
 **Status by Phase:**
 | Phase | Scope | Status | Notes |
 |-------|-------|--------|-------|
 | 1 | Foundation (DB, OAuth, sync) | ✅ Complete | OAuth working, incremental sync, health endpoint |
-| 2 | Core UI (Dashboard, Session, Feed) | ✅ Complete | All views built, Broadcast design implemented |
+| 2 | Core UI (Dashboard, Session, Feed) | ✅ Complete | All views built, Broadcast design implemented, responsive layout pass done (PR #19) |
 | 3 | Analytics (metrics, CTL/ATL/TSB, PB predictions) | ✅ Complete | All calculations working, decay curve endpoint live |
 | 4 | QOL (enrichment, manual sync, dark mode) | ✅ Complete | Enrichment working, cursor now persists |
 | 5 | AI Integration (Claude, session notes, NL query) | ❌ Stubbed | Routes return 501; infrastructure ready, logic not implemented |
-| 6 | Polish (mobile, shortcuts, export, accessibility) | ⚠️ Partial | Dark mode done; mobile unclear; shortcuts/export/alerts not done |
+| 6 | Polish (mobile, shortcuts, export, accessibility) | ⚠️ Partial | Session comparison overlay ✅ done; layout is responsive; keyboard shortcuts, export (JSON/CSV), drag factor alerts, and an accessibility pass are still not built |
 
 **Blockers for Launch:** None (all Phase 1-4 features complete and tested)
 
