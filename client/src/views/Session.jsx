@@ -57,9 +57,9 @@ export default function Session() {
     setCompareMode(false);
     setCompareId(null);
     api.getWorkout(id)
-      .then(data => {
-        setWorkout(data);
-        if (!data.strokes?.length && !data.pace_profile?.length) {
+      .then(currentWorkout => {
+        setWorkout(currentWorkout);
+        if (!currentWorkout.strokes?.length && !currentWorkout.pace_profile?.length) {
           setEnriching(true);
           api.enrichWorkout(id)
             .then(() => api.getWorkout(id))
@@ -70,20 +70,21 @@ export default function Session() {
 
         // Load comparison options: other workouts of the same distance (±100m tolerance)
         // This range accommodates slight variations in actual distance rowed vs. workout distance target
-        return api.getWorkouts({ min_distance: data.distance - 100, limit: 50 });
+        return Promise.all([
+          Promise.resolve(currentWorkout),
+          api.getWorkouts({ min_distance: currentWorkout.distance - 100, limit: 50 }),
+        ]);
       })
-      .then(data => {
-        if (workout) {
-          // Filter to workouts within ±100m and exclude current workout, limit to 20 most recent
-          const options = data.workouts
-            .filter(w => w.id !== workout.id && Math.abs(w.distance - workout.distance) < 100)
-            .slice(0, 20);
-          setCompareOptions(options);
-        }
+      .then(([currentWorkout, workoutsData]) => {
+        // Filter to workouts within ±100m and exclude current workout, limit to 20 most recent
+        const options = (workoutsData.data || [])
+          .filter(w => w.id !== currentWorkout.id && Math.abs(w.distance - currentWorkout.distance) < 100)
+          .slice(0, 20);
+        setCompareOptions(options);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [id, workout?.id]);
+  }, [id]);
 
   const handleShare = useCallback(async () => {
     if (!workout) return;
@@ -224,9 +225,16 @@ export default function Session() {
                           className={styles.compareOption}
                           onClick={() => handleCompare(w.id)}
                         >
-                          <span className={styles.compareOptionDate}>
-                            <CalendarDays size={12} />
-                            {formatDateShort(new Date(w.date))}
+                          <span className={styles.compareOptionRow}>
+                            <span className={styles.compareOptionDate}>
+                              <CalendarDays size={12} />
+                              {formatDateShort(new Date(w.date))}
+                            </span>
+                            {w.inferred_tag && (
+                              <span className={`${styles.tag} ${isInterval ? styles.tagInterval : ''}`}>
+                                {w.inferred_tag}
+                              </span>
+                            )}
                           </span>
                           <span className={styles.compareOptionStats}>
                             <span>{formatDistance(w.distance)}</span>
@@ -235,11 +243,6 @@ export default function Session() {
                             <span className={styles.compareOptionDot}>·</span>
                             <span>{formatTime(w.time_ms)}</span>
                           </span>
-                          {w.inferred_tag && (
-                            <span className={`${styles.tag} ${isInterval ? styles.tagInterval : ''} ${styles.compareOptionTag}`}>
-                              {w.inferred_tag}
-                            </span>
-                          )}
                         </button>
                       </li>
                     );
