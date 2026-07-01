@@ -35,6 +35,21 @@ function computeDateRange(key) {
   return { from: null, to: null };
 }
 
+function formatShort(iso) {
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function formatShortWithYear(iso) {
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function describeRange(key) {
+  const { from, to } = computeDateRange(key);
+  if (key === 'all') return 'Full history';
+  if (key === 'last_season') return `${formatShortWithYear(from)} – ${formatShortWithYear(to)}`;
+  return `Since ${formatShort(from)}`;
+}
+
 export function TimeRangeProvider({ children }) {
   const [rangeKey, setRangeKey] = useState('all');
 
@@ -52,7 +67,7 @@ export function TimeRangeProvider({ children }) {
   const { from, to } = useMemo(() => computeDateRange(rangeKey), [rangeKey]);
 
   return (
-    <TimeRangeContext.Provider value={{ rangeKey, setRange, from, to, PRESETS }}>
+    <TimeRangeContext.Provider value={{ rangeKey, setRange, from, to, PRESETS, describeRange }}>
       {children}
     </TimeRangeContext.Provider>
   );

@@ -65,7 +65,15 @@
   overflow: hidden;
 }
 
-.rangeSelect {
+.rangeWrapper {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.rangeButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
   font-family: var(--font-body);
   font-size: 0.75rem;
   font-weight: 500;
@@ -74,13 +82,68 @@
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: var(--radius-sm);
   padding: var(--space-1) var(--space-2);
-  flex-shrink: 0;
   cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease;
 }
 
-.rangeSelect option {
-  background: var(--ticker-bg);
-  color: var(--ticker-text);
+.rangeButton:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.rangeChevron {
+  color: var(--ticker-dim);
+}
+
+.rangeMenu {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  z-index: 20;
+  width: 220px;
+  max-height: 340px;
+  overflow-y: auto;
+  margin: 0;
+  padding: var(--space-2);
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.24);
+}
+
+.rangeOption {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  font-family: var(--font-body);
+  text-align: left;
+  cursor: pointer;
+  transition: background 100ms ease;
+}
+
+.rangeOption:hover,
+.rangeOption:focus-visible {
+  background: var(--surface-alt);
+  outline: none;
+}
+
+.rangeOptionActive .rangeOptionLabel {
+  color: var(--accent);
+}
+
+.rangeOptionLabel {
+  font-size: 0.8rem;
+}
+
+.rangeOptionContext {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--ink-2);
 }
 
 .nav {
@@ -140,7 +203,7 @@
 }
 
 @media (max-width: 768px) {
-  .stats, .traceContainer, .rangeSelect {
+  .stats, .traceContainer, .rangeWrapper {
     display: none;
   }
   .ticker {
