@@ -1,9 +1,24 @@
 import { useState, useEffect } from 'react';
-import { api } from '../api.js';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { useUnits } from '../context/UnitsContext.jsx';
 import { useSync } from '../context/SyncContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
+import styles from './Settings.module.css';
+
+function Segmented({ options, value, onChange, ariaLabel }) {
+  return (
+    <div className={styles.segmented} role="group" aria-label={ariaLabel}>
+      {options.map(([val, label]) => (
+        <button
+          key={val}
+          onClick={() => onChange(val)}
+          aria-pressed={value === val}
+          className={`${styles.segment} ${value === val ? styles.segmentActive : ''}`}
+        >{label}</button>
+      ))}
+    </div>
+  );
+}
 
 export default function Settings() {
   const { theme, setTheme } = useTheme();
@@ -16,126 +31,95 @@ export default function Settings() {
     fetch('/health').then(r => r.json()).then(setHealth).catch(() => {});
   }, []);
 
-  const section = { marginBottom: 'var(--space-8)' };
-  const sectionTitle = {
-    fontFamily: 'var(--font-display)', fontSize: '1rem', fontWeight: 700,
-    letterSpacing: '-0.01em', color: 'var(--ink)', marginBottom: 'var(--space-4)',
-  };
-  const row = {
-    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-    padding: 'var(--space-3) 0', borderBottom: '1px solid var(--rule)',
-  };
-  const label = { fontSize: '0.85rem', color: 'var(--ink)' };
-  const subtext = { fontSize: '0.75rem', color: 'var(--ink-3)', marginTop: 2 };
-
   return (
-    <div style={{ maxWidth: 600 }}>
-      <h2 style={{
-        fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: 700,
-        letterSpacing: '-0.02em', color: 'var(--ink)', marginBottom: 'var(--space-6)',
-      }}>Settings</h2>
+    <div className={styles.settings}>
+      <h2 className={styles.title}>Settings</h2>
 
-      <div style={section}>
-        <h3 style={sectionTitle}>Appearance</h3>
-        <div style={row}>
+      <div className={styles.section}>
+        <h3 className={styles.sectionTitle}>Appearance</h3>
+        <div className={styles.row}>
           <div>
-            <div style={label}>Theme</div>
-            <div style={subtext}>Controls light and dark mode</div>
+            <div className={styles.label}>Theme</div>
+            <div className={styles.subtext}>Controls light and dark mode</div>
           </div>
-          <div style={{ display: 'flex', gap: 'var(--space-1)' }}>
-            {['system', 'light', 'dark'].map(t => (
-              <button key={t} onClick={() => setTheme(t)} style={{
-                padding: 'var(--space-1) var(--space-3)', borderRadius: 'var(--radius-sm)',
-                fontSize: '0.8rem', fontWeight: 500, textTransform: 'capitalize',
-                background: theme === t ? 'var(--accent)' : 'var(--surface)',
-                color: theme === t ? '#fff' : 'var(--ink-2)',
-                border: `1px solid ${theme === t ? 'var(--accent)' : 'var(--rule)'}`,
-              }}>{t}</button>
-            ))}
-          </div>
+          <Segmented
+            ariaLabel="Theme"
+            options={[['system', 'System'], ['light', 'Light'], ['dark', 'Dark']]}
+            value={theme}
+            onChange={setTheme}
+          />
         </div>
 
-        <div style={row}>
+        <div className={styles.row}>
           <div>
-            <div style={label}>Units</div>
-            <div style={subtext}>Display format for pace values</div>
+            <div className={styles.label}>Units</div>
+            <div className={styles.subtext}>Display format for pace values</div>
           </div>
-          <div style={{ display: 'flex', gap: 'var(--space-1)' }}>
-            {[['pace', '/500m'], ['watts', 'Watts'], ['calhr', 'Cal/hr']].map(([val, lbl]) => (
-              <button key={val} onClick={() => setUnits(val)} style={{
-                padding: 'var(--space-1) var(--space-3)', borderRadius: 'var(--radius-sm)',
-                fontSize: '0.8rem', fontWeight: 500,
-                background: units === val ? 'var(--accent)' : 'var(--surface)',
-                color: units === val ? '#fff' : 'var(--ink-2)',
-                border: `1px solid ${units === val ? 'var(--accent)' : 'var(--rule)'}`,
-              }}>{lbl}</button>
-            ))}
-          </div>
+          <Segmented
+            ariaLabel="Units"
+            options={[['pace', '/500m'], ['watts', 'Watts'], ['calhr', 'Cal/hr']]}
+            value={units}
+            onChange={setUnits}
+          />
         </div>
       </div>
 
-      <div style={section}>
-        <h3 style={sectionTitle}>Concept2 Connection</h3>
-        <div style={row}>
+      <div className={styles.section}>
+        <h3 className={styles.sectionTitle}>Concept2 Connection</h3>
+        <div className={styles.row}>
           <div>
-            <div style={label}>Status</div>
-            <div style={subtext}>
+            <div className={styles.label}>Status</div>
+            <div className={styles.subtext}>
               {user ? `Connected as ${user.first_name} ${user.last_name}` : 'Not connected'}
             </div>
           </div>
           {user ? (
-            <button onClick={logout} style={{ ...btnStyle, color: 'var(--hot)', borderColor: 'var(--hot)' }}>Disconnect</button>
+            <button onClick={logout} className={`${styles.button} ${styles.buttonDanger}`}>Disconnect</button>
           ) : (
-            <a href="/auth/login" style={{ ...btnStyle, color: 'var(--accent)', borderColor: 'var(--accent)', textDecoration: 'none' }}>Connect</a>
+            <a href="/auth/login" className={`${styles.button} ${styles.buttonPrimary}`}>Connect</a>
           )}
         </div>
       </div>
 
-      <div style={section}>
-        <h3 style={sectionTitle}>Sync</h3>
-        <div style={row}>
+      <div className={styles.section}>
+        <h3 className={styles.sectionTitle}>Sync</h3>
+        <div className={styles.row}>
           <div>
-            <div style={label}>Status</div>
-            <div style={subtext}>
+            <div className={styles.label}>Status</div>
+            <div className={styles.subtext}>
               {syncStatus?.status === 'syncing' ? 'Syncing...' : `Last sync: ${syncStatus?.last_completed || 'Never'}`}
             </div>
           </div>
-          <button onClick={triggerSync} style={btnStyle}>Sync Now</button>
+          <button onClick={triggerSync} className={styles.button}>Sync Now</button>
         </div>
-        <div style={row}>
+        <div className={styles.row}>
           <div>
-            <div style={label}>Stroke Data</div>
-            <div style={subtext}>Enrichment progress</div>
+            <div className={styles.label}>Stroke Data</div>
+            <div className={styles.subtext}>Enrichment progress</div>
           </div>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.85rem', color: 'var(--ink-2)' }}>
+          <span className={styles.mono}>
             {syncStatus?.enrichment_progress || '—'}
           </span>
         </div>
       </div>
 
-      <div style={section}>
-        <h3 style={sectionTitle}>Data</h3>
-        <div style={row}>
+      <div className={styles.section}>
+        <h3 className={styles.sectionTitle}>Data</h3>
+        <div className={styles.row}>
           <div>
-            <div style={label}>Database</div>
-            <div style={subtext}>
+            <div className={styles.label}>Database</div>
+            <div className={styles.subtext}>
               {health ? `${(health.database.size_bytes / 1024 / 1024).toFixed(1)} MB · ${health.database.workout_count} workouts` : '—'}
             </div>
           </div>
         </div>
-        <div style={row}>
+        <div className={styles.row}>
           <div>
-            <div style={label}>Version</div>
-            <div style={subtext}>{health?.version || '—'}</div>
+            <div className={styles.label}>Version</div>
+            <div className={styles.subtext}>{health?.version || '—'}</div>
           </div>
         </div>
       </div>
     </div>
   );
 }
-
-const btnStyle = {
-  padding: 'var(--space-2) var(--space-3)', borderRadius: 'var(--radius-sm)',
-  border: '1px solid var(--rule)', background: 'var(--surface)', color: 'var(--ink-2)',
-  fontSize: '0.8rem', cursor: 'pointer',
-};

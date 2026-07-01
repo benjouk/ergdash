@@ -56,11 +56,12 @@
 
 .sessionTitle {
   color: var(--ink);
-  font-family: var(--font-display);
-  font-size: 2.4rem;
-  font-weight: 750;
+  font-family: var(--font-hero);
+  font-size: var(--text-2xl);
+  font-weight: 850;
+  font-stretch: 110%;
   line-height: 1;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
 }
 
 .metaLine {
@@ -99,22 +100,23 @@
   color: var(--accent-2);
 }
 
-/* Summary strip — mirrors dashboard StatsRow */
+/* Summary strip — dark hero stat band, brand anchor like the ticker */
 .summaryStrip {
-  display: flex;
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-md);
-  background: var(--surface);
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  border-radius: var(--radius-lg);
+  background: var(--ticker-bg);
+  border-top: 3px solid var(--ticker-accent);
+  box-shadow: var(--shadow-md);
   overflow: hidden;
 }
 
 .summaryCell {
-  flex: 1;
   padding: var(--space-4) var(--space-5);
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  border-right: 1px solid var(--rule);
+  border-right: 1px solid rgba(255, 255, 255, 0.07);
 }
 
 .summaryCell:last-child {
@@ -122,38 +124,41 @@
 }
 
 .summaryCellLabel {
-  font-size: 0.7rem;
-  font-weight: 500;
+  font-size: 0.65rem;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--ink-3);
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.45);
 }
 
 .summaryCellValue {
-  font-family: var(--font-mono);
-  font-size: 1.3rem;
-  font-weight: 600;
-  color: var(--ink);
+  font-family: var(--font-hero);
+  font-size: 1.4rem;
+  font-weight: 800;
+  font-stretch: 108%;
+  color: var(--ticker-text);
   letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
 }
 
 .summaryCellUnit {
   font-family: var(--font-body);
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: 500;
-  color: var(--ink-3);
+  color: rgba(255, 255, 255, 0.45);
   margin-left: 2px;
 }
 
 .accentValue {
-  color: var(--accent);
+  color: var(--ticker-accent);
 }
 
 /* Card — matches dashboard chartCard */
 .card {
   background: var(--surface);
   border: 1px solid var(--rule);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
   overflow: hidden;
 }
 
@@ -219,9 +224,12 @@
 }
 
 .detailIcon {
-  color: var(--ink-3);
+  box-sizing: content-box;
+  color: var(--accent);
+  background: var(--accent-bg);
+  border-radius: 50%;
+  padding: 4px;
   flex: 0 0 auto;
-  opacity: 0.8;
 }
 
 .detailValue {
@@ -373,7 +381,8 @@
 }
 
 .bestSplit {
-  color: var(--accent);
+  color: var(--accent-3);
+  font-weight: 700;
 }
 
 .splitsTable tr {
@@ -384,8 +393,10 @@
   background: var(--surface-alt);
 }
 
+/* Best split gets the volt treatment */
 .bestRow {
-  border-left: 2px solid var(--accent);
+  border-left: 3px solid var(--accent-3);
+  background: var(--accent-3-bg);
 }
 
 .paceCell {
@@ -397,8 +408,8 @@
   top: 0;
   left: 0;
   height: 100%;
-  background: var(--accent);
-  opacity: 0.08;
+  background: linear-gradient(90deg, transparent, var(--accent));
+  opacity: 0.14;
   border-radius: 0 2px 2px 0;
   pointer-events: none;
 }
@@ -425,14 +436,16 @@
   margin-bottom: var(--space-2);
 }
 
+/* Coach card */
 .aiNote {
-  border: 1px solid var(--accent);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--accent-2);
   border-radius: var(--radius-md);
-  background: var(--accent-bg);
-  padding: var(--space-3) var(--space-4);
+  background: var(--accent-2-bg);
+  padding: var(--space-4) var(--space-5);
   color: var(--ink);
   font-size: 0.85rem;
-  line-height: 1.5;
+  line-height: 1.6;
 }
 
 /* Comparison dropdown */
@@ -546,21 +559,25 @@
 }
 
 @media (max-width: 640px) {
-  .sessionTitle {
-    font-size: 1.8rem;
-  }
-
   .titleRow {
     flex-direction: column;
   }
 
+  /* 2×3 grid instead of 6 crushed columns */
   .summaryStrip {
-    flex-wrap: wrap;
+    grid-template-columns: repeat(2, 1fr);
   }
 
   .summaryCell {
-    flex: 1 1 45%;
-    border-bottom: 1px solid var(--rule);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  }
+
+  .summaryCell:nth-child(even) {
+    border-right: none;
+  }
+
+  .summaryCell:nth-last-child(-n+2) {
+    border-bottom: none;
   }
 
   .detailRow {
@@ -573,5 +590,15 @@
 
   .chartBox {
     height: 180px;
+  }
+}
+
+/* Very narrow: splits table keeps Split/Time/Pace only */
+@media (max-width: 480px) {
+  .splitsTable th:nth-child(4),
+  .splitsTable td:nth-child(4),
+  .splitsTable th:nth-child(5),
+  .splitsTable td:nth-child(5) {
+    display: none;
   }
 }

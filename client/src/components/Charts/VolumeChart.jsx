@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { api } from '../../api.js';
 import { useTimeRange } from '../../context/TimeRangeContext.jsx';
+import { AXIS_TICK, AXIS_LINE, REF_LINE, SERIES, TOOLTIP_PROPS } from '../../styles/chartTheme.js';
 import styles from './Charts.module.css';
 
 export default function VolumeChart() {
@@ -23,39 +24,41 @@ export default function VolumeChart() {
   if (data.length === 0) return null;
 
   const avg = data.reduce((s, d) => s + d.distance, 0) / data.length;
+  const latest = data[data.length - 1];
 
   return (
     <div className={styles.chartCard}>
-      <div className={styles.chartTitle}>Weekly Volume</div>
-      <ResponsiveContainer width="100%" height={200}>
+      <div className={styles.chartHeader}>
+        <div className={styles.chartTitle}>Weekly Volume</div>
+        <div className={styles.chartValue}>
+          {(latest.distance / 1000).toFixed(1)}k
+          <span className={styles.chartValueUnit}>this week</span>
+        </div>
+      </div>
+      <ResponsiveContainer width="100%" height={220}>
         <BarChart data={data} barCategoryGap="20%">
           <XAxis
             dataKey="week"
-            tick={{ fontSize: 11, fill: 'var(--ink-3)' }}
+            tick={AXIS_TICK}
             tickFormatter={w => w.split('-W')[1] ? `W${w.split('-W')[1]}` : w}
-            axisLine={{ stroke: 'var(--rule)' }}
+            axisLine={AXIS_LINE}
             tickLine={false}
           />
           <YAxis
-            tick={{ fontSize: 11, fill: 'var(--ink-3)' }}
+            tick={AXIS_TICK}
             tickFormatter={v => `${(v / 1000).toFixed(0)}k`}
             axisLine={false}
             tickLine={false}
             width={40}
           />
           <Tooltip
-            contentStyle={{
-              background: 'var(--surface)',
-              border: '1px solid var(--rule)',
-              borderRadius: 'var(--radius-sm)',
-              fontSize: '0.8rem',
-            }}
+            {...TOOLTIP_PROPS}
             formatter={(v) => [`${v.toLocaleString()}m`, 'Distance']}
             labelFormatter={w => `Week ${w.split('-W')[1] || w}`}
           />
-          <ReferenceLine y={avg} stroke="var(--ink-3)" strokeDasharray="3 3" />
-          <Bar dataKey="steady_m" stackId="a" fill="var(--accent)" radius={[0, 0, 0, 0]} />
-          <Bar dataKey="interval_m" stackId="a" fill="var(--accent-2)" radius={[4, 4, 0, 0]} />
+          <ReferenceLine y={avg} {...REF_LINE} />
+          <Bar dataKey="steady_m" stackId="a" fill={SERIES.primary} radius={[0, 0, 0, 0]} />
+          <Bar dataKey="interval_m" stackId="a" fill={SERIES.secondary} radius={[6, 6, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>

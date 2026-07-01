@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext.jsx';
 import Ticker from './components/Ticker/Ticker.jsx';
+import BottomNav from './components/BottomNav/BottomNav.jsx';
 import FeedPanel from './components/Feed/FeedPanel.jsx';
 import Dashboard from './views/Dashboard.jsx';
 import Session from './views/Session.jsx';
@@ -15,11 +16,10 @@ export default function App() {
 
   if (isLoading) {
     return (
-      <div style={{
-        minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: 'var(--bg)', color: 'var(--ink-3)', fontFamily: 'var(--font-display)',
-      }}>
-        Loading...
+      <div className={styles.loading}>
+        <span className={styles.loadingMark}>
+          ROW<span className={styles.loadingSlash}>//</span>DASH
+        </span>
       </div>
     );
   }
@@ -46,6 +46,7 @@ export default function App() {
           </Routes>
         </main>
       </div>
+      <BottomNav />
     </div>
   );
 }

@@ -20,9 +20,9 @@
   flex-direction: column;
   gap: var(--space-1);
   padding: var(--space-3);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   cursor: pointer;
-  transition: background 150ms;
+  transition: background 150ms, border-color 150ms, box-shadow 150ms;
   border: 1px solid transparent;
 }
 
@@ -34,6 +34,34 @@
 .itemActive {
   background: var(--accent-bg);
   border-color: var(--accent);
+}
+
+.empty {
+  padding: var(--space-4);
+  color: var(--ink-3);
+  font-size: 0.8rem;
+}
+
+/* Horizontal snap-scroll variant — used inline on Dashboard below 1100px */
+.feedRow {
+  flex-direction: row;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding: var(--space-1) 0 var(--space-2);
+  gap: var(--space-3);
+}
+
+.feedRow .item {
+  min-width: 230px;
+  flex-shrink: 0;
+  scroll-snap-align: start;
+  background: var(--surface);
+  border-color: var(--rule);
+  box-shadow: var(--shadow-sm);
+}
+
+.feedRow .item:hover {
+  box-shadow: var(--shadow-md);
 }
 
 .itemTop {
@@ -81,10 +109,11 @@
 
 .itemPace {
   font-family: var(--font-mono);
-  font-size: 1rem;
-  font-weight: 600;
+  font-size: 1.1rem;
+  font-weight: 700;
   color: var(--ink);
   letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
 }
 
 .itemDetail {

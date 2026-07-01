@@ -1,0 +1,291 @@
+.workouts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.title {
+  font-family: var(--font-hero);
+  font-size: var(--text-xl);
+  font-weight: 850;
+  font-stretch: 110%;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.exportButton {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border-radius: 999px;
+  border: 1px solid var(--rule);
+  color: var(--ink-2);
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: var(--surface);
+  transition: color 150ms ease, border-color 150ms ease;
+}
+
+.exportButton:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.filters {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.filterChip {
+  padding: var(--space-1) var(--space-4);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: capitalize;
+  background: var(--surface);
+  color: var(--ink-2);
+  border: 1px solid var(--rule);
+  transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+
+.filterChip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.filterChipActive,
+.filterChipActive:hover {
+  background: var(--accent);
+  color: #FFFFFF;
+  border-color: var(--accent);
+}
+
+/* Desktop table */
+.tableCard {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.table thead tr {
+  border-bottom: 2px solid var(--rule);
+}
+
+.table thead th {
+  position: sticky;
+  top: var(--ticker-height);
+  background: var(--surface);
+  z-index: 1;
+  padding: 0;
+  text-align: left;
+}
+
+.thLabel,
+.thButton {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  text-align: left;
+  padding: var(--space-3) var(--space-3);
+  font-size: 0.7rem;
+  color: var(--ink-3);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  user-select: none;
+  white-space: nowrap;
+  font-family: var(--font-body);
+}
+
+.thButton {
+  cursor: pointer;
+  background: none;
+  border: none;
+  transition: color 150ms ease;
+}
+
+.thButton:hover {
+  color: var(--accent);
+}
+
+.row {
+  border-bottom: 1px solid var(--rule);
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+
+.row:hover,
+.row:focus-visible {
+  background: var(--surface-alt);
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.row td {
+  padding: var(--space-2) var(--space-3);
+}
+
+.paceCell {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.tag {
+  font-size: 0.6rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-family: var(--font-body);
+}
+
+.tagSteady {
+  color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.tagInterval {
+  color: var(--accent-2);
+  background: var(--accent-2-bg);
+}
+
+.tagOther {
+  color: var(--ink-3);
+  background: var(--surface-alt);
+}
+
+/* Mobile card list */
+.cardList {
+  display: none;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.workoutCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.workoutCard:active {
+  border-color: var(--accent);
+}
+
+.cardTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.cardDate {
+  font-size: 0.75rem;
+  color: var(--ink-3);
+}
+
+.cardMain {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.cardPace {
+  font-family: var(--font-hero);
+  font-size: 1.4rem;
+  font-weight: 800;
+  font-stretch: 108%;
+  color: var(--accent);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.cardMeta {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8rem;
+  color: var(--ink-2);
+  gap: var(--space-3);
+}
+
+.pageButtons {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.pageButton {
+  padding: var(--space-2) var(--space-4);
+  border-radius: 999px;
+  border: 1px solid var(--rule);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 150ms ease, border-color 150ms ease;
+}
+
+.pageButton:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.pageButton:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+@media (max-width: 767px) {
+  .tableCard {
+    display: none;
+  }
+  .cardList {
+    display: flex;
+  }
+}

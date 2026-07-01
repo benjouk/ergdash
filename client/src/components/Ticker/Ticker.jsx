@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { NavLink } from 'react-router-dom';
-import { Sun, Moon, CalendarRange, ChevronDown, Menu, X } from 'lucide-react';
+import { Sun, Moon, CalendarRange, ChevronDown } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext.jsx';
 import { useSync } from '../../context/SyncContext.jsx';
 import { useUnits } from '../../context/UnitsContext.jsx';
@@ -18,8 +18,6 @@ export default function Ticker() {
   const [paceTrend, setPaceTrend] = useState(null);
   const [rangeMenuOpen, setRangeMenuOpen] = useState(false);
   const rangeMenuRef = useRef(null);
-  const [navMenuOpen, setNavMenuOpen] = useState(false);
-  const navMenuRef = useRef(null);
 
   useEffect(() => {
     const params = {};
@@ -52,26 +50,6 @@ export default function Ticker() {
     };
   }, [rangeMenuOpen]);
 
-  useEffect(() => {
-    if (!navMenuOpen) return;
-
-    const handlePointerDown = (event) => {
-      if (navMenuRef.current && !navMenuRef.current.contains(event.target)) {
-        setNavMenuOpen(false);
-      }
-    };
-    const handleKeyDown = (event) => {
-      if (event.key === 'Escape') setNavMenuOpen(false);
-    };
-
-    document.addEventListener('mousedown', handlePointerDown);
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('mousedown', handlePointerDown);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [navMenuOpen]);
-
   const isSyncing = syncStatus?.status === 'syncing';
 
   return (
@@ -81,7 +59,7 @@ export default function Ticker() {
       </div>
 
       <div className={styles.stats}>
-        <div className={styles.stat}>
+        <div className={`${styles.stat} ${styles.statPrimary}`}>
           <span className={styles.statLabel}>{summary?.season_meters > 0 ? 'Season' : 'Total'}</span>
           <span className={styles.statValue}>
             {summary ? formatDistanceFull(summary.season_meters > 0 ? summary.season_meters : summary.total_meters) : '—'}
@@ -149,35 +127,6 @@ export default function Ticker() {
           Settings
         </NavLink>
       </nav>
-
-      <div className={styles.navMenuWrapper} ref={navMenuRef}>
-        <button
-          type="button"
-          onClick={() => setNavMenuOpen(open => !open)}
-          className={styles.hamburgerButton}
-          aria-haspopup="true"
-          aria-expanded={navMenuOpen}
-          aria-label={navMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
-        >
-          {navMenuOpen ? <X size={18} /> : <Menu size={18} />}
-        </button>
-        {navMenuOpen && (
-          <nav className={styles.navMenuPanel} aria-label="Primary">
-            <NavLink to="/" end onClick={() => setNavMenuOpen(false)} className={({ isActive }) => `${styles.navMenuLink} ${isActive ? styles.navLinkActive : ''}`}>
-              Dashboard
-            </NavLink>
-            <NavLink to="/progress" onClick={() => setNavMenuOpen(false)} className={({ isActive }) => `${styles.navMenuLink} ${isActive ? styles.navLinkActive : ''}`}>
-              Progress
-            </NavLink>
-            <NavLink to="/workouts" onClick={() => setNavMenuOpen(false)} className={({ isActive }) => `${styles.navMenuLink} ${isActive ? styles.navLinkActive : ''}`}>
-              Workouts
-            </NavLink>
-            <NavLink to="/settings" onClick={() => setNavMenuOpen(false)} className={({ isActive }) => `${styles.navMenuLink} ${isActive ? styles.navLinkActive : ''}`}>
-              Settings
-            </NavLink>
-          </nav>
-        )}
-      </div>
 
       <div className={`${styles.syncDot} ${isSyncing ? styles.syncDotSyncing : ''}`} title={isSyncing ? 'Syncing...' : 'Up to date'} />
 

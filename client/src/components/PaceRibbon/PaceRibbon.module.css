@@ -19,6 +19,16 @@
   color: var(--ink-3);
 }
 
+.paceRange {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.paceFast {
+  color: var(--accent);
+  font-weight: 600;
+}
+
 .tooltip {
   position: absolute;
   top: -30px;

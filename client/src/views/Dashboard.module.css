@@ -1,11 +1,83 @@
+.dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.hero {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-8) var(--space-8) var(--space-6);
+  border-radius: var(--radius-xl);
+  background: var(--gradient-hero);
+  color: #FFFFFF;
+  box-shadow: var(--shadow-md);
+}
+
+.heroKicker {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.heroValue {
+  font-size: var(--text-hero);
+  color: #FFFFFF;
+}
+
+.heroContext {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--ink-2);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: var(--space-3);
+}
+
+/* Speed rule kicker before section titles */
+.sectionHeader::before {
+  content: '';
+  width: 16px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
 .chartsGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--space-5);
 }
 
-@media (max-width: 768px) {
+/* Feed lives in the sidebar on desktop; inline horizontal scroller below 1100px */
+.mobileFeed {
+  display: none;
+}
+
+@media (max-width: 1099px) {
+  .mobileFeed {
+    display: block;
+  }
   .chartsGrid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 767px) {
+  .hero {
+    padding: var(--space-6) var(--space-5) var(--space-5);
   }
 }

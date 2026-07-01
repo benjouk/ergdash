@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { api } from '../../api.js';
 import { useTimeRange } from '../../context/TimeRangeContext.jsx';
+import { AXIS_TICK, AXIS_LINE, SERIES, TOOLTIP_PROPS } from '../../styles/chartTheme.js';
 import styles from './Charts.module.css';
 
 export default function FitnessChart({ compact = false }) {
@@ -22,44 +23,46 @@ export default function FitnessChart({ compact = false }) {
 
   if (data.length === 0) return null;
 
-  const height = compact ? 80 : 200;
+  const height = compact ? 80 : 240;
+  const latest = data[data.length - 1];
 
   return (
     <div className={styles.chartCard}>
-      <div className={styles.chartTitle}>Fitness / Fatigue / Form</div>
+      <div className={styles.chartHeader}>
+        <div className={styles.chartTitle}>Fitness / Fatigue / Form</div>
+        <div className={styles.chartValue}>
+          {latest.fitness.toFixed(1)}
+          <span className={styles.chartValueUnit}>fitness</span>
+        </div>
+      </div>
       <ResponsiveContainer width="100%" height={height}>
         <AreaChart data={data}>
           {!compact && (
             <>
               <XAxis
                 dataKey="date"
-                tick={{ fontSize: 11, fill: 'var(--ink-3)' }}
+                tick={AXIS_TICK}
                 tickFormatter={d => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-                axisLine={{ stroke: 'var(--rule)' }}
+                axisLine={AXIS_LINE}
                 tickLine={false}
                 interval="preserveStartEnd"
               />
               <YAxis
-                tick={{ fontSize: 11, fill: 'var(--ink-3)' }}
+                tick={AXIS_TICK}
                 axisLine={false}
                 tickLine={false}
                 width={35}
               />
               <Tooltip
-                contentStyle={{
-                  background: 'var(--surface)',
-                  border: '1px solid var(--rule)',
-                  borderRadius: 'var(--radius-sm)',
-                  fontSize: '0.8rem',
-                }}
+                {...TOOLTIP_PROPS}
                 formatter={(v, name) => [v.toFixed(1), name]}
               />
             </>
           )}
-          <ReferenceLine y={0} stroke="var(--rule)" />
-          <Area type="monotone" dataKey="fitness" stroke="var(--accent)" fill="var(--accent-bg)" strokeWidth={1.5} dot={false} />
-          <Area type="monotone" dataKey="fatigue" stroke="var(--hot)" fill="var(--hot-bg)" strokeWidth={1.5} dot={false} />
-          <Area type="monotone" dataKey="form" stroke="var(--accent-2)" fill="var(--accent-2-bg)" strokeWidth={1.5} dot={false} />
+          <ReferenceLine y={0} stroke="var(--chart-grid)" />
+          <Area type="monotone" dataKey="fitness" stroke={SERIES.primary} fill={SERIES.primaryBg} strokeWidth={2} dot={false} />
+          <Area type="monotone" dataKey="fatigue" stroke={SERIES.hr} fill={SERIES.hrBg} strokeWidth={1.5} dot={false} />
+          <Area type="monotone" dataKey="form" stroke={SERIES.secondary} fill={SERIES.secondaryBg} strokeWidth={1.5} dot={false} />
         </AreaChart>
       </ResponsiveContainer>
     </div>

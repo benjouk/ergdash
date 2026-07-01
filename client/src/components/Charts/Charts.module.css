@@ -1,16 +1,56 @@
 .chartCard {
   background: var(--surface);
   border: 1px solid var(--rule);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   padding: var(--space-5);
+  box-shadow: var(--shadow-sm);
+}
+
+.chartHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
 }
 
 .chartTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   font-family: var(--font-display);
   font-size: 0.8rem;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--ink-2);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  margin-bottom: var(--space-4);
+  letter-spacing: 0.06em;
+}
+
+.chartTitle::before {
+  content: '';
+  width: 16px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+.chartValue {
+  font-family: var(--font-hero);
+  font-weight: 800;
+  font-stretch: 108%;
+  font-size: 1.3rem;
+  color: var(--ink);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.chartValueUnit {
+  font-family: var(--font-body);
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-left: var(--space-1);
 }

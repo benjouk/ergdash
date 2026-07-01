@@ -16,13 +16,40 @@ function sampleStrokes(strokes, maxRows) {
   return Array.from({ length: maxRows }, (_, i) => strokes[Math.floor(i * step)]);
 }
 
-function interpolateColor(t) {
-  const r1 = 0, g1 = 232, b1 = 152;
-  const r2 = 22, g2 = 50, b2 = 38;
-  const r = Math.round(r1 + (r2 - r1) * t);
-  const g = Math.round(g1 + (g2 - g1) * t);
-  const b = Math.round(b1 + (b2 - b1) * t);
-  return `rgb(${r},${g},${b})`;
+// Canvas can't consume CSS variables, so resolve --accent at draw time and
+// fade it toward a deep ember for slow strokes (t=0 fast, t=1 slow).
+function parseHexColor(str) {
+  const hex = str.trim().replace('#', '');
+  if (hex.length !== 6) return null;
+  return [0, 2, 4].map(i => parseInt(hex.slice(i, i + 2), 16));
+}
+
+function makeColorScale() {
+  const raw = getComputedStyle(document.documentElement).getPropertyValue('--accent');
+  const accent = parseHexColor(raw) || [244, 71, 11];
+  const [r1, g1, b1] = accent;
+  const [r2, g2, b2] = accent.map(c => Math.round(c * 0.22));
+  return (t) => {
+    const r = Math.round(r1 + (r2 - r1) * t);
+    const g = Math.round(g1 + (g2 - g1) * t);
+    const b = Math.round(b1 + (b2 - b1) * t);
+    return `rgb(${r},${g},${b})`;
+  };
+}
+
+// Re-render when data-theme flips so the canvas re-reads token colors.
+function useThemeAttribute() {
+  const [themeAttr, setThemeAttr] = useState(
+    () => document.documentElement.getAttribute('data-theme')
+  );
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setThemeAttr(document.documentElement.getAttribute('data-theme'));
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    return () => observer.disconnect();
+  }, []);
+  return themeAttr;
 }
 
 export default function PaceRibbon({ strokes, height = 48 }) {
@@ -30,6 +57,7 @@ export default function PaceRibbon({ strokes, height = 48 }) {
   const containerRef = useRef(null);
   const [tooltip, setTooltip] = useState(null);
   const [width, setWidth] = useState(0);
+  const themeAttr = useThemeAttribute();
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -59,10 +87,11 @@ export default function PaceRibbon({ strokes, height = 48 }) {
     const range = maxPace - minPace || 1;
 
     const colWidth = Math.max(1, width / paces.length);
+    const colorAt = makeColorScale();
 
     paces.forEach((pace, i) => {
       const t = (pace - minPace) / range;
-      ctx.fillStyle = interpolateColor(t);
+      ctx.fillStyle = colorAt(t);
       ctx.fillRect(i * colWidth, 0, colWidth + 0.5, height);
     });
 
@@ -76,7 +105,7 @@ export default function PaceRibbon({ strokes, height = 48 }) {
       else ctx.lineTo(x, y);
     });
     ctx.stroke();
-  }, [strokes, width, height]);
+  }, [strokes, width, height, themeAttr]);
 
   const handleMouseMove = useCallback((e) => {
     if (!strokes || strokes.length === 0 || !width) return;
@@ -121,6 +150,13 @@ export default function PaceRibbon({ strokes, height = 48 }) {
       />
       <div className={styles.labels}>
         <span>Start</span>
+        {paces.length > 0 && (
+          <span className={styles.paceRange}>
+            <span className={styles.paceFast}>▲ {formatPaceLabel(Math.min(...paces))}</span>
+            {' · '}
+            <span>▼ {formatPaceLabel(Math.max(...paces))}</span>
+          </span>
+        )}
         <span>Finish</span>
       </div>
       <table className="sr-only">

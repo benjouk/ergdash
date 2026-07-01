@@ -4,6 +4,34 @@
   flex-direction: column;
 }
 
+.loading {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+}
+
+.loadingMark {
+  font-family: var(--font-hero);
+  font-weight: 900;
+  font-stretch: 115%;
+  font-size: 1.6rem;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  animation: loadingPulse 1.4s ease-in-out infinite;
+}
+
+.loadingSlash {
+  color: var(--accent);
+  font-style: italic;
+}
+
+@keyframes loadingPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
 .layout {
   display: flex;
   flex: 1;
@@ -34,23 +62,25 @@
   }
 }
 
-@media (max-width: 768px) {
-  .layout {
-    flex-direction: column;
-  }
-
+/* Tablet and below: feed sidebar disappears — Dashboard renders recent
+   sessions inline instead. */
+@media (max-width: 1099px) {
   .feed {
-    width: 100%;
-    height: auto;
-    position: static;
-    border-right: none;
-    border-top: 1px solid var(--rule);
-    order: 2;
+    display: none;
   }
 
   .main {
     max-width: 100%;
-    order: 1;
+  }
+}
+
+@media (max-width: 767px) {
+  .layout {
+    margin-top: var(--ticker-height-mobile);
+  }
+
+  .main {
     padding: var(--space-4);
+    padding-bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + var(--space-6));
   }
 }

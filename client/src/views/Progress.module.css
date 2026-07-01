@@ -1,0 +1,27 @@
+.progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.title {
+  font-family: var(--font-hero);
+  font-size: var(--text-xl);
+  font-weight: 850;
+  font-stretch: 110%;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+}
+
+.secondaryGrid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+@media (min-width: 1600px) {
+  .secondaryGrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+}
