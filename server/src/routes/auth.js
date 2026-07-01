@@ -66,7 +66,7 @@ router.get('/status', (req, res) => {
 });
 
 router.post('/logout', (req, res) => {
-  clearAuthSession(res);
+  clearAuthSession(req, res);
   clearAuth();
   res.json({ ok: true });
 });

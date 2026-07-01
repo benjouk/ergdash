@@ -214,30 +214,46 @@ export function isAuthenticated() {
   return !!row;
 }
 
+const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
+
 export function createAuthSession(res) {
   const token = crypto.randomBytes(32).toString('base64url');
   const signed = `${token}.${signToken(token)}`;
-  upsertSyncState('session_token_hash', hashToken(token));
-  res.setHeader('Set-Cookie', `${AUTH_COOKIE}=${encodeURIComponent(signed)}; ${cookieOptions(60 * 60 * 24 * 30)}`);
+  const db = getDb();
+  db.prepare("DELETE FROM sessions WHERE expires_at < datetime('now')").run();
+  db.prepare(
+    "INSERT INTO sessions (token_hash, expires_at) VALUES (?, datetime('now', ?))"
+  ).run(hashToken(token), `+${SESSION_TTL_SECONDS} seconds`);
+  res.setHeader('Set-Cookie', `${AUTH_COOKIE}=${encodeURIComponent(signed)}; ${cookieOptions(SESSION_TTL_SECONDS)}`);
 }
 
-export function hasValidSession(req) {
+function sessionTokenFromRequest(req) {
   const cookie = readCookie(req, AUTH_COOKIE);
-  if (!cookie) return false;
+  if (!cookie) return null;
 
   const [token, signature] = cookie.split('.');
   if (!token || !signature || !timingSafeEqual(signature, signToken(token))) {
-    return false;
+    return null;
   }
-
-  const db = getDb();
-  const row = db.prepare("SELECT value FROM sync_state WHERE key = 'session_token_hash'").get();
-  return !!row && timingSafeEqual(row.value, hashToken(token));
+  return token;
 }
 
-export function clearAuthSession(res) {
+export function hasValidSession(req) {
+  const token = sessionTokenFromRequest(req);
+  if (!token) return false;
+
   const db = getDb();
-  db.prepare("DELETE FROM sync_state WHERE key = 'session_token_hash'").run();
+  const row = db.prepare(
+    "SELECT 1 FROM sessions WHERE token_hash = ? AND expires_at >= datetime('now')"
+  ).get(hashToken(token));
+  return !!row;
+}
+
+export function clearAuthSession(req, res) {
+  const token = sessionTokenFromRequest(req);
+  if (token) {
+    getDb().prepare('DELETE FROM sessions WHERE token_hash = ?').run(hashToken(token));
+  }
   res.setHeader('Set-Cookie', `${AUTH_COOKIE}=; ${cookieOptions(0)}`);
 }
 
@@ -249,6 +265,9 @@ export function getUserInfo() {
 
 export function clearAuth() {
   const db = getDb();
-  const del = db.prepare("DELETE FROM sync_state WHERE key IN ('access_token', 'refresh_token', 'token_expires_at', 'user_info', 'oauth_state', 'session_token_hash')");
-  del.run();
+  const del = db.prepare("DELETE FROM sync_state WHERE key IN ('access_token', 'refresh_token', 'token_expires_at', 'user_info', 'oauth_state')");
+  db.transaction(() => {
+    del.run();
+    db.prepare('DELETE FROM sessions').run();
+  })();
 }
