@@ -13,3 +13,6 @@ server/data/
 
 # Local agent scratch space
 agents/
+
+# Local-only project plan/status doc, not synced via git
+/PLAN.md
