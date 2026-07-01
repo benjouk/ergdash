@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { api } from '../../api.js';
 import { useUnits } from '../../context/UnitsContext.jsx';
 import { useTimeRange } from '../../context/TimeRangeContext.jsx';
@@ -33,7 +33,6 @@ function workoutTitle(w) {
 
 export default function FeedPanel() {
   const [workouts, setWorkouts] = useState([]);
-  const navigate = useNavigate();
   const params = useParams();
   const { formatPace, formatDistance, formatTime } = useUnits();
   const { from, to } = useTimeRange();
@@ -58,10 +57,10 @@ export default function FeedPanel() {
     <div className={styles.feed}>
       <div className={styles.feedHeader}>Recent Sessions</div>
       {workouts.map(w => (
-        <div
+        <Link
           key={w.id}
+          to={`/session/${w.id}`}
           className={`${styles.item} ${params.id === String(w.id) ? styles.itemActive : ''}`}
-          onClick={() => navigate(`/session/${w.id}`)}
         >
           <div className={styles.itemTop}>
             <span className={styles.itemDate}>{formatRelativeDate(w.date)}</span>
@@ -89,7 +88,7 @@ export default function FeedPanel() {
               />
             </div>
           )}
-        </div>
+        </Link>
       ))}
     </div>
   );

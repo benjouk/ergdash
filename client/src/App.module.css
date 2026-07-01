@@ -33,3 +33,24 @@
     padding: var(--space-8);
   }
 }
+
+@media (max-width: 768px) {
+  .layout {
+    flex-direction: column;
+  }
+
+  .feed {
+    width: 100%;
+    height: auto;
+    position: static;
+    border-right: none;
+    border-top: 1px solid var(--rule);
+    order: 2;
+  }
+
+  .main {
+    max-width: 100%;
+    order: 1;
+    padding: var(--space-4);
+  }
+}

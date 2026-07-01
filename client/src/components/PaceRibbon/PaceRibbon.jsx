@@ -1,6 +1,21 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import styles from './PaceRibbon.module.css';
 
+function formatPaceLabel(paceMs) {
+  const totalSeconds = paceMs / 1000;
+  const mins = Math.floor(totalSeconds / 60);
+  const secs = (totalSeconds % 60).toFixed(1).padStart(4, '0');
+  return `${mins}:${secs} /500m`;
+}
+
+const MAX_TABLE_ROWS = 50;
+
+function sampleStrokes(strokes, maxRows) {
+  if (strokes.length <= maxRows) return strokes;
+  const step = strokes.length / maxRows;
+  return Array.from({ length: maxRows }, (_, i) => strokes[Math.floor(i * step)]);
+}
+
 function interpolateColor(t) {
   const r1 = 0, g1 = 232, b1 = 152;
   const r2 = 22, g2 = 50, b2 = 38;
@@ -82,6 +97,12 @@ export default function PaceRibbon({ strokes, height = 48 }) {
 
   if (!strokes || strokes.length === 0) return null;
 
+  const paces = strokes.map(s => s.pace_ms).filter(p => p > 0);
+  const canvasLabel = paces.length > 0
+    ? `Pace ribbon: ${strokes.length} strokes, ranging from ${formatPaceLabel(Math.min(...paces))} to ${formatPaceLabel(Math.max(...paces))} per 500m`
+    : `Pace ribbon: ${strokes.length} strokes`;
+  const tableRows = sampleStrokes(strokes, MAX_TABLE_ROWS);
+
   return (
     <div className={styles.container} ref={containerRef}>
       {tooltip && (
@@ -93,6 +114,8 @@ export default function PaceRibbon({ strokes, height = 48 }) {
         ref={canvasRef}
         className={styles.canvas}
         style={{ height }}
+        role="img"
+        aria-label={canvasLabel}
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
       />
@@ -100,6 +123,25 @@ export default function PaceRibbon({ strokes, height = 48 }) {
         <span>Start</span>
         <span>Finish</span>
       </div>
+      <table className="sr-only">
+        <caption>Pace by stroke</caption>
+        <thead>
+          <tr>
+            <th>Stroke</th>
+            <th>Distance (m)</th>
+            <th>Pace</th>
+          </tr>
+        </thead>
+        <tbody>
+          {tableRows.map((s, i) => (
+            <tr key={s.stroke_number ?? i}>
+              <td>{s.stroke_number ?? i + 1}</td>
+              <td>{Math.round(s.distance_m)}</td>
+              <td>{s.pace_ms > 0 ? formatPaceLabel(s.pace_ms) : '—'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

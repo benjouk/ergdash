@@ -143,7 +143,13 @@ export default function Workouts() {
           </thead>
           <tbody>
             {workouts.map(w => (
-              <tr key={w.id} onClick={() => navigate(`/session/${w.id}`)} style={{ borderBottom: '1px solid var(--rule)', cursor: 'pointer' }}
+              <tr key={w.id}
+                tabIndex={0}
+                role="link"
+                aria-label={`Open session from ${new Date(w.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`}
+                onClick={() => navigate(`/session/${w.id}`)}
+                onKeyDown={e => { if (e.key === 'Enter') navigate(`/session/${w.id}`); }}
+                style={{ borderBottom: '1px solid var(--rule)', cursor: 'pointer' }}
                 onMouseOver={e => e.currentTarget.style.background = 'var(--surface-alt)'}
                 onMouseOut={e => e.currentTarget.style.background = 'transparent'}>
                 <td style={tdStyle}>{new Date(w.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</td>
@@ -185,12 +191,24 @@ export default function Workouts() {
 }
 
 function Th({ children, onClick }) {
+  if (!onClick) {
+    return (
+      <th style={{
+        textAlign: 'left', padding: '8px 10px', fontSize: '0.7rem', color: 'var(--ink-3)',
+        fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.04em',
+        userSelect: 'none', whiteSpace: 'nowrap',
+      }}>{children}</th>
+    );
+  }
   return (
-    <th onClick={onClick} style={{
-      textAlign: 'left', padding: '8px 10px', fontSize: '0.7rem', color: 'var(--ink-3)',
-      fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.04em',
-      cursor: onClick ? 'pointer' : 'default', userSelect: 'none', whiteSpace: 'nowrap',
-    }}>{children}</th>
+    <th style={{ padding: 0 }}>
+      <button type="button" onClick={onClick} style={{
+        display: 'flex', alignItems: 'center', gap: '4px', width: '100%',
+        textAlign: 'left', padding: '8px 10px', fontSize: '0.7rem', color: 'var(--ink-3)',
+        fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.04em',
+        cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap', background: 'none', border: 'none', fontFamily: 'inherit',
+      }}>{children}</button>
+    </th>
   );
 }
 
