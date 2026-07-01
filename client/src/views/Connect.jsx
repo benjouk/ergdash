@@ -5,9 +5,9 @@ import { useAuth } from '../context/AuthContext.jsx';
 import styles from './Connect.module.css';
 
 const FEATURES = [
-  { title: 'Track', desc: 'Every session, pace, and stroke', accent: '#FF5C1F' },
+  { title: 'Track', desc: 'Every session, pace, and stroke', accent: '#C3D500' },
   { title: 'Analyse', desc: 'Trends, comparisons, personal bests', accent: '#38B6FF' },
-  { title: 'Improve', desc: 'AI coaching insights and fitness tracking', accent: '#C6F91F' },
+  { title: 'Improve', desc: 'AI coaching insights and fitness tracking', accent: '#FFB000' },
 ];
 
 export default function Connect() {

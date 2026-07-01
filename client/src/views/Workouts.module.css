@@ -70,7 +70,7 @@
 .filterChipActive,
 .filterChipActive:hover {
   background: var(--accent);
-  color: #FFFFFF;
+  color: var(--on-accent);
   border-color: var(--accent);
 }
 

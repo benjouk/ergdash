@@ -20,7 +20,7 @@
   width: 720px;
   height: 720px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 92, 31, 0.22) 0%, transparent 65%);
+  background: radial-gradient(circle, rgba(195, 213, 0, 0.18) 0%, transparent 65%);
   pointer-events: none;
 }
 
@@ -45,7 +45,7 @@
 }
 
 .wordmarkSlash {
-  color: #FF5C1F;
+  color: #C3D500;
   font-style: italic;
 }
 
@@ -59,19 +59,19 @@
   display: inline-block;
   padding: var(--space-4) var(--space-10);
   background: var(--gradient-hero);
-  color: #FFFFFF;
+  color: var(--on-accent);
   border-radius: 999px;
   font-size: 1rem;
   font-weight: 700;
   letter-spacing: 0.01em;
   text-decoration: none;
-  box-shadow: 0 8px 24px rgba(255, 92, 31, 0.35);
+  box-shadow: 0 8px 24px rgba(195, 213, 0, 0.25);
   transition: transform 150ms ease, box-shadow 150ms ease;
 }
 
 .cta:hover {
   transform: translateY(-2px);
-  box-shadow: 0 12px 32px rgba(255, 92, 31, 0.45);
+  box-shadow: 0 12px 32px rgba(195, 213, 0, 0.35);
 }
 
 .devLink {
@@ -146,7 +146,7 @@
   padding: var(--space-4);
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.09);
-  border-top: 3px solid var(--feature-accent, #FF5C1F);
+  border-top: 3px solid var(--feature-accent, #C3D500);
   border-radius: var(--radius-md);
   text-align: left;
 }

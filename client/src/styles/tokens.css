@@ -37,14 +37,18 @@
   --ink-3: #94949C;
   --rule: #E2E2E0;
 
-  /* Voltage palette */
-  --accent: #F4470B;
-  --accent-bg: rgba(244, 71, 11, 0.08);
-  --accent-deep: #C93400;
+  /* Concept2-aligned palette: chartreuse brand green, blue for intervals,
+     gold for personal bests */
+  --accent: #8F9900;
+  --accent-bg: rgba(143, 153, 0, 0.1);
+  --accent-deep: #6E7600;
   --accent-2: #0687F5;
   --accent-2-bg: rgba(6, 135, 245, 0.08);
-  --accent-3: #7CB518;
-  --accent-3-bg: rgba(124, 181, 24, 0.12);
+  --accent-3: #D19000;
+  --accent-3-bg: rgba(209, 144, 0, 0.12);
+  /* Text color on accent-filled surfaces (chartreuse needs dark ink) */
+  --on-accent: #171905;
+  --on-accent-dim: rgba(23, 25, 5, 0.62);
 
   /* Semantic colors — deltas, heart rate */
   --positive: #0E9F6E;
@@ -63,10 +67,10 @@
   --chart-grid: var(--rule);
   --chart-ref: var(--ink-3);
 
-  /* Ticker stays near-black in both themes — brand anchor */
+  /* Ticker stays near-black in both themes — brand anchor (PM5 vibes) */
   --ticker-bg: #101014;
   --ticker-text: #ECECE8;
-  --ticker-accent: #FF5C1F;
+  --ticker-accent: #C3D500;
   --ticker-dim: #4A4A52;
 
   --font-display: 'Outfit', system-ui, -apple-system, sans-serif;
@@ -98,7 +102,7 @@
   --shadow-md: 0 4px 14px rgba(16, 16, 20, 0.12);
   --shadow-lg: 0 12px 32px rgba(16, 16, 20, 0.18);
 
-  --gradient-hero: linear-gradient(135deg, #F4470B 0%, #C93400 60%, #A32800 100%);
+  --gradient-hero: linear-gradient(135deg, #BCC800 0%, #9AA400 60%, #869000 100%);
 
   --space-1: 4px;
   --space-2: 8px;
@@ -120,13 +124,13 @@
   --ink-3: #55555E;
   --rule: #26262C;
 
-  --accent: #FF5C1F;
-  --accent-bg: rgba(255, 92, 31, 0.1);
-  --accent-deep: #E03D00;
+  --accent: #C3D500;
+  --accent-bg: rgba(195, 213, 0, 0.09);
+  --accent-deep: #A3B000;
   --accent-2: #38B6FF;
   --accent-2-bg: rgba(56, 182, 255, 0.09);
-  --accent-3: #C6F91F;
-  --accent-3-bg: rgba(198, 249, 31, 0.1);
+  --accent-3: #FFB000;
+  --accent-3-bg: rgba(255, 176, 0, 0.1);
 
   --positive: #26D07C;
   --positive-bg: rgba(38, 208, 124, 0.1);
@@ -137,12 +141,12 @@
 
   --ticker-bg: #0C0C0F;
   --ticker-text: #E4E4E0;
-  --ticker-accent: #FF5C1F;
+  --ticker-accent: #C3D500;
   --ticker-dim: #3E3E46;
 
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
   --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.5);
   --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.6);
 
-  --gradient-hero: linear-gradient(135deg, #FF5C1F 0%, #D63A00 55%, #8F2400 100%);
+  --gradient-hero: linear-gradient(135deg, #C9DB0A 0%, #A4B000 60%, #8B9600 100%);
 }

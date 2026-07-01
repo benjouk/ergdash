@@ -97,7 +97,7 @@
 .segmentActive,
 .segmentActive:hover {
   background: var(--accent);
-  color: #FFFFFF;
+  color: var(--on-accent);
   box-shadow: var(--shadow-sm);
 }
 
@@ -131,13 +131,13 @@
 }
 
 .buttonPrimary {
-  color: #FFFFFF;
+  color: var(--on-accent);
   background: var(--accent);
   border-color: var(--accent);
 }
 
 .buttonPrimary:hover {
-  color: #FFFFFF;
+  color: var(--on-accent);
   background: var(--accent-deep);
   border-color: var(--accent-deep);
 }
