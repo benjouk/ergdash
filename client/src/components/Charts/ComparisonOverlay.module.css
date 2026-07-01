@@ -147,6 +147,17 @@
   padding: var(--space-4) var(--space-5);
 }
 
+@media (max-width: 768px) {
+  .dualHeader {
+    grid-template-columns: 1fr;
+  }
+
+  .chartBox {
+    height: 280px;
+    padding: var(--space-3);
+  }
+}
+
 .cardHeader {
   display: flex;
   align-items: center;

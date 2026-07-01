@@ -149,4 +149,12 @@
     flex: 1 1 45%;
     border-bottom: 1px solid var(--rule);
   }
+  .pbStrip {
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
+  .pbCard {
+    flex: 1 1 45%;
+    min-width: 0;
+  }
 }

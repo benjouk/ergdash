@@ -264,6 +264,7 @@
   }
   .navMenuWrapper {
     display: block;
+    margin-left: auto;
   }
   .ticker {
     padding: 0 var(--space-3);

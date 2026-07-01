@@ -3,13 +3,14 @@ import VolumeChart from '../components/Charts/VolumeChart.jsx';
 import PaceChart from '../components/Charts/PaceChart.jsx';
 import PBStrip from '../components/Stats/PBStrip.jsx';
 import FitnessChart from '../components/Charts/FitnessChart.jsx';
+import styles from './Dashboard.module.css';
 
 export default function Dashboard() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
       <StatsRow />
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-5)' }}>
+      <div className={styles.chartsGrid}>
         <VolumeChart />
         <PaceChart />
       </div>

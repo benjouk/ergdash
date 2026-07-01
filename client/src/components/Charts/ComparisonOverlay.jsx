@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import {
   Area,
   AreaChart,
@@ -17,6 +17,7 @@ import styles from './ComparisonOverlay.module.css';
 
 export default function ComparisonOverlay({ workout1, workout2, onBack }) {
   const { formatPace } = useUnits();
+  const isMobile = useIsMobile();
 
   const strokeData1 = useMemo(() => buildStrokeSeries(workout1?.strokes), [workout1?.strokes]);
   const strokeData2 = useMemo(() => buildStrokeSeries(workout2?.strokes), [workout2?.strokes]);
@@ -93,7 +94,7 @@ export default function ComparisonOverlay({ workout1, workout2, onBack }) {
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart
                 data={comparisonData}
-                margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
+                margin={{ top: 8, right: 8, bottom: 0, left: isMobile ? -16 : 0 }}
               >
                 <defs>
                   <linearGradient id="diff-green" x1="0" y1="0" x2="0" y2="1">
@@ -119,7 +120,7 @@ export default function ComparisonOverlay({ workout1, workout2, onBack }) {
                   tickFormatter={v => formatPace(v)}
                   axisLine={false}
                   tickLine={false}
-                  width={58}
+                  width={isMobile ? 44 : 58}
                   domain={[`dataMin - ${yAxisPadding}`, `dataMax + ${yAxisPadding}`]}
                 />
                 <Tooltip content={<ComparisonTooltip formatPace={formatPace} />} />
@@ -241,6 +242,10 @@ export default function ComparisonOverlay({ workout1, workout2, onBack }) {
 function ComparisonTooltip({ active, payload, label, formatPace }) {
   if (!active || !payload?.length) return null;
 
+  const uniquePayload = Array.from(
+    new Map(payload.map(item => [item.dataKey, item])).values()
+  );
+
   return (
     <div style={{
       background: 'var(--surface)',
@@ -254,7 +259,7 @@ function ComparisonTooltip({ active, payload, label, formatPace }) {
       <div style={{ color: 'var(--ink-3)', fontFamily: 'var(--font-mono)', marginBottom: 4 }}>
         {Math.round(label)}m
       </div>
-      {payload.map(item => (
+      {uniquePayload.map(item => (
         <div key={item.dataKey} style={{ display: 'flex', gap: 10, justifyContent: 'space-between', color: item.color }}>
           <span>{item.dataKey === 'pace_ms_1' ? 'Session 1' : 'Session 2'}</span>
           <strong>{formatPace(item.value)}</strong>
@@ -262,6 +267,19 @@ function ComparisonTooltip({ active, payload, label, formatPace }) {
       ))}
     </div>
   );
+}
+
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 768px)').matches);
+
+  useEffect(() => {
+    const mql = window.matchMedia('(max-width: 768px)');
+    const handler = e => setIsMobile(e.matches);
+    mql.addEventListener('change', handler);
+    return () => mql.removeEventListener('change', handler);
+  }, []);
+
+  return isMobile;
 }
 
 function buildStrokeSeries(strokes = []) {
