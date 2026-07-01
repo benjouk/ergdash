@@ -5,8 +5,18 @@ import { api } from '../api.js';
 import { useUnits } from '../context/UnitsContext.jsx';
 import { useTimeRange } from '../context/TimeRangeContext.jsx';
 import Sparkline from '../components/Feed/Sparkline.jsx';
+import styles from './Workouts.module.css';
 
 const TAGS = ['', 'endurance', 'interval'];
+
+const TAG_CLASS = {
+  endurance: 'tagSteady',
+  interval: 'tagInterval',
+};
+
+function formatDateShort(dateStr) {
+  return new Date(dateStr).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+}
 
 export default function Workouts() {
   const [workouts, setWorkouts] = useState([]);
@@ -15,7 +25,7 @@ export default function Workouts() {
   const [sort, setSort] = useState('date_desc');
   const [tag, setTag] = useState('');
   const navigate = useNavigate();
-  const { formatPace, formatDistanceFull, formatTime } = useUnits();
+  const { formatPace, formatDistanceFull, formatDistance, formatTime } = useUnits();
   const { from, to } = useTimeRange();
   const limit = 20;
 
@@ -96,41 +106,39 @@ export default function Workouts() {
     downloadBlob(JSON.stringify({ workouts: rowsToExport }, null, 2), 'application/json', 'rowdash-workouts.json');
   };
 
+  const openSession = (id) => navigate(`/session/${id}`);
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h2 style={{
-          fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: 700,
-          letterSpacing: '-0.02em', color: 'var(--ink)',
-        }}>Workouts</h2>
-        <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
-          <button onClick={exportJson} style={exportBtnStyle}>
+    <div className={styles.workouts}>
+      <div className={styles.header}>
+        <h2 className={styles.title}>Workouts</h2>
+        <div className={styles.actions}>
+          <button onClick={exportJson} className={styles.exportButton}>
             <Download size={14} /> JSON
           </button>
-          <button onClick={exportCsv} style={exportBtnStyle}>
+          <button onClick={exportCsv} className={styles.exportButton}>
             <Download size={14} /> CSV
           </button>
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+      <div className={styles.filters}>
         {TAGS.map(t => (
-          <button key={t} onClick={() => { setTag(t); setOffset(0); }} style={{
-            padding: 'var(--space-1) var(--space-3)', borderRadius: 'var(--radius-sm)',
-            fontSize: '0.75rem', fontWeight: 500,
-            background: tag === t ? 'var(--accent)' : 'var(--surface)',
-            color: tag === t ? '#fff' : 'var(--ink-2)',
-            border: `1px solid ${tag === t ? 'var(--accent)' : 'var(--rule)'}`,
-          }}>
+          <button
+            key={t}
+            onClick={() => { setTag(t); setOffset(0); }}
+            className={`${styles.filterChip} ${tag === t ? styles.filterChipActive : ''}`}
+          >
             {t || 'All'}
           </button>
         ))}
       </div>
 
-      <div style={{ background: 'var(--surface)', border: '1px solid var(--rule)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'var(--font-mono)', fontSize: '0.85rem' }}>
+      {/* Desktop / tablet table */}
+      <div className={styles.tableCard}>
+        <table className={styles.table}>
           <thead>
-            <tr style={{ borderBottom: '2px solid var(--rule)' }}>
+            <tr>
               <Th onClick={() => toggleSort('date')}>Date <SortIcon field="date" /></Th>
               <Th>Tag</Th>
               <Th onClick={() => toggleSort('distance')}>Distance <SortIcon field="distance" /></Th>
@@ -143,25 +151,25 @@ export default function Workouts() {
           </thead>
           <tbody>
             {workouts.map(w => (
-              <tr key={w.id}
+              <tr
+                key={w.id}
                 tabIndex={0}
                 role="link"
-                aria-label={`Open session from ${new Date(w.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`}
-                onClick={() => navigate(`/session/${w.id}`)}
-                onKeyDown={e => { if (e.key === 'Enter') navigate(`/session/${w.id}`); }}
-                style={{ borderBottom: '1px solid var(--rule)', cursor: 'pointer' }}
-                onMouseOver={e => e.currentTarget.style.background = 'var(--surface-alt)'}
-                onMouseOut={e => e.currentTarget.style.background = 'transparent'}>
-                <td style={tdStyle}>{new Date(w.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</td>
-                <td style={tdStyle}>
+                aria-label={`Open session from ${formatDateShort(w.date)}`}
+                onClick={() => openSession(w.id)}
+                onKeyDown={e => { if (e.key === 'Enter') openSession(w.id); }}
+                className={styles.row}
+              >
+                <td>{formatDateShort(w.date)}</td>
+                <td>
                   {w.inferred_tag && <TagBadge tag={w.inferred_tag} />}
                 </td>
-                <td style={tdStyle}>{formatDistanceFull(w.distance)}</td>
-                <td style={tdStyle}>{formatTime(w.time_ms)}</td>
-                <td style={{ ...tdStyle, color: 'var(--accent)', fontWeight: 600 }}>{formatPace(w.pace_ms)}</td>
-                <td style={tdStyle}>{w.stroke_rate || '—'}</td>
-                <td style={tdStyle}>{w.heart_rate_avg || '—'}</td>
-                <td style={tdStyle}>
+                <td>{formatDistanceFull(w.distance)}</td>
+                <td>{formatTime(w.time_ms)}</td>
+                <td className={styles.paceCell}>{formatPace(w.pace_ms)}</td>
+                <td>{w.stroke_rate || '—'}</td>
+                <td>{w.heart_rate_avg || '—'}</td>
+                <td>
                   {w.pace_profile?.length >= 2 && (
                     <Sparkline
                       data={w.pace_profile}
@@ -177,13 +185,53 @@ export default function Workouts() {
         </table>
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', color: 'var(--ink-2)' }}>
+      {/* Mobile card list */}
+      <div className={styles.cardList}>
+        {workouts.map(w => (
+          <button
+            key={w.id}
+            type="button"
+            className={styles.workoutCard}
+            onClick={() => openSession(w.id)}
+            aria-label={`Open session from ${formatDateShort(w.date)}`}
+          >
+            <div className={styles.cardTop}>
+              <span className={styles.cardDate}>{formatDateShort(w.date)}</span>
+              {w.inferred_tag && <TagBadge tag={w.inferred_tag} />}
+            </div>
+            <div className={styles.cardMain}>
+              <span className={styles.cardPace}>{formatPace(w.pace_ms)}</span>
+              {w.pace_profile?.length >= 2 && (
+                <Sparkline
+                  data={w.pace_profile}
+                  color={w.inferred_tag === 'interval' ? 'var(--accent-2)' : 'var(--accent)'}
+                  width={96}
+                  height={24}
+                />
+              )}
+            </div>
+            <div className={styles.cardMeta}>
+              {formatDistance(w.distance)} · {formatTime(w.time_ms)}
+              {w.stroke_rate ? ` · ${w.stroke_rate}spm` : ''}
+              {w.heart_rate_avg ? ` · ${w.heart_rate_avg}bpm` : ''}
+            </div>
+          </button>
+        ))}
+      </div>
+
+      <div className={styles.pagination}>
         <span>Showing {offset + 1}–{Math.min(offset + limit, total)} of {total}</span>
-        <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
-          <button onClick={() => setOffset(Math.max(0, offset - limit))} disabled={offset === 0}
-            style={{ ...btnStyle, opacity: offset === 0 ? 0.3 : 1 }}>Previous</button>
-          <button onClick={() => setOffset(offset + limit)} disabled={offset + limit >= total}
-            style={{ ...btnStyle, opacity: offset + limit >= total ? 0.3 : 1 }}>Next</button>
+        <div className={styles.pageButtons}>
+          <button
+            onClick={() => setOffset(Math.max(0, offset - limit))}
+            disabled={offset === 0}
+            className={styles.pageButton}
+          >Previous</button>
+          <button
+            onClick={() => setOffset(offset + limit)}
+            disabled={offset + limit >= total}
+            className={styles.pageButton}
+          >Next</button>
         </div>
       </div>
     </div>
@@ -192,55 +240,21 @@ export default function Workouts() {
 
 function Th({ children, onClick }) {
   if (!onClick) {
-    return (
-      <th style={{
-        textAlign: 'left', padding: '8px 10px', fontSize: '0.7rem', color: 'var(--ink-3)',
-        fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.04em',
-        userSelect: 'none', whiteSpace: 'nowrap',
-      }}>{children}</th>
-    );
+    return <th><span className={styles.thLabel}>{children}</span></th>;
   }
   return (
-    <th style={{ padding: 0 }}>
-      <button type="button" onClick={onClick} style={{
-        display: 'flex', alignItems: 'center', gap: '4px', width: '100%',
-        textAlign: 'left', padding: '8px 10px', fontSize: '0.7rem', color: 'var(--ink-3)',
-        fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.04em',
-        cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap', background: 'none', border: 'none', fontFamily: 'inherit',
-      }}>{children}</button>
+    <th>
+      <button type="button" onClick={onClick} className={styles.thButton}>{children}</button>
     </th>
   );
 }
 
 function TagBadge({ tag }) {
-  const colors = {
-    endurance: 'var(--accent)',
-    interval: 'var(--accent-2)',
-  };
-  const color = colors[tag] || 'var(--ink-3)';
-  return (
-    <span style={{
-      fontSize: '0.6rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em',
-      padding: '1px 5px', borderRadius: '3px', color, background: `${color}15`,
-      fontFamily: 'var(--font-body)',
-    }}>{tag}</span>
-  );
+  const tagClass = styles[TAG_CLASS[tag]] || styles.tagOther;
+  return <span className={`${styles.tag} ${tagClass}`}>{tag}</span>;
 }
 
 function csvCell(value) {
   const text = value == null ? '' : String(value);
   return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
-
-const tdStyle = { padding: '8px 10px' };
-const btnStyle = {
-  padding: 'var(--space-2) var(--space-3)', borderRadius: 'var(--radius-sm)',
-  border: '1px solid var(--rule)', background: 'var(--surface)', color: 'var(--ink-2)',
-  fontSize: '0.8rem', cursor: 'pointer',
-};
-const exportBtnStyle = {
-  display: 'flex', alignItems: 'center', gap: 'var(--space-2)',
-  padding: 'var(--space-2) var(--space-3)', borderRadius: 'var(--radius-sm)',
-  border: '1px solid var(--rule)', color: 'var(--ink-2)', fontSize: '0.8rem',
-  background: 'var(--surface)',
-};

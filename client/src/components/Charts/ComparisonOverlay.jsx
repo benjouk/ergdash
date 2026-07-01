@@ -13,6 +13,7 @@ import {
 } from 'recharts';
 import { ArrowLeft } from 'lucide-react';
 import { useUnits } from '../../context/UnitsContext.jsx';
+import { AXIS_TICK } from '../../styles/chartTheme.js';
 import styles from './ComparisonOverlay.module.css';
 
 export default function ComparisonOverlay({ workout1, workout2, onBack }) {
@@ -98,25 +99,25 @@ export default function ComparisonOverlay({ workout1, workout2, onBack }) {
               >
                 <defs>
                   <linearGradient id="diff-green" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.2} />
-                    <stop offset="100%" stopColor="var(--accent)" stopOpacity={0.05} />
+                    <stop offset="0%" stopColor="var(--positive)" stopOpacity={0.2} />
+                    <stop offset="100%" stopColor="var(--positive)" stopOpacity={0.05} />
                   </linearGradient>
                   <linearGradient id="diff-red" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="var(--hot)" stopOpacity={0.2} />
-                    <stop offset="100%" stopColor="var(--hot)" stopOpacity={0.05} />
+                    <stop offset="0%" stopColor="var(--negative)" stopOpacity={0.2} />
+                    <stop offset="100%" stopColor="var(--negative)" stopOpacity={0.05} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid stroke="var(--rule)" strokeDasharray="5 7" />
                 <XAxis
                   dataKey="distance"
-                  tick={{ fontSize: 11, fill: 'var(--ink-3)' }}
+                  tick={AXIS_TICK}
                   tickFormatter={v => `${v}m`}
                   axisLine={false}
                   tickLine={false}
                 />
                 <YAxis
                   reversed
-                  tick={{ fontSize: 11, fill: 'var(--ink-3)' }}
+                  tick={AXIS_TICK}
                   tickFormatter={v => formatPace(v)}
                   axisLine={false}
                   tickLine={false}
@@ -227,11 +228,11 @@ export default function ComparisonOverlay({ workout1, workout2, onBack }) {
           <span>{formatDate(new Date(workout2.date))}</span>
         </div>
         <div className={styles.legendItem}>
-          <div className={styles.legendBox} style={{ backgroundColor: 'var(--accent)' }} />
+          <div className={styles.legendBox} style={{ backgroundColor: 'var(--positive)' }} />
           <span>Faster</span>
         </div>
         <div className={styles.legendItem}>
-          <div className={styles.legendBox} style={{ backgroundColor: 'var(--hot)' }} />
+          <div className={styles.legendBox} style={{ backgroundColor: 'var(--negative)' }} />
           <span>Slower</span>
         </div>
       </div>

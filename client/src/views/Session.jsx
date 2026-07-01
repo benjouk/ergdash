@@ -30,6 +30,7 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { api } from '../api.js';
+import { AXIS_TICK } from '../styles/chartTheme.js';
 import { useUnits } from '../context/UnitsContext.jsx';
 import PaceRibbon from '../components/PaceRibbon/PaceRibbon.jsx';
 import Sparkline from '../components/Feed/Sparkline.jsx';
@@ -362,13 +363,13 @@ export default function Session() {
                     <AreaChart data={strokeData} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
                       <defs>
                         <linearGradient id="paceFill" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="var(--accent-2)" stopOpacity={0.34} />
-                          <stop offset="100%" stopColor="var(--accent-2)" stopOpacity={0.04} />
+                          <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.3} />
+                          <stop offset="100%" stopColor="var(--accent)" stopOpacity={0.03} />
                         </linearGradient>
                       </defs>
                       <CartesianGrid stroke="var(--rule)" strokeDasharray="5 7" />
-                      <XAxis dataKey="distance" tick={{ fontSize: 11, fill: 'var(--ink-3)' }} tickFormatter={v => `${v}m`} axisLine={false} tickLine={false} />
-                      <YAxis reversed tick={{ fontSize: 11, fill: 'var(--ink-3)' }} tickFormatter={v => formatPace(v)} axisLine={false} tickLine={false} width={58} domain={['dataMin - 1500', 'dataMax + 1500']} />
+                      <XAxis dataKey="distance" tick={AXIS_TICK} tickFormatter={v => `${v}m`} axisLine={false} tickLine={false} />
+                      <YAxis reversed tick={AXIS_TICK} tickFormatter={v => formatPace(v)} axisLine={false} tickLine={false} width={58} domain={['dataMin - 1500', 'dataMax + 1500']} />
                       <ReferenceLine y={workout.pace_ms} stroke="var(--ink-2)" strokeDasharray="4 4" />
                       <Tooltip content={<ChartTooltip formatPace={formatPace} />} />
                       <Area type="monotone" dataKey="pace_ms" stroke="var(--accent)" strokeWidth={2} fill="url(#paceFill)" dot={false} activeDot={{ r: 4 }} />
@@ -391,13 +392,13 @@ export default function Session() {
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={strokeData} margin={{ top: 8, right: hasHeartRate ? 8 : 0, bottom: 0, left: 0 }}>
                         <CartesianGrid stroke="var(--rule)" strokeDasharray="5 7" />
-                        <XAxis dataKey="distance" tick={{ fontSize: 11, fill: 'var(--ink-3)' }} tickFormatter={v => `${v}m`} axisLine={false} tickLine={false} />
-                        <YAxis yAxisId="rate" tick={{ fontSize: 11, fill: 'var(--ink-3)' }} axisLine={false} tickLine={false} width={38} domain={['dataMin - 2', 'dataMax + 2']} />
-                        {hasHeartRate && <YAxis yAxisId="hr" orientation="right" tick={{ fontSize: 11, fill: 'var(--ink-3)' }} axisLine={false} tickLine={false} width={38} domain={['dataMin - 5', 'dataMax + 5']} />}
+                        <XAxis dataKey="distance" tick={AXIS_TICK} tickFormatter={v => `${v}m`} axisLine={false} tickLine={false} />
+                        <YAxis yAxisId="rate" tick={AXIS_TICK} axisLine={false} tickLine={false} width={38} domain={['dataMin - 2', 'dataMax + 2']} />
+                        {hasHeartRate && <YAxis yAxisId="hr" orientation="right" tick={AXIS_TICK} axisLine={false} tickLine={false} width={38} domain={['dataMin - 5', 'dataMax + 5']} />}
                         {workout.stroke_rate && <ReferenceLine yAxisId="rate" y={workout.stroke_rate} stroke="var(--ink-2)" strokeDasharray="4 4" />}
                         <Tooltip content={<ChartTooltip formatPace={formatPace} />} />
                         {hasStrokeRate && <Line yAxisId="rate" type="stepAfter" dataKey="stroke_rate" stroke="var(--accent-2)" strokeWidth={2} dot={false} />}
-                        {hasHeartRate && <Line yAxisId="hr" type="monotone" dataKey="heart_rate" stroke="var(--hot)" strokeWidth={1.8} dot={false} />}
+                        {hasHeartRate && <Line yAxisId="hr" type="monotone" dataKey="heart_rate" stroke="var(--hr)" strokeWidth={1.8} dot={false} />}
                       </LineChart>
                     </ResponsiveContainer>
                   </div>

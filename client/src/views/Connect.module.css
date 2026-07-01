@@ -1,0 +1,173 @@
+/* Brand moment — always dark, regardless of theme */
+.connect {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #0A0A0C;
+  padding: var(--space-6);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Accent glow behind the wordmark */
+.connect::before {
+  content: '';
+  position: absolute;
+  top: -30%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 720px;
+  height: 720px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 92, 31, 0.22) 0%, transparent 65%);
+  pointer-events: none;
+}
+
+.inner {
+  position: relative;
+  text-align: center;
+  max-width: 460px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  align-items: center;
+}
+
+.wordmark {
+  font-family: var(--font-hero);
+  font-weight: 900;
+  font-stretch: 118%;
+  font-size: clamp(2.6rem, 9vw, 3.6rem);
+  letter-spacing: -0.02em;
+  color: #F2F2EF;
+  line-height: 1;
+}
+
+.wordmarkSlash {
+  color: #FF5C1F;
+  font-style: italic;
+}
+
+.tagline {
+  font-size: 1rem;
+  color: rgba(242, 242, 239, 0.65);
+  line-height: 1.55;
+}
+
+.cta {
+  display: inline-block;
+  padding: var(--space-4) var(--space-10);
+  background: var(--gradient-hero);
+  color: #FFFFFF;
+  border-radius: 999px;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-decoration: none;
+  box-shadow: 0 8px 24px rgba(255, 92, 31, 0.35);
+  transition: transform 150ms ease, box-shadow 150ms ease;
+}
+
+.cta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(255, 92, 31, 0.45);
+}
+
+.devLink {
+  font-size: 0.8rem;
+  color: rgba(242, 242, 239, 0.4);
+  text-decoration: underline;
+}
+
+.devLink:hover {
+  color: rgba(242, 242, 239, 0.7);
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.syncing {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.syncingLabel {
+  font-size: 0.9rem;
+  color: rgba(242, 242, 239, 0.65);
+}
+
+.progressTrack {
+  width: 220px;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  background: var(--gradient-hero);
+  border-radius: 3px;
+  transition: width 500ms ease;
+}
+
+.progressPulse {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.syncCount {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: rgba(242, 242, 239, 0.45);
+  font-variant-numeric: tabular-nums;
+}
+
+.features {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+  width: 100%;
+}
+
+.feature {
+  padding: var(--space-4);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-top: 3px solid var(--feature-accent, #FF5C1F);
+  border-radius: var(--radius-md);
+  text-align: left;
+}
+
+.featureTitle {
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: #F2F2EF;
+  margin-bottom: var(--space-1);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.featureDesc {
+  font-size: 0.75rem;
+  color: rgba(242, 242, 239, 0.55);
+  line-height: 1.45;
+}
+
+@media (max-width: 640px) {
+  .features {
+    grid-template-columns: 1fr;
+  }
+}

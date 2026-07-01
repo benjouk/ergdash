@@ -16,20 +16,22 @@
   padding: 0 var(--space-5);
   gap: var(--space-5);
   z-index: 100;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 2px solid var(--ticker-accent);
 }
 
 .logo {
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-size: 1.15rem;
-  letter-spacing: -0.03em;
+  font-family: var(--font-hero);
+  font-weight: 900;
+  font-stretch: 115%;
+  font-size: 1.2rem;
+  letter-spacing: -0.02em;
   white-space: nowrap;
   flex-shrink: 0;
 }
 
 .logoSlash {
   color: var(--ticker-accent);
+  font-style: italic;
 }
 
 .stats {
@@ -56,9 +58,14 @@
 .statValue {
   font-family: var(--font-mono);
   font-size: 0.85rem;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--ticker-text);
   letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.statPrimary .statValue {
+  color: var(--ticker-accent);
 }
 
 .traceContainer {
@@ -158,9 +165,12 @@
 }
 
 .navLink {
+  position: relative;
   font-family: var(--font-body);
   font-size: 0.8rem;
-  font-weight: 500;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   color: var(--ticker-dim);
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-sm);
@@ -174,7 +184,19 @@
 }
 
 .navLinkActive {
-  color: var(--ticker-accent);
+  color: var(--ticker-text);
+}
+
+/* Speed rule under the active link */
+.navLinkActive::after {
+  content: '';
+  position: absolute;
+  left: var(--space-3);
+  right: var(--space-3);
+  bottom: 2px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--ticker-accent);
 }
 
 .themeToggle {
@@ -188,57 +210,6 @@
 
 .themeToggle:hover {
   color: var(--ticker-text);
-}
-
-.navMenuWrapper {
-  position: relative;
-  flex-shrink: 0;
-  display: none;
-}
-
-.hamburgerButton {
-  color: var(--ticker-text);
-  padding: var(--space-2);
-  border-radius: var(--radius-sm);
-  display: flex;
-  align-items: center;
-  transition: background 150ms ease;
-}
-
-.hamburgerButton:hover {
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.navMenuPanel {
-  position: absolute;
-  top: calc(100% + var(--space-2));
-  right: 0;
-  z-index: 20;
-  width: 200px;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  padding: var(--space-2);
-  background: var(--surface);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-md);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.24);
-}
-
-.navMenuLink {
-  font-family: var(--font-body);
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: var(--ink);
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-sm);
-  text-decoration: none;
-  transition: background 100ms ease;
-}
-
-.navMenuLink:hover,
-.navMenuLink:focus-visible {
-  background: var(--surface-alt);
 }
 
 .syncDot {
@@ -258,16 +229,63 @@
   50% { opacity: 0.3; }
 }
 
-@media (max-width: 768px) {
-  .stats, .traceContainer, .rangeWrapper, .nav {
+/* Tablet: keep top nav, drop the trace to save room */
+@media (max-width: 1099px) {
+  .traceContainer {
     display: none;
   }
-  .navMenuWrapper {
-    display: block;
+  .stats {
     margin-left: auto;
   }
+}
+
+/* Mobile: compact 48px header — wordmark, headline stat, range, sync, theme.
+   Navigation moves to the bottom nav. */
+@media (max-width: 767px) {
   .ticker {
+    height: var(--ticker-height-mobile);
     padding: 0 var(--space-3);
     gap: var(--space-3);
+  }
+  .nav {
+    display: none;
+  }
+  .stat {
+    display: none;
+  }
+  .statPrimary {
+    display: flex;
+    flex-direction: row;
+    align-items: baseline;
+    gap: var(--space-2);
+  }
+  .statPrimary .statLabel {
+    display: none;
+  }
+  .statPrimary .statValue {
+    font-size: 0.72rem;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .stats {
+    margin-left: auto;
+    flex-shrink: 1;
+    min-width: 0;
+    overflow: hidden;
+  }
+  .rangeButton span {
+    max-width: 72px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .rangeMenu {
+    position: fixed;
+    top: calc(var(--ticker-height-mobile) + var(--space-2));
+    left: var(--space-3);
+    right: var(--space-3);
+    width: auto;
   }
 }

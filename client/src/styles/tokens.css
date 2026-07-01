@@ -12,36 +12,93 @@
   font-display: swap;
 }
 
+@font-face {
+  font-family: 'Archivo';
+  src: url('/fonts/Archivo-Variable.woff2') format('woff2-variations');
+  font-weight: 100 900;
+  font-stretch: 62% 125%;
+  font-display: swap;
+}
+
+/*
+ * Breakpoints (used consistently across all modules):
+ *   < 768px      mobile   — bottom nav, single column, compact 48px header
+ *   768–1099px   tablet   — no feed sidebar, top nav
+ *   >= 1100px    desktop  — ticker + feed sidebar + main
+ *   >= 1600px    wide     — larger paddings, side-by-side charts
+ */
+
 :root {
-  --bg: #F4F4F0;
+  --bg: #F7F7F5;
   --surface: #FFFFFF;
-  --surface-alt: #ECECEA;
-  --ink: #18181A;
-  --ink-2: #606068;
-  --ink-3: #9898A0;
-  --rule: #DCDCE0;
-  --accent: #00A870;
-  --accent-bg: rgba(0, 168, 112, 0.08);
-  --accent-2: #6855E0;
-  --accent-2-bg: rgba(104, 85, 224, 0.08);
-  --hot: #E8562A;
-  --hot-bg: rgba(232, 86, 42, 0.08);
-  --ticker-bg: #18181A;
-  --ticker-text: #E8E8E4;
-  --ticker-accent: #00E898;
-  --ticker-dim: #484850;
+  --surface-alt: #EFEFEC;
+  --ink: #141416;
+  --ink-2: #5C5C64;
+  --ink-3: #94949C;
+  --rule: #E2E2E0;
+
+  /* Voltage palette */
+  --accent: #F4470B;
+  --accent-bg: rgba(244, 71, 11, 0.08);
+  --accent-deep: #C93400;
+  --accent-2: #0687F5;
+  --accent-2-bg: rgba(6, 135, 245, 0.08);
+  --accent-3: #7CB518;
+  --accent-3-bg: rgba(124, 181, 24, 0.12);
+
+  /* Semantic colors — deltas, heart rate */
+  --positive: #0E9F6E;
+  --positive-bg: rgba(14, 159, 110, 0.1);
+  --negative: #E02D3C;
+  --negative-bg: rgba(224, 45, 60, 0.08);
+  --hr: #E02D3C;
+  --hr-bg: rgba(224, 45, 60, 0.08);
+  --hot: var(--hr);
+  --hot-bg: var(--hr-bg);
+
+  /* Charts */
+  --chart-1: var(--accent);
+  --chart-2: var(--accent-2);
+  --chart-3: var(--accent-3);
+  --chart-grid: var(--rule);
+  --chart-ref: var(--ink-3);
+
+  /* Ticker stays near-black in both themes — brand anchor */
+  --ticker-bg: #101014;
+  --ticker-text: #ECECE8;
+  --ticker-accent: #FF5C1F;
+  --ticker-dim: #4A4A52;
 
   --font-display: 'Outfit', system-ui, -apple-system, sans-serif;
   --font-body: 'Outfit', system-ui, -apple-system, sans-serif;
   --font-mono: 'Fira Code', 'Fira Mono', monospace;
+  --font-hero: 'Archivo', 'Outfit', system-ui, sans-serif;
+
+  /* Fluid type scale */
+  --text-xs: 0.72rem;
+  --text-sm: 0.84rem;
+  --text-base: 1rem;
+  --text-lg: clamp(1.1rem, 1rem + 0.5vw, 1.3rem);
+  --text-xl: clamp(1.4rem, 1.2rem + 1vw, 1.9rem);
+  --text-2xl: clamp(1.8rem, 1.4rem + 2vw, 2.8rem);
+  --text-hero: clamp(2.6rem, 1.8rem + 4vw, 4.5rem);
 
   --ticker-height: 56px;
+  --ticker-height-mobile: 48px;
+  --bottom-nav-height: 64px;
   --feed-width: 320px;
   --main-content-max-width: 2080px;
 
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 16px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
+
+  --shadow-sm: 0 1px 3px rgba(16, 16, 20, 0.08);
+  --shadow-md: 0 4px 14px rgba(16, 16, 20, 0.12);
+  --shadow-lg: 0 12px 32px rgba(16, 16, 20, 0.18);
+
+  --gradient-hero: linear-gradient(135deg, #F4470B 0%, #C93400 60%, #A32800 100%);
 
   --space-1: 4px;
   --space-2: 8px;
@@ -55,21 +112,37 @@
 }
 
 [data-theme="dark"] {
-  --bg: #0C0C0E;
-  --surface: #16161A;
-  --surface-alt: #1E1E22;
-  --ink: #EAEAE8;
-  --ink-2: #888890;
-  --ink-3: #505058;
-  --rule: #28282E;
-  --accent: #00E898;
-  --accent-bg: rgba(0, 232, 152, 0.06);
-  --accent-2: #A090FF;
-  --accent-2-bg: rgba(160, 144, 255, 0.06);
-  --hot: #FF7848;
-  --hot-bg: rgba(255, 120, 72, 0.06);
-  --ticker-bg: #08080A;
-  --ticker-text: #D0D0CC;
-  --ticker-accent: #00E898;
-  --ticker-dim: #3A3A40;
+  --bg: #0A0A0C;
+  --surface: #141418;
+  --surface-alt: #1C1C21;
+  --ink: #F2F2EF;
+  --ink-2: #8E8E96;
+  --ink-3: #55555E;
+  --rule: #26262C;
+
+  --accent: #FF5C1F;
+  --accent-bg: rgba(255, 92, 31, 0.1);
+  --accent-deep: #E03D00;
+  --accent-2: #38B6FF;
+  --accent-2-bg: rgba(56, 182, 255, 0.09);
+  --accent-3: #C6F91F;
+  --accent-3-bg: rgba(198, 249, 31, 0.1);
+
+  --positive: #26D07C;
+  --positive-bg: rgba(38, 208, 124, 0.1);
+  --negative: #FF4D5E;
+  --negative-bg: rgba(255, 77, 94, 0.09);
+  --hr: #FF4D5E;
+  --hr-bg: rgba(255, 77, 94, 0.09);
+
+  --ticker-bg: #0C0C0F;
+  --ticker-text: #E4E4E0;
+  --ticker-accent: #FF5C1F;
+  --ticker-dim: #3E3E46;
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.6);
+
+  --gradient-hero: linear-gradient(135deg, #FF5C1F 0%, #D63A00 55%, #8F2400 100%);
 }

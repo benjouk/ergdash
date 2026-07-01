@@ -31,31 +31,33 @@ function workoutTitle(w) {
   return `${dist} endurance`;
 }
 
-export default function FeedPanel() {
+export default function FeedPanel({ layout = 'column' }) {
   const [workouts, setWorkouts] = useState([]);
   const params = useParams();
   const { formatPace, formatDistance, formatTime } = useUnits();
   const { from, to } = useTimeRange();
 
+  const isRow = layout === 'row';
+
   useEffect(() => {
-    const p = { limit: 50, sort: 'date_desc' };
+    const p = { limit: isRow ? 12 : 50, sort: 'date_desc' };
     if (from) p.from = from;
     if (to) p.to = to;
     api.getWorkouts(p)
       .then(data => setWorkouts(data.data || []))
       .catch(() => {});
-  }, [from, to]);
+  }, [from, to, isRow]);
 
   if (workouts.length === 0) return (
     <div className={styles.feed}>
-      <div className={styles.feedHeader}>Recent Sessions</div>
-      <div style={{ padding: 'var(--space-4)', color: 'var(--ink-3)', fontSize: '0.8rem' }}>No workouts yet</div>
+      {!isRow && <div className={styles.feedHeader}>Recent Sessions</div>}
+      <div className={styles.empty}>No workouts yet</div>
     </div>
   );
 
   return (
-    <div className={styles.feed}>
-      <div className={styles.feedHeader}>Recent Sessions</div>
+    <div className={`${styles.feed} ${isRow ? styles.feedRow : ''}`}>
+      {!isRow && <div className={styles.feedHeader}>Recent Sessions</div>}
       {workouts.map(w => (
         <Link
           key={w.id}

@@ -25,6 +25,11 @@ a {
   text-decoration: none;
 }
 
+::selection {
+  background: var(--accent);
+  color: #FFFFFF;
+}
+
 button {
   font-family: inherit;
   cursor: pointer;
@@ -57,6 +62,24 @@ input, select {
 .mono {
   font-family: var(--font-mono);
   letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.heroNum {
+  font-family: var(--font-hero);
+  font-weight: 850;
+  font-stretch: 110%;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 ::-webkit-scrollbar {

@@ -3,16 +3,17 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Dot } from
 import { api } from '../../api.js';
 import { useUnits } from '../../context/UnitsContext.jsx';
 import { useTimeRange } from '../../context/TimeRangeContext.jsx';
+import { AXIS_TICK, AXIS_LINE, SERIES, TOOLTIP_PROPS } from '../../styles/chartTheme.js';
 import styles from './Charts.module.css';
 
 const TAG_COLORS = {
-  endurance: 'var(--accent)',
-  interval: 'var(--accent-2)',
+  endurance: SERIES.primary,
+  interval: SERIES.secondary,
 };
 
 function CustomDot(props) {
   const { cx, cy, payload } = props;
-  const color = TAG_COLORS[payload.inferred_tag] || 'var(--accent)';
+  const color = TAG_COLORS[payload.inferred_tag] || SERIES.primary;
   return <circle cx={cx} cy={cy} r={3} fill={color} stroke="none" />;
 }
 
@@ -37,21 +38,29 @@ export default function PaceChart() {
     dateShort: new Date(d.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
   }));
 
+  const latest = data[data.length - 1];
+
   return (
     <div className={styles.chartCard}>
-      <div className={styles.chartTitle}>Pace Trend</div>
-      <ResponsiveContainer width="100%" height={200}>
+      <div className={styles.chartHeader}>
+        <div className={styles.chartTitle}>Pace Trend</div>
+        <div className={styles.chartValue}>
+          {formatPace(latest.pace_ms)}
+          <span className={styles.chartValueUnit}>latest</span>
+        </div>
+      </div>
+      <ResponsiveContainer width="100%" height={220}>
         <LineChart data={formatted}>
           <XAxis
             dataKey="dateShort"
-            tick={{ fontSize: 11, fill: 'var(--ink-3)' }}
-            axisLine={{ stroke: 'var(--rule)' }}
+            tick={AXIS_TICK}
+            axisLine={AXIS_LINE}
             tickLine={false}
             interval="preserveStartEnd"
           />
           <YAxis
             reversed
-            tick={{ fontSize: 11, fill: 'var(--ink-3)' }}
+            tick={AXIS_TICK}
             tickFormatter={v => formatPace(v)}
             axisLine={false}
             tickLine={false}
@@ -59,21 +68,16 @@ export default function PaceChart() {
             domain={['dataMin - 2000', 'dataMax + 2000']}
           />
           <Tooltip
-            contentStyle={{
-              background: 'var(--surface)',
-              border: '1px solid var(--rule)',
-              borderRadius: 'var(--radius-sm)',
-              fontSize: '0.8rem',
-            }}
+            {...TOOLTIP_PROPS}
             formatter={(v) => [formatPace(v), 'Pace']}
           />
           <Line
             type="monotone"
             dataKey="pace_ms"
-            stroke="var(--accent)"
-            strokeWidth={1.5}
+            stroke={SERIES.primary}
+            strokeWidth={2}
             dot={<CustomDot />}
-            activeDot={{ r: 5, stroke: 'var(--accent)', fill: 'var(--surface)' }}
+            activeDot={{ r: 5, stroke: SERIES.primary, fill: 'var(--surface)' }}
           />
         </LineChart>
       </ResponsiveContainer>

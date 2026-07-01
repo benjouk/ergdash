@@ -4,18 +4,24 @@ import { useUnits } from '../../context/UnitsContext.jsx';
 import { useTimeRange } from '../../context/TimeRangeContext.jsx';
 import styles from './Stats.module.css';
 
-export default function StatsRow() {
-  const [summary, setSummary] = useState(null);
+export default function StatsRow({ summary: summaryProp, showMeters = true }) {
+  const [fetched, setFetched] = useState(null);
   const { formatPace, formatDistanceFull } = useUnits();
   const { from, to } = useTimeRange();
 
+  // When a parent (Dashboard) already holds the summary, reuse it instead of
+  // fetching a second time.
+  const external = summaryProp !== undefined;
+
   useEffect(() => {
+    if (external) return;
     const params = {};
     if (from) params.from = from;
     if (to) params.to = to;
-    api.getSummary(params).then(setSummary).catch(() => {});
-  }, [from, to]);
+    api.getSummary(params).then(setFetched).catch(() => {});
+  }, [from, to, external]);
 
+  const summary = external ? summaryProp : fetched;
   if (!summary) return null;
 
   const metersLabel = summary.season_meters > 0 ? 'Season Metres' : 'Total Metres';
@@ -23,10 +29,12 @@ export default function StatsRow() {
 
   return (
     <div className={styles.statsRow}>
-      <div className={styles.statCell}>
-        <span className={styles.statLabel}>{metersLabel}</span>
-        <span className={styles.statValue}>{formatDistanceFull(metersValue)}</span>
-      </div>
+      {showMeters && (
+        <div className={styles.statCell}>
+          <span className={styles.statLabel}>{metersLabel}</span>
+          <span className={styles.statValue}>{formatDistanceFull(metersValue)}</span>
+        </div>
+      )}
       <div className={styles.statCell}>
         <span className={styles.statLabel}>This Week</span>
         <span className={styles.statValue}>{summary.sessions_this_week}</span>
