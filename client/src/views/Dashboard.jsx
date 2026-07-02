@@ -7,6 +7,8 @@ import VolumeChart from '../components/Charts/VolumeChart.jsx';
 import PaceChart from '../components/Charts/PaceChart.jsx';
 import PBStrip from '../components/Stats/PBStrip.jsx';
 import FitnessChart from '../components/Charts/FitnessChart.jsx';
+import CalendarHeatmap from '../components/Charts/CalendarHeatmap.jsx';
+import ZoneStackChart from '../components/Charts/ZoneStackChart.jsx';
 import FeedPanel from '../components/Feed/FeedPanel.jsx';
 import styles from './Dashboard.module.css';
 
@@ -53,6 +55,10 @@ export default function Dashboard() {
         <h3 className={styles.sectionHeader}>Personal Bests</h3>
         <PBStrip />
       </div>
+
+      <CalendarHeatmap />
+
+      <ZoneStackChart compact />
 
       <FitnessChart compact />
     </div>

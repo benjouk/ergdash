@@ -50,17 +50,23 @@ server/          Express 4 + better-sqlite3
     db.js        DB init, migrations, WAL mode
     auth.js      OAuth2 (Authorization Code + Refresh)
     sync.js      Full sync, incremental sync, stroke enrichment
-    analytics.js Auto-tagging, fade index, consistency, CTL/ATL/TSB
+    analytics.js Auto-tagging, fade index, consistency, CTL/ATL/TSB,
+                 HR zones, power curve, orchestration of stroke metrics
+    strokeMetrics.js Pure per-stroke maths (DPS, watts/beat, HR drift,
+                 rate discipline, HR recovery, zone time, best efforts)
+    hrZones.js   HR zone model (settings + observed-max fallback)
     seed.js      Mock data generator (154 workouts)
+  test/          Vitest unit tests for the pure metric functions
   migrations/    SQL schema
 ```
 
 ## Features
 
-- **Dashboard** — Season metres, weekly volume chart, pace trend, personal bests, fitness sparkline
-- **Session Detail** — Canvas pace ribbon heatmap, stroke-level charts, intervals table, computed metrics (fade index, consistency, effort score)
+- **Dashboard** — Season metres, weekly volume chart, pace trend, personal bests, calendar heatmap, weekly time-in-zone, fitness sparkline
+- **Session Detail** — Canvas pace ribbon heatmap, stroke-level charts, interval rep chart with HR recovery, rate-vs-pace scatter, HR zone bar, computed metrics (fade index, consistency, effort, distance per stroke, watts/beat, HR drift, rate discipline)
 - **Workouts** — Filterable/sortable table with CSV export
-- **Progress** — Fitness (CTL/ATL/TSB), pace trends, volume over time
+- **Progress** — Fitness (CTL/ATL/TSB), pace/volume trends, power-duration curve with 90-day ghost, time-in-zone and polarization stacks, efficiency (watts/beat), distance per stroke, HR drift, cumulative metres race line, drag factor timeline, fade fingerprint
+- **HR Zones** — Five configurable zones in Settings (% of max HR), estimated from observed data until set
 - **Feed** — Always-visible sidebar of recent sessions with sparklines
 - **Ticker** — Sticky header with key stats, pace trace, and navigation
 - **Light/Dark theme** — System-aware with manual override

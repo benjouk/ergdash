@@ -1,7 +1,17 @@
 import cron from 'node-cron';
 import { getDb } from './db.js';
 import { getValidToken, fetchC2Api } from './auth.js';
-import { tagAllWorkouts, computeAllMetrics, computeFitnessLog, computePredictions } from './analytics.js';
+import {
+  tagAllWorkouts,
+  computeAllMetrics,
+  computeFitnessLog,
+  computePredictions,
+  computeAllZoneTimes,
+  computeAllBestEfforts,
+  computeMetricsForWorkout,
+  computeZoneTimesForWorkout,
+  computeBestEffortsForWorkout,
+} from './analytics.js';
 
 let syncInProgress = false;
 
@@ -204,6 +214,8 @@ function runPostSyncAnalytics() {
     computeAllMetrics();
     computeFitnessLog();
     computePredictions();
+    computeAllZoneTimes();
+    computeAllBestEfforts();
     console.log('Post-sync analytics complete');
   } catch (err) {
     console.error('Post-sync analytics error:', err);
@@ -267,8 +279,21 @@ export async function enrichSingleWorkout(id) {
   db.prepare('UPDATE workouts SET has_stroke_data = 0 WHERE id = ?').run(id);
 
   const result = await fetchAndStoreStrokes(db, id, token);
+  recomputeWorkoutAnalytics(id);
   console.log(`Manual enrichment for workout ${id}: ${result.strokes} strokes`);
   return result;
+}
+
+// Stroke-derived metrics are version-cached, so freshly enriched workouts
+// must be recomputed explicitly.
+function recomputeWorkoutAnalytics(id) {
+  try {
+    computeMetricsForWorkout(id);
+    computeZoneTimesForWorkout(id);
+    computeBestEffortsForWorkout(id);
+  } catch (err) {
+    console.error(`Analytics recompute failed for workout ${id}:`, err);
+  }
 }
 
 export function resetStrokeFlags() {
@@ -300,6 +325,7 @@ export async function runStrokeEnrichment() {
   for (const { id } of workouts) {
     try {
       const result = await fetchAndStoreStrokes(db, id, token);
+      recomputeWorkoutAnalytics(id);
       console.log(`  Workout ${id}: ${result.strokes} strokes`);
       setSyncState('last_enriched_workout_id', String(id));
       await delay(1000);

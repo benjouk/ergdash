@@ -1,4 +1,29 @@
 import { getDb } from './db.js';
+import {
+  distancePerStroke,
+  wattsPerBeat,
+  hrDrift,
+  rateDiscipline,
+  hrRecoveries,
+  segmentStrokesByIntervals,
+  zoneTimes,
+  bestEfforts,
+} from './strokeMetrics.js';
+import { getZoneModel, zoneForHr } from './hrZones.js';
+
+export const BEST_EFFORT_DURATIONS = [60, 240, 600, 1800, 3600];
+
+// Bump whenever computed_metrics gains columns or an algorithm changes;
+// computeAllMetrics() recomputes any row written with an older version.
+export const METRICS_VERSION = 2;
+
+const MIN_DRIFT_DURATION_MS = 15 * 60 * 1000;
+
+function getRateBandTolerance(db) {
+  const row = db.prepare("SELECT value FROM settings WHERE key = 'rate_band_tolerance'").get();
+  const tolerance = row ? Number(row.value) : NaN;
+  return Number.isFinite(tolerance) && tolerance > 0 ? tolerance : 2;
+}
 
 export function computeMetricsForWorkout(workoutId) {
   const db = getDb();
@@ -56,10 +81,51 @@ export function computeMetricsForWorkout(workoutId) {
     }
   }
 
-  db.prepare(`
-    INSERT OR REPLACE INTO computed_metrics (workout_id, fade_index, consistency, effort_score, drag_delta, computed_at)
-    VALUES (?, ?, ?, ?, ?, datetime('now'))
-  `).run(workoutId, fadeIndex, consistency, effortScore, dragDelta);
+  const isInterval = workout.inferred_tag === 'interval';
+  const intervals = isInterval
+    ? db.prepare('SELECT * FROM intervals WHERE workout_id = ? ORDER BY interval_index').all(workoutId)
+    : [];
+
+  const dps = distancePerStroke(workout, strokes);
+  const wpb = wattsPerBeat(strokes);
+
+  const drift = !isInterval && workout.time_ms >= MIN_DRIFT_DURATION_MS
+    ? hrDrift(strokes)
+    : null;
+
+  const tolerance = getRateBandTolerance(db);
+  const rateSegments = isInterval && intervals.length > 0
+    ? segmentStrokesByIntervals(strokes, intervals).workSegments
+    : [strokes];
+  const discipline = rateDiscipline(rateSegments, tolerance);
+
+  const recoveries = isInterval ? hrRecoveries(strokes, intervals) : [];
+  const recoveryAvg = recoveries.length > 0
+    ? recoveries.reduce((s, r) => s + r.drop_bpm, 0) / recoveries.length
+    : null;
+
+  const insertRecovery = db.prepare(`
+    INSERT INTO interval_recoveries (workout_id, rep_index, hr_end, hr_next_start, drop_bpm, rest_s)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `);
+
+  db.transaction(() => {
+    db.prepare(`
+      INSERT OR REPLACE INTO computed_metrics (
+        workout_id, fade_index, consistency, effort_score, drag_delta,
+        distance_per_stroke, watts_per_beat, hr_drift_pct, rate_discipline,
+        hr_recovery_avg, metrics_version, computed_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    `).run(
+      workoutId, fadeIndex, consistency, effortScore, dragDelta,
+      dps, wpb, drift, discipline, recoveryAvg, METRICS_VERSION
+    );
+
+    db.prepare('DELETE FROM interval_recoveries WHERE workout_id = ?').run(workoutId);
+    for (const r of recoveries) {
+      insertRecovery.run(workoutId, r.rep_index, r.hr_end, r.hr_next_start, r.drop_bpm, r.rest_s);
+    }
+  })();
 }
 
 export function computeAllMetrics() {
@@ -67,11 +133,115 @@ export function computeAllMetrics() {
   const workouts = db.prepare(`
     SELECT w.id FROM workouts w
     LEFT JOIN computed_metrics cm ON w.id = cm.workout_id
-    WHERE cm.id IS NULL
-  `).all();
+    WHERE cm.id IS NULL OR COALESCE(cm.metrics_version, 0) < ?
+  `).all(METRICS_VERSION);
 
   for (const { id } of workouts) {
     computeMetricsForWorkout(id);
+  }
+
+  if (workouts.length > 0) {
+    console.log(`Computed metrics for ${workouts.length} workouts (v${METRICS_VERSION})`);
+  }
+}
+
+export function computeZoneTimesForWorkout(workoutId, zoneModel) {
+  const db = getDb();
+  const model = zoneModel ?? getZoneModel(db);
+  if (!model) return;
+
+  const workout = db.prepare(
+    'SELECT id, time_ms, heart_rate_avg, has_stroke_data FROM workouts WHERE id = ?'
+  ).get(workoutId);
+  if (!workout) return;
+
+  let times = null;
+  let source = 'strokes';
+
+  if (workout.has_stroke_data) {
+    const strokes = db.prepare(
+      'SELECT time_s, heart_rate FROM strokes WHERE workout_id = ? ORDER BY stroke_number'
+    ).all(workoutId);
+    times = zoneTimes(strokes, model.bounds);
+  }
+
+  // No per-stroke HR: credit the whole session to the zone of the average HR.
+  if (!times && workout.heart_rate_avg > 0 && workout.time_ms > 0) {
+    times = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    times[zoneForHr(workout.heart_rate_avg, model.bounds)] = workout.time_ms / 1000;
+    source = 'avg_hr';
+  }
+
+  const insert = db.prepare(
+    'INSERT INTO hr_zone_time (workout_id, zone, time_s, source) VALUES (?, ?, ?, ?)'
+  );
+
+  db.transaction(() => {
+    db.prepare('DELETE FROM hr_zone_time WHERE workout_id = ?').run(workoutId);
+    if (!times) return;
+    for (let zone = 1; zone <= 5; zone++) {
+      if (times[zone] > 0) insert.run(workoutId, zone, times[zone], source);
+    }
+  })();
+}
+
+export function computeAllZoneTimes() {
+  const db = getDb();
+  const model = getZoneModel(db);
+  if (!model) return;
+
+  const workouts = db.prepare(`
+    SELECT w.id FROM workouts w
+    LEFT JOIN (SELECT DISTINCT workout_id FROM hr_zone_time) zt ON w.id = zt.workout_id
+    WHERE zt.workout_id IS NULL
+      AND (w.has_stroke_data = 1 OR w.heart_rate_avg > 0)
+  `).all();
+
+  for (const { id } of workouts) {
+    computeZoneTimesForWorkout(id, model);
+  }
+}
+
+// Full recompute — called when the zone model itself changes (max HR or
+// thresholds edited in Settings). Single-user data is small enough to do
+// synchronously.
+export function recomputeAllZoneTimes() {
+  const db = getDb();
+  db.prepare('DELETE FROM hr_zone_time').run();
+  computeAllZoneTimes();
+}
+
+export function computeBestEffortsForWorkout(workoutId) {
+  const db = getDb();
+  const strokes = db.prepare(
+    'SELECT time_s, pace_ms, watts FROM strokes WHERE workout_id = ? ORDER BY stroke_number'
+  ).all(workoutId);
+
+  const efforts = bestEfforts(strokes, BEST_EFFORT_DURATIONS);
+
+  const insert = db.prepare(`
+    INSERT INTO best_efforts (workout_id, duration_s, avg_watts, avg_pace_ms, start_time_s)
+    VALUES (?, ?, ?, ?, ?)
+  `);
+
+  db.transaction(() => {
+    db.prepare('DELETE FROM best_efforts WHERE workout_id = ?').run(workoutId);
+    for (const e of efforts) {
+      insert.run(workoutId, e.duration_s, e.avg_watts, e.avg_pace_ms, e.start_time_s);
+    }
+  })();
+}
+
+export function computeAllBestEfforts() {
+  const db = getDb();
+  const workouts = db.prepare(`
+    SELECT w.id FROM workouts w
+    LEFT JOIN (SELECT DISTINCT workout_id FROM best_efforts) be ON w.id = be.workout_id
+    WHERE be.workout_id IS NULL AND w.has_stroke_data = 1
+  `).all();
+
+  for (const { id } of workouts) {
+    computeBestEffortsForWorkout(id);
   }
 }
 

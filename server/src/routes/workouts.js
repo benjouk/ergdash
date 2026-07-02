@@ -50,7 +50,9 @@ router.get('/', (req, res) => {
   const total = db.prepare(`SELECT COUNT(*) as count FROM workouts w WHERE ${where}`).get(...params).count;
 
   const rows = db.prepare(`
-    SELECT w.*, cm.fade_index, cm.consistency, cm.effort_score, cm.drag_delta
+    SELECT w.*, cm.fade_index, cm.consistency, cm.effort_score, cm.drag_delta,
+           cm.distance_per_stroke, cm.watts_per_beat, cm.hr_drift_pct,
+           cm.rate_discipline, cm.hr_recovery_avg
     FROM workouts w
     LEFT JOIN computed_metrics cm ON w.id = cm.workout_id
     WHERE ${where}
@@ -72,7 +74,9 @@ router.get('/:id', (req, res) => {
   const id = Number(req.params.id);
 
   const workout = db.prepare(`
-    SELECT w.*, cm.fade_index, cm.consistency, cm.effort_score, cm.drag_delta
+    SELECT w.*, cm.fade_index, cm.consistency, cm.effort_score, cm.drag_delta,
+           cm.distance_per_stroke, cm.watts_per_beat, cm.hr_drift_pct,
+           cm.rate_discipline, cm.hr_recovery_avg
     FROM workouts w
     LEFT JOIN computed_metrics cm ON w.id = cm.workout_id
     WHERE w.id = ?
@@ -90,6 +94,14 @@ router.get('/:id', (req, res) => {
     'SELECT * FROM strokes WHERE workout_id = ? ORDER BY stroke_number'
   ).all(id);
 
+  const zoneTimes = db.prepare(
+    'SELECT zone, time_s, source FROM hr_zone_time WHERE workout_id = ? ORDER BY zone'
+  ).all(id);
+
+  const recoveries = db.prepare(
+    'SELECT rep_index, hr_end, hr_next_start, drop_bpm, rest_s FROM interval_recoveries WHERE workout_id = ? ORDER BY rep_index'
+  ).all(id);
+
   const aiNotes = db.prepare(
     "SELECT * FROM ai_insights WHERE workout_id = ? AND type = 'session_note' ORDER BY created_at DESC LIMIT 1"
   ).get(id);
@@ -98,6 +110,8 @@ router.get('/:id', (req, res) => {
     ...formatWorkout(workout),
     intervals,
     strokes,
+    recoveries,
+    zone_times: zoneTimes,
     pace_profile: getPaceProfile(db, id),
     ai_note: aiNotes?.content || null,
   });
@@ -129,6 +143,11 @@ function formatWorkout(row) {
       consistency: row.consistency,
       effort_score: row.effort_score,
       drag_delta: row.drag_delta,
+      distance_per_stroke: row.distance_per_stroke,
+      watts_per_beat: row.watts_per_beat,
+      hr_drift_pct: row.hr_drift_pct,
+      rate_discipline: row.rate_discipline,
+      hr_recovery_avg: row.hr_recovery_avg,
     },
   };
 }
