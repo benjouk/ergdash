@@ -1,9 +1,141 @@
 import { useState, useEffect } from 'react';
+import { api } from '../api.js';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { useUnits } from '../context/UnitsContext.jsx';
 import { useSync } from '../context/SyncContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import styles from './Settings.module.css';
+
+const DEFAULT_ZONE_PERCENTS = [60, 70, 80, 90, 100];
+
+function HrZonesSection() {
+  const [maxHr, setMaxHr] = useState('');
+  const [percents, setPercents] = useState(DEFAULT_ZONE_PERCENTS);
+  const [estimatedMax, setEstimatedMax] = useState(null);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    api.getSettings().then(settings => {
+      if (settings.max_hr) setMaxHr(settings.max_hr);
+      if (settings.hr_zones) {
+        try {
+          const parsed = JSON.parse(settings.hr_zones);
+          if (Array.isArray(parsed) && parsed.length === 5) setPercents(parsed);
+        } catch { /* keep defaults */ }
+      }
+    }).catch(() => {});
+    api.getSummary().then(s => setEstimatedMax(s.estimated_max_hr)).catch(() => {});
+  }, []);
+
+  const effectiveMax = Number(maxHr) > 0 ? Number(maxHr) : estimatedMax;
+
+  const save = (nextMaxHr, nextPercents) => {
+    const payload = { hr_zones: JSON.stringify(nextPercents) };
+    if (Number(nextMaxHr) > 0) payload.max_hr = String(nextMaxHr);
+    api.updateSettings(payload)
+      .then(() => {
+        setSaved(true);
+        window.setTimeout(() => setSaved(false), 1600);
+      })
+      .catch(() => {});
+  };
+
+  return (
+    <div className={styles.section}>
+      <h3 className={styles.sectionTitle}>Heart Rate Zones</h3>
+      <div className={styles.row}>
+        <div>
+          <div className={styles.label}>Max Heart Rate</div>
+          <div className={styles.subtext}>
+            {Number(maxHr) > 0
+              ? 'Used to compute your five training zones'
+              : estimatedMax
+                ? `Estimated from your data: ${estimatedMax} bpm`
+                : 'No HR data yet — enter it manually'}
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
+          <input
+            type="number"
+            min="100"
+            max="220"
+            value={maxHr}
+            placeholder={estimatedMax ? String(estimatedMax) : 'bpm'}
+            onChange={e => setMaxHr(e.target.value)}
+            onBlur={() => { if (Number(maxHr) > 0) save(maxHr, percents); }}
+            aria-label="Max heart rate in bpm"
+            className={styles.mono}
+            style={{
+              width: 72,
+              padding: '6px 8px',
+              background: 'var(--surface)',
+              border: '1px solid var(--rule)',
+              borderRadius: 'var(--radius-sm)',
+              color: 'var(--ink)',
+            }}
+          />
+          {estimatedMax && Number(maxHr) !== estimatedMax && (
+            <button
+              type="button"
+              className={styles.button}
+              onClick={() => { setMaxHr(String(estimatedMax)); save(estimatedMax, percents); }}
+            >
+              Use estimate
+            </button>
+          )}
+        </div>
+      </div>
+      <div className={styles.row}>
+        <div>
+          <div className={styles.label}>Zone Thresholds</div>
+          <div className={styles.subtext}>
+            Upper bound of each zone as % of max{saved ? ' · saved' : ''}
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+          {percents.map((p, i) => (
+            <div key={i} style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '0.65rem', color: `var(--zone-${i + 1})`, fontFamily: 'var(--font-mono)' }}>
+                Z{i + 1}
+              </div>
+              <input
+                type="number"
+                min="30"
+                max="100"
+                value={p}
+                disabled={i === 4}
+                aria-label={`Zone ${i + 1} upper bound percent`}
+                onChange={e => {
+                  const next = [...percents];
+                  next[i] = Number(e.target.value);
+                  setPercents(next);
+                }}
+                onBlur={() => {
+                  const valid = percents.every((v, idx) =>
+                    v > 0 && v <= 100 && (idx === 0 || v > percents[idx - 1]));
+                  if (valid) save(maxHr, percents);
+                }}
+                className={styles.mono}
+                style={{
+                  width: 48,
+                  padding: '4px 6px',
+                  background: 'var(--surface)',
+                  border: '1px solid var(--rule)',
+                  borderRadius: 'var(--radius-sm)',
+                  color: 'var(--ink)',
+                  textAlign: 'center',
+                }}
+              />
+              <div style={{ fontSize: '0.62rem', color: 'var(--ink-3)', fontFamily: 'var(--font-mono)' }}>
+                {effectiveMax ? `≤${Math.round((p / 100) * effectiveMax)}` : '—'}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function Segmented({ options, value, onChange, ariaLabel }) {
   return (
@@ -63,6 +195,8 @@ export default function Settings() {
           />
         </div>
       </div>
+
+      <HrZonesSection />
 
       <div className={styles.section}>
         <h3 className={styles.sectionTitle}>Concept2 Connection</h3>

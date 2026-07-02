@@ -10,7 +10,14 @@ import { startSyncSchedule } from './src/sync.js';
 import { initAuth, hasValidSession, isAuthenticated } from './src/auth.js';
 import { errorHandler } from './src/middleware/error.js';
 import { seedDatabase } from './src/seed.js';
-import { tagAllWorkouts, computeAllMetrics, computeFitnessLog, computePredictions } from './src/analytics.js';
+import {
+  tagAllWorkouts,
+  computeAllMetrics,
+  computeFitnessLog,
+  computePredictions,
+  computeAllZoneTimes,
+  computeAllBestEfforts,
+} from './src/analytics.js';
 
 import healthRouter from './src/routes/health.js';
 import authRouter from './src/routes/auth.js';
@@ -75,6 +82,8 @@ tagAllWorkouts();
 computeAllMetrics();
 computeFitnessLog();
 computePredictions();
+computeAllZoneTimes();
+computeAllBestEfforts();
 
 if (isAuthenticated()) {
   startSyncSchedule();

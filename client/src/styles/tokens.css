@@ -67,6 +67,13 @@
   --chart-grid: var(--rule);
   --chart-ref: var(--ink-3);
 
+  /* HR zones, cool → hot */
+  --zone-1: #7FB5D6;
+  --zone-2: #4C9E6B;
+  --zone-3: #C8B400;
+  --zone-4: #E08A00;
+  --zone-5: #E02D3C;
+
   /* Ticker stays near-black in both themes — brand anchor (PM5 vibes) */
   --ticker-bg: #101014;
   --ticker-text: #ECECE8;
@@ -138,6 +145,12 @@
   --negative-bg: rgba(255, 77, 94, 0.09);
   --hr: #FF4D5E;
   --hr-bg: rgba(255, 77, 94, 0.09);
+
+  --zone-1: #6FB6E8;
+  --zone-2: #4FC482;
+  --zone-3: #E3CC1F;
+  --zone-4: #FF9E2E;
+  --zone-5: #FF4D5E;
 
   --ticker-bg: #0C0C0F;
   --ticker-text: #E4E4E0;

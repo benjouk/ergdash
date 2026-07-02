@@ -35,6 +35,9 @@ import { useUnits } from '../context/UnitsContext.jsx';
 import PaceRibbon from '../components/PaceRibbon/PaceRibbon.jsx';
 import Sparkline from '../components/Feed/Sparkline.jsx';
 import ComparisonOverlay from '../components/Charts/ComparisonOverlay.jsx';
+import IntervalRepChart from '../components/Session/IntervalRepChart.jsx';
+import RateVsPaceScatter from '../components/Charts/RateVsPaceScatter.jsx';
+import ZoneBar from '../components/Stats/ZoneBar.jsx';
 import styles from './Session.module.css';
 
 export default function Session() {
@@ -185,6 +188,11 @@ export default function Session() {
     { label: 'Ave. Heart Rate', value: formatNumber(workout.heart_rate_avg), unit: 'bpm', icon: HeartPulse },
     { label: 'Max Heart Rate', value: formatNumber(workout.heart_rate_max), unit: 'bpm', icon: HeartPulse },
     workout.metrics?.drag_delta != null ? { label: 'Drag Delta', value: signed(workout.metrics.drag_delta), icon: Gauge } : null,
+    workout.metrics?.distance_per_stroke != null ? { label: 'Distance Per Stroke', value: `${workout.metrics.distance_per_stroke.toFixed(2)}`, unit: 'm', icon: Activity } : null,
+    workout.metrics?.watts_per_beat != null ? { label: 'Watts Per Beat', value: workout.metrics.watts_per_beat.toFixed(2), icon: Zap } : null,
+    workout.metrics?.hr_drift_pct != null ? { label: 'HR Drift', value: `${workout.metrics.hr_drift_pct > 0 ? '+' : ''}${workout.metrics.hr_drift_pct.toFixed(1)}%${Math.abs(workout.metrics.hr_drift_pct) < 5 ? ' · coupled' : ''}`, icon: HeartPulse } : null,
+    workout.metrics?.rate_discipline != null ? { label: 'Rate Discipline', value: workout.metrics.rate_discipline.toFixed(0), icon: Activity } : null,
+    workout.metrics?.hr_recovery_avg != null ? { label: 'Avg HR Recovery', value: signed(workout.metrics.hr_recovery_avg), unit: 'bpm', icon: HeartPulse } : null,
     workout.metrics?.fade_index != null ? { label: 'Fade Index', value: `${workout.metrics.fade_index.toFixed(1)}%`, icon: Activity } : null,
     workout.metrics?.consistency != null ? { label: 'Consistency', value: workout.metrics.consistency.toFixed(0), icon: Activity } : null,
     workout.metrics?.effort_score != null ? { label: 'Effort Score', value: workout.metrics.effort_score.toFixed(0), icon: Gauge } : null,
@@ -305,6 +313,15 @@ export default function Session() {
         </div>
       )}
 
+      {workout.zone_times?.length > 0 && (
+        <div className={styles.card}>
+          <div className={styles.cardHeader}>
+            <div className={styles.cardTitle}>HR Zones</div>
+          </div>
+          <ZoneBar zoneTimes={workout.zone_times} />
+        </div>
+      )}
+
       {workout.ai_note && (
         <div className={styles.aiNote}>
           {workout.ai_note}
@@ -409,6 +426,28 @@ export default function Session() {
         </div>
       )}
 
+      {workout.intervals?.filter(i => i.type !== 'rest').length >= 2 && (
+        <div className={styles.card}>
+          <div className={styles.cardHeader}>
+            <div className={styles.cardTitle}>Interval Reps</div>
+            <span className={styles.cardKicker}>
+              {workout.intervals.filter(i => i.type !== 'rest').length} reps
+            </span>
+          </div>
+          <IntervalRepChart intervals={workout.intervals} formatPace={formatPace} />
+        </div>
+      )}
+
+      {hasAnalysis && workout.strokes?.filter(s => s.stroke_rate > 0 && s.pace_ms > 0).length >= 20 && (
+        <div className={styles.card}>
+          <div className={styles.cardHeader}>
+            <div className={styles.cardTitle}>Rate vs Pace</div>
+            {hasHeartRate && <span className={styles.cardKicker}>coloured by HR</span>}
+          </div>
+          <RateVsPaceScatter strokes={workout.strokes} formatPace={formatPace} />
+        </div>
+      )}
+
       {splitRows.length > 0 && (
         <div className={styles.card}>
           <div className={styles.cardHeader}>
@@ -424,11 +463,15 @@ export default function Session() {
                   <th>Pace</th>
                   <th>Rate</th>
                   <th>HR</th>
+                  {splitRows.some(r => r.calories > 0) && <th>Cal</th>}
+                  {splitRows.some(r => r.recovery_bpm != null) && <th>Recovery</th>}
                 </tr>
               </thead>
               <tbody>
                 {(() => {
                   const bestPace = Math.min(...splitRows.map(r => r.pace_ms).filter(Boolean));
+                  const hasCalories = splitRows.some(r => r.calories > 0);
+                  const hasRecovery = splitRows.some(r => r.recovery_bpm != null);
                   return splitRows.map(row => {
                   const barWidth = row.pace_ms && bestPace && Number.isFinite(bestPace) ? (bestPace / row.pace_ms) * 100 : 0;
                   return (
@@ -441,6 +484,12 @@ export default function Session() {
                       </td>
                       <td>{row.stroke_rate ? row.stroke_rate.toFixed(1) : '--'}</td>
                       <td>{row.heart_rate ? Math.round(row.heart_rate) : '--'}</td>
+                      {hasCalories && <td>{row.calories ? Math.round(row.calories) : '--'}</td>}
+                      {hasRecovery && (
+                        <td style={row.recovery_bpm != null ? { color: row.recovery_bpm > 0 ? 'var(--positive)' : 'var(--negative)' } : undefined}>
+                          {row.recovery_bpm != null ? `${row.recovery_bpm > 0 ? '−' : '+'}${Math.abs(row.recovery_bpm)}` : '--'}
+                        </td>
+                      )}
                     </tr>
                   );
                 });
@@ -554,15 +603,26 @@ function buildSplitRows(workout) {
   if (!workout) return [];
 
   if (workout.intervals?.length > 0) {
-    const rows = workout.intervals.map((interval, index) => ({
-      key: `interval-${interval.id || index}`,
-      label: `${index + 1}`,
-      time_ms: interval.time_ms,
-      pace_ms: interval.pace_ms,
-      stroke_rate: interval.stroke_rate,
-      heart_rate: interval.heart_rate_avg,
-      best: false,
-    }));
+    // Recoveries are keyed by work-rep ordinal (the rep whose end they measure).
+    const recoveryByRep = new Map(
+      (workout.recoveries || []).map(r => [r.rep_index, r.drop_bpm])
+    );
+    let workRep = 0;
+    const rows = workout.intervals.map((interval, index) => {
+      const isWork = interval.type !== 'rest';
+      if (isWork) workRep += 1;
+      return {
+        key: `interval-${interval.id || index}`,
+        label: `${index + 1}`,
+        time_ms: interval.time_ms,
+        pace_ms: interval.pace_ms,
+        stroke_rate: interval.stroke_rate,
+        heart_rate: interval.heart_rate_avg,
+        calories: interval.calories,
+        recovery_bpm: isWork ? recoveryByRep.get(workRep) ?? null : null,
+        best: false,
+      };
+    });
     return markBest(rows);
   }
 

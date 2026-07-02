@@ -31,6 +31,11 @@ export const api = {
   getFitness: (params = {}) => request(`/api/stats/fitness?${new URLSearchParams(params)}`),
   getCompare: (id1, id2) => request(`/api/stats/compare?ids=${id1},${id2}`),
   getDecayCurve: (params = {}) => request(`/api/stats/decay-curve?${new URLSearchParams(params)}`),
+  getCalendar: (params = {}) => request(`/api/stats/calendar?${new URLSearchParams(params)}`),
+  getCumulative: (params = {}) => request(`/api/stats/cumulative?${new URLSearchParams(params)}`),
+  getPowerCurve: (params = {}) => request(`/api/stats/power-curve?${new URLSearchParams(params)}`),
+  getZones: (params = {}) => request(`/api/stats/zones?${new URLSearchParams(params)}`),
+  getPolarization: (params = {}) => request(`/api/stats/polarization?${new URLSearchParams(params)}`),
 
   triggerSync: () => request('/api/sync', { method: 'POST' }),
   getSyncStatus: () => request('/api/sync/status'),

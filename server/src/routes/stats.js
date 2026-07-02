@@ -1,6 +1,9 @@
 import { Router } from 'express';
 import { getDb } from '../db.js';
 import { validateDateRange, validatePaginationParams } from '../middleware/validate.js';
+import { BEST_EFFORT_DURATIONS } from '../analytics.js';
+import { getZoneModel, getObservedMaxHr } from '../hrZones.js';
+import { wattsFromPace, paceFromWatts } from '../strokeMetrics.js';
 
 const router = Router();
 
@@ -61,6 +64,7 @@ router.get('/summary', (req, res) => {
     sessions_this_week: thisWeek.count,
     current_streak_weeks: streak,
     last_workout_date: lastWorkout?.date || null,
+    estimated_max_hr: getObservedMaxHr(db),
   });
 });
 
@@ -136,6 +140,65 @@ router.get('/trends', (req, res) => {
       ORDER BY w.date
     `).all(from, ...toParam);
     return res.json({ consistency_trend: rows });
+  }
+
+  if (metric === 'dps') {
+    const rows = db.prepare(`
+      SELECT strftime('%Y-%m', w.date) as month,
+             AVG(cm.distance_per_stroke) as dps,
+             COUNT(*) as sessions
+      FROM workouts w
+      JOIN computed_metrics cm ON w.id = cm.workout_id
+      WHERE w.type = 'rower' AND cm.distance_per_stroke IS NOT NULL AND w.date >= ?${toFilter}
+      GROUP BY month ORDER BY month
+    `).all(from, ...toParam);
+    return res.json({ dps_trend: rows });
+  }
+
+  if (metric === 'watts_per_beat') {
+    const rows = db.prepare(`
+      SELECT w.date, cm.watts_per_beat, w.distance,
+             CASE WHEN w.inferred_tag = 'interval' THEN 'interval' ELSE 'endurance' END as inferred_tag
+      FROM workouts w
+      JOIN computed_metrics cm ON w.id = cm.workout_id
+      WHERE w.type = 'rower' AND cm.watts_per_beat IS NOT NULL AND w.date >= ?${toFilter}
+      ORDER BY w.date
+    `).all(from, ...toParam);
+    return res.json({ watts_per_beat_trend: rows });
+  }
+
+  if (metric === 'hr_drift') {
+    const rows = db.prepare(`
+      SELECT w.date, cm.hr_drift_pct, w.distance
+      FROM workouts w
+      JOIN computed_metrics cm ON w.id = cm.workout_id
+      WHERE w.type = 'rower' AND cm.hr_drift_pct IS NOT NULL AND w.date >= ?${toFilter}
+      ORDER BY w.date
+    `).all(from, ...toParam);
+    return res.json({ hr_drift_trend: rows });
+  }
+
+  if (metric === 'rate_discipline') {
+    const rows = db.prepare(`
+      SELECT w.date, cm.rate_discipline, w.distance,
+             CASE WHEN w.inferred_tag = 'interval' THEN 'interval' ELSE 'endurance' END as inferred_tag
+      FROM workouts w
+      JOIN computed_metrics cm ON w.id = cm.workout_id
+      WHERE w.type = 'rower' AND cm.rate_discipline IS NOT NULL AND w.date >= ?${toFilter}
+      ORDER BY w.date
+    `).all(from, ...toParam);
+    return res.json({ rate_discipline_trend: rows });
+  }
+
+  if (metric === 'drag') {
+    const rows = db.prepare(`
+      SELECT w.date, w.drag_factor, cm.drag_delta, w.distance
+      FROM workouts w
+      LEFT JOIN computed_metrics cm ON w.id = cm.workout_id
+      WHERE w.type = 'rower' AND w.drag_factor > 0 AND w.date >= ?${toFilter}
+      ORDER BY w.date
+    `).all(from, ...toParam);
+    return res.json({ drag_trend: rows });
   }
 
   if (metric === 'effort') {
@@ -242,6 +305,64 @@ router.get('/fitness', (req, res) => {
   res.json({ fitness_log: rows });
 });
 
+router.get('/calendar', (req, res) => {
+  const db = getDb();
+  const { from, to } = req.query;
+
+  let dateFilter = '';
+  const params = [];
+  if (from) { dateFilter += ' AND date >= ?'; params.push(from); }
+  if (to) { dateFilter += ' AND date < ?'; params.push(to); }
+
+  const days = db.prepare(`
+    SELECT date(date) as date,
+           SUM(distance) as meters,
+           COUNT(*) as sessions
+    FROM workouts
+    WHERE type = 'rower'${dateFilter}
+    GROUP BY date(date)
+    ORDER BY date
+  `).all(...params);
+
+  res.json({ days });
+});
+
+router.get('/cumulative', (req, res) => {
+  const db = getDb();
+  const currentYear = Number(req.query.year) || new Date().getFullYear();
+  const compareYear = req.query.compare != null && req.query.compare !== ''
+    ? Number(req.query.compare)
+    : currentYear - 1;
+
+  const yearSeries = (year) => {
+    const rows = db.prepare(`
+      SELECT date(date) as date, SUM(distance) as meters
+      FROM workouts
+      WHERE type = 'rower' AND date >= ? AND date < ?
+      GROUP BY date(date)
+      ORDER BY date
+    `).all(`${year}-01-01`, `${year + 1}-01-01`);
+
+    let cum = 0;
+    return rows.map(r => {
+      cum += r.meters;
+      const doy = Math.floor((new Date(r.date) - new Date(`${year}-01-01`)) / 86400000) + 1;
+      return { doy, date: r.date, cum_m: cum };
+    });
+  };
+
+  const goalRow = db.prepare("SELECT value FROM settings WHERE key = 'annual_goal_m'").get();
+  const goalM = goalRow ? Number(goalRow.value) : null;
+
+  res.json({
+    year: currentYear,
+    compare_year: compareYear,
+    current: yearSeries(currentYear),
+    compare: yearSeries(compareYear),
+    goal_m: Number.isFinite(goalM) && goalM > 0 ? goalM : null,
+  });
+});
+
 router.get('/decay-curve', (req, res) => {
   const db = getDb();
   const { distance, workout_id } = req.query;
@@ -298,6 +419,185 @@ router.get('/decay-curve', (req, res) => {
   }
 
   res.json(result);
+});
+
+router.get('/power-curve', (req, res) => {
+  const db = getDb();
+  const { from, to } = req.query;
+  const ghostDays = Number(req.query.ghost_days) || 90;
+
+  const buildCurve = (dateTo, dateFrom) => {
+    const conditions = [];
+    const params = [];
+    if (dateFrom) { conditions.push('w.date >= ?'); params.push(dateFrom); }
+    if (dateTo) { conditions.push('w.date < ?'); params.push(dateTo); }
+    const where = conditions.length ? ` AND ${conditions.join(' AND ')}` : '';
+
+    const curve = [];
+    for (const duration of BEST_EFFORT_DURATIONS) {
+      // Best recorded stroke-level effort at this duration.
+      const best = db.prepare(`
+        SELECT be.duration_s, be.avg_watts, be.avg_pace_ms, be.workout_id, w.date
+        FROM best_efforts be
+        JOIN workouts w ON w.id = be.workout_id
+        WHERE be.duration_s = ?${where}
+        ORDER BY be.avg_watts DESC LIMIT 1
+      `).get(duration, ...params);
+
+      // Workouts without stroke data can still stake a claim if their total
+      // duration sits close to the window (whole-workout average power).
+      const summary = db.prepare(`
+        SELECT w.id as workout_id, w.date, w.pace_ms
+        FROM workouts w
+        WHERE w.type = 'rower' AND w.has_stroke_data = 0 AND w.pace_ms > 0
+          AND w.time_ms >= ? AND w.time_ms <= ?${where}
+        ORDER BY w.pace_ms ASC LIMIT 1
+      `).get(duration * 1000, duration * 1150, ...params);
+
+      const summaryWatts = summary ? wattsFromPace(summary.pace_ms) : null;
+
+      if (best && (!summaryWatts || best.avg_watts >= summaryWatts)) {
+        curve.push(best);
+      } else if (summaryWatts) {
+        curve.push({
+          duration_s: duration,
+          avg_watts: summaryWatts,
+          avg_pace_ms: paceFromWatts(summaryWatts),
+          workout_id: summary.workout_id,
+          date: summary.date,
+        });
+      }
+    }
+    return curve;
+  };
+
+  const ghostCutoff = new Date(Date.now() - ghostDays * 86400000).toISOString().slice(0, 10);
+
+  res.json({
+    curve: buildCurve(to || null, from || null),
+    ghost: buildCurve(ghostCutoff, from || null),
+    ghost_days: ghostDays,
+  });
+});
+
+router.get('/zones', (req, res) => {
+  const db = getDb();
+  const { from, to, group = 'week' } = req.query;
+  const model = getZoneModel(db);
+
+  if (!model) {
+    return res.json({ zone_model: null, weeks: [], sessions: [] });
+  }
+
+  let dateFilter = '';
+  const params = [];
+  if (from) { dateFilter += ' AND w.date >= ?'; params.push(from); }
+  if (to) { dateFilter += ' AND w.date < ?'; params.push(to); }
+
+  const zoneModel = {
+    max_hr: model.maxHr,
+    bounds: model.bounds,
+    percents: model.percents,
+    estimated: model.estimated,
+  };
+
+  if (group === 'session') {
+    const rows = db.prepare(`
+      SELECT w.id as workout_id, w.date,
+             SUM(CASE WHEN zt.zone = 1 THEN zt.time_s ELSE 0 END) as z1,
+             SUM(CASE WHEN zt.zone = 2 THEN zt.time_s ELSE 0 END) as z2,
+             SUM(CASE WHEN zt.zone = 3 THEN zt.time_s ELSE 0 END) as z3,
+             SUM(CASE WHEN zt.zone = 4 THEN zt.time_s ELSE 0 END) as z4,
+             SUM(CASE WHEN zt.zone = 5 THEN zt.time_s ELSE 0 END) as z5
+      FROM hr_zone_time zt
+      JOIN workouts w ON w.id = zt.workout_id
+      WHERE 1=1${dateFilter}
+      GROUP BY w.id ORDER BY w.date
+    `).all(...params);
+    return res.json({ zone_model: zoneModel, sessions: rows });
+  }
+
+  const rows = db.prepare(`
+    SELECT strftime('%Y-W%W', w.date) as week,
+           MIN(w.date) as week_start,
+           SUM(CASE WHEN zt.zone = 1 THEN zt.time_s ELSE 0 END) as z1,
+           SUM(CASE WHEN zt.zone = 2 THEN zt.time_s ELSE 0 END) as z2,
+           SUM(CASE WHEN zt.zone = 3 THEN zt.time_s ELSE 0 END) as z3,
+           SUM(CASE WHEN zt.zone = 4 THEN zt.time_s ELSE 0 END) as z4,
+           SUM(CASE WHEN zt.zone = 5 THEN zt.time_s ELSE 0 END) as z5
+    FROM hr_zone_time zt
+    JOIN workouts w ON w.id = zt.workout_id
+    WHERE 1=1${dateFilter}
+    GROUP BY week ORDER BY week_start
+  `).all(...params);
+
+  res.json({ zone_model: zoneModel, weeks: rows });
+});
+
+router.get('/polarization', (req, res) => {
+  const db = getDb();
+  const { from, to } = req.query;
+
+  let dateFilter = '';
+  const params = [];
+  if (from) { dateFilter += ' AND w.date >= ?'; params.push(from); }
+  if (to) { dateFilter += ' AND w.date < ?'; params.push(to); }
+
+  // HR-zoned workouts: easy = Z1–2, moderate = Z3, hard = Z4–5.
+  const zoned = db.prepare(`
+    SELECT strftime('%Y-W%W', w.date) as week,
+           MIN(w.date) as week_start,
+           SUM(CASE WHEN zt.zone <= 2 THEN zt.time_s ELSE 0 END) as easy_s,
+           SUM(CASE WHEN zt.zone = 3 THEN zt.time_s ELSE 0 END) as moderate_s,
+           SUM(CASE WHEN zt.zone >= 4 THEN zt.time_s ELSE 0 END) as hard_s
+    FROM hr_zone_time zt
+    JOIN workouts w ON w.id = zt.workout_id
+    WHERE 1=1${dateFilter}
+    GROUP BY week
+  `).all(...params);
+
+  // Workouts with no HR anywhere: classify whole duration by intensity
+  // factor against the 2:00/500m reference (same as estimateTrainingLoad).
+  const unzoned = db.prepare(`
+    SELECT strftime('%Y-W%W', w.date) as week,
+           MIN(w.date) as week_start,
+           SUM(CASE WHEN 120000.0 / w.pace_ms < 0.85 THEN w.time_ms / 1000.0 ELSE 0 END) as easy_s,
+           SUM(CASE WHEN 120000.0 / w.pace_ms >= 0.85 AND 120000.0 / w.pace_ms <= 0.95 THEN w.time_ms / 1000.0 ELSE 0 END) as moderate_s,
+           SUM(CASE WHEN 120000.0 / w.pace_ms > 0.95 THEN w.time_ms / 1000.0 ELSE 0 END) as hard_s
+    FROM workouts w
+    WHERE w.type = 'rower' AND w.pace_ms > 0
+      AND w.id NOT IN (SELECT DISTINCT workout_id FROM hr_zone_time)${dateFilter}
+    GROUP BY week
+  `).all(...params);
+
+  const byWeek = new Map();
+  for (const rows of [zoned, unzoned]) {
+    for (const row of rows) {
+      const entry = byWeek.get(row.week) || {
+        week: row.week, week_start: row.week_start, easy_s: 0, moderate_s: 0, hard_s: 0,
+      };
+      entry.easy_s += row.easy_s;
+      entry.moderate_s += row.moderate_s;
+      entry.hard_s += row.hard_s;
+      if (row.week_start < entry.week_start) entry.week_start = row.week_start;
+      byWeek.set(row.week, entry);
+    }
+  }
+
+  const weeks = [...byWeek.values()]
+    .sort((a, b) => a.week_start.localeCompare(b.week_start))
+    .map(w => {
+      const total = w.easy_s + w.moderate_s + w.hard_s;
+      return {
+        ...w,
+        total_s: total,
+        easy_pct: total > 0 ? (w.easy_s / total) * 100 : 0,
+        moderate_pct: total > 0 ? (w.moderate_s / total) * 100 : 0,
+        hard_pct: total > 0 ? (w.hard_s / total) * 100 : 0,
+      };
+    });
+
+  res.json({ weeks });
 });
 
 function computeWeekStreak(db) {

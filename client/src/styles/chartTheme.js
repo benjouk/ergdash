@@ -43,6 +43,14 @@ export const TOOLTIP_PROPS = {
   labelStyle: TOOLTIP_LABEL_STYLE,
 };
 
+export const ZONES = [
+  'var(--zone-1)',
+  'var(--zone-2)',
+  'var(--zone-3)',
+  'var(--zone-4)',
+  'var(--zone-5)',
+];
+
 // Gradient ids shared by <defs> blocks; keep unique per series to avoid collisions.
 export const GRADIENTS = {
   primary: 'rd-grad-primary',
