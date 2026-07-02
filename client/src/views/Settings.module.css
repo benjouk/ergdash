@@ -148,3 +148,79 @@
   color: var(--ink-2);
   font-variant-numeric: tabular-nums;
 }
+
+/* HR zone editor */
+.numberInput {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  color: var(--ink);
+  background: var(--surface-alt);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-1);
+  width: 64px;
+  appearance: textfield;
+  -moz-appearance: textfield;
+  transition: border-color 150ms ease;
+}
+
+.numberInput::-webkit-inner-spin-button,
+.numberInput::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.numberInput:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.numberInput::placeholder {
+  color: var(--ink-3);
+}
+
+.zoneRow {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.zoneCell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+.zoneCell .numberInput {
+  width: 46px;
+  padding: var(--space-1);
+}
+
+.zoneName {
+  font-size: 0.65rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+}
+
+.zoneBpm {
+  font-size: 0.62rem;
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.zoneFixed {
+  width: 46px;
+  padding: var(--space-1);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  color: var(--ink-3);
+  background: transparent;
+  border: 1px dashed var(--rule);
+  border-radius: var(--radius-sm);
+}
