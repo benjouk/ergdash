@@ -64,15 +64,7 @@ function HrZonesSection() {
             onChange={e => setMaxHr(e.target.value)}
             onBlur={() => { if (Number(maxHr) > 0) save(maxHr, percents); }}
             aria-label="Max heart rate in bpm"
-            className={styles.mono}
-            style={{
-              width: 72,
-              padding: '6px 8px',
-              background: 'var(--surface)',
-              border: '1px solid var(--rule)',
-              borderRadius: 'var(--radius-sm)',
-              color: 'var(--ink)',
-            }}
+            className={styles.numberInput}
           />
           {estimatedMax && Number(maxHr) !== estimatedMax && (
             <button
@@ -92,41 +84,38 @@ function HrZonesSection() {
             Upper bound of each zone as % of max{saved ? ' · saved' : ''}
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+        <div className={styles.zoneRow}>
           {percents.map((p, i) => (
-            <div key={i} style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '0.65rem', color: `var(--zone-${i + 1})`, fontFamily: 'var(--font-mono)' }}>
+            <div key={i} className={styles.zoneCell}>
+              <div className={styles.zoneName} style={{ color: `var(--zone-${i + 1})` }}>
                 Z{i + 1}
               </div>
-              <input
-                type="number"
-                min="30"
-                max="100"
-                value={p}
-                disabled={i === 4}
-                aria-label={`Zone ${i + 1} upper bound percent`}
-                onChange={e => {
-                  const next = [...percents];
-                  next[i] = Number(e.target.value);
-                  setPercents(next);
-                }}
-                onBlur={() => {
-                  const valid = percents.every((v, idx) =>
-                    v > 0 && v <= 100 && (idx === 0 || v > percents[idx - 1]));
-                  if (valid) save(maxHr, percents);
-                }}
-                className={styles.mono}
-                style={{
-                  width: 48,
-                  padding: '4px 6px',
-                  background: 'var(--surface)',
-                  border: '1px solid var(--rule)',
-                  borderRadius: 'var(--radius-sm)',
-                  color: 'var(--ink)',
-                  textAlign: 'center',
-                }}
-              />
-              <div style={{ fontSize: '0.62rem', color: 'var(--ink-3)', fontFamily: 'var(--font-mono)' }}>
+              {i === 4 ? (
+                // Z5 always tops out at 100% of max — show it, don't edit it.
+                <div className={styles.zoneFixed} aria-label="Zone 5 upper bound is 100 percent">
+                  {p}
+                </div>
+              ) : (
+                <input
+                  type="number"
+                  min="30"
+                  max="99"
+                  value={p}
+                  aria-label={`Zone ${i + 1} upper bound percent`}
+                  onChange={e => {
+                    const next = [...percents];
+                    next[i] = Number(e.target.value);
+                    setPercents(next);
+                  }}
+                  onBlur={() => {
+                    const valid = percents.every((v, idx) =>
+                      v > 0 && v <= 100 && (idx === 0 || v > percents[idx - 1]));
+                    if (valid) save(maxHr, percents);
+                  }}
+                  className={styles.numberInput}
+                />
+              )}
+              <div className={styles.zoneBpm}>
                 {effectiveMax ? `≤${Math.round((p / 100) * effectiveMax)}` : '—'}
               </div>
             </div>
