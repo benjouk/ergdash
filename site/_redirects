@@ -1,0 +1,6 @@
+/demo /demo/ 301
+/demo/session/* /demo/200.htm 200
+/demo/progress /demo/200.htm 200
+/demo/workouts /demo/200.htm 200
+/demo/tools /demo/200.htm 200
+/demo/settings /demo/200.htm 200

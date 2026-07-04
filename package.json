@@ -1,0 +1,7 @@
+{
+  "name": "ergdash-site",
+  "private": true,
+  "scripts": {
+    "build:site": "node scripts/build-site.mjs"
+  }
+}

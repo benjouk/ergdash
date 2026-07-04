@@ -1,5 +1,7 @@
 node_modules/
 dist/
+dist-site/
+client/public/demo-data/
 .env
 *.sqlite
 *.sqlite-wal
