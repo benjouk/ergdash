@@ -6,7 +6,8 @@ This is intentionally a thin scaffold for now:
 
 - serves the shared React build from `apps/docker/client/dist`
 - exposes `/health`
-- reserves `/api/*` and `/auth/*` for the future D1-backed multi-user backend
+- redirects `/auth/login` to Concept2 OAuth
+- reserves token exchange, sessions, sync, and `/api/*` for the future D1-backed multi-user backend
 
 ## Local Development
 
@@ -34,3 +35,10 @@ Add Worker secrets in Cloudflare, not in the repo:
 - `C2_CLIENT_SECRET`
 - `SESSION_SECRET`
 - token encryption secret for the future D1 backend
+
+For the current OAuth redirect scaffold, configure at least:
+
+- `C2_CLIENT_ID`
+- optional `C2_REDIRECT_URI` if it differs from `https://ergdash.com/auth/callback`
+
+The callback intentionally returns `501` until D1-backed token storage and sync are implemented.
