@@ -5,14 +5,14 @@
       "name": "server",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
-      "cwd": "apps/docker/server",
+      "cwd": "server",
       "port": 3000
     },
     {
       "name": "client",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
-      "cwd": "apps/docker/client",
+      "cwd": "client",
       "port": 5173
     }
   ]
