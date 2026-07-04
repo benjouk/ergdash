@@ -421,7 +421,7 @@ export default function Settings() {
           <div>
             <div className={styles.label}>Restore Database</div>
             <div className={styles.warningText}>
-              Current data will be replaced. The server keeps a safety copy named rowdash.db.pre-restore.sqlite3 before swapping files.
+              Current data will be replaced. The server keeps a safety copy named ergdash.db.pre-restore.sqlite3 before swapping files.
             </div>
           </div>
           <div className={styles.restoreControls}>

@@ -158,7 +158,7 @@ export default function Session() {
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `rowdash-session-${workout.id}.png`;
+      link.download = `ergdash-session-${workout.id}.png`;
       link.click();
       URL.revokeObjectURL(url);
       setShareMenuOpen(false);

@@ -173,7 +173,7 @@ export default function Workouts() {
         formatPace(w.pace_ms), w.stroke_rate || '', w.heart_rate_avg || '', w.calories || '', w.notes || '',
       ]);
       const csv = [headers, ...rows].map(row => row.map(csvCell).join(',')).join('\n');
-      downloadBlob(csv, 'text/csv', 'rowdash-workouts.csv');
+      downloadBlob(csv, 'text/csv', 'ergdash-workouts.csv');
       toast.success(`Exported ${rowsToExport.length} workouts`);
     } catch (err) {
       toast.error(err.message || 'Export failed');
@@ -183,7 +183,7 @@ export default function Workouts() {
   const exportJson = async () => {
     try {
       const rowsToExport = await exportRows();
-      downloadBlob(JSON.stringify({ workouts: rowsToExport }, null, 2), 'application/json', 'rowdash-workouts.json');
+      downloadBlob(JSON.stringify({ workouts: rowsToExport }, null, 2), 'application/json', 'ergdash-workouts.json');
       toast.success(`Exported ${rowsToExport.length} workouts`);
     } catch (err) {
       toast.error(err.message || 'Export failed');

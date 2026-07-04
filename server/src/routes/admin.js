@@ -51,7 +51,7 @@ function removeDbSidecars(dbPath) {
 
 router.get('/backup', async (req, res, next) => {
   const db = getDb();
-  const tempPath = join(getDataDir(), `rowdash-backup-${Date.now()}.sqlite3`);
+  const tempPath = join(getDataDir(), `ergdash-backup-${Date.now()}.sqlite3`);
   let cleaned = false;
   const cleanup = () => {
     if (cleaned) return;
@@ -62,7 +62,7 @@ router.get('/backup', async (req, res, next) => {
   try {
     await db.backup(tempPath);
     res.setHeader('Content-Type', 'application/vnd.sqlite3');
-    res.setHeader('Content-Disposition', `attachment; filename="rowdash-backup-${todayStamp()}.sqlite3"`);
+    res.setHeader('Content-Disposition', `attachment; filename="ergdash-backup-${todayStamp()}.sqlite3"`);
     res.on('finish', cleanup);
     res.on('close', cleanup);
     createReadStream(tempPath).on('error', next).pipe(res);
@@ -76,7 +76,7 @@ router.get('/export', (req, res, next) => {
   try {
     const db = getDb();
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename="rowdash-export-${todayStamp()}.json"`);
+    res.setHeader('Content-Disposition', `attachment; filename="ergdash-export-${todayStamp()}.json"`);
     res.write(`{"exported_at":${JSON.stringify(new Date().toISOString())},"tables":{`);
 
     EXPORT_TABLES.forEach((table, tableIndex) => {

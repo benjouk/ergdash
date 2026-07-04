@@ -1,11 +1,11 @@
 services:
-  rowdash:
+  ergdash:
     build: .
-    container_name: rowdash
+    container_name: ergdash
     ports:
       - "3100:3000"
     volumes:
-      - rowdash-data:/data
+      - ergdash-data:/data
     environment:
       - C2_CLIENT_ID=${C2_CLIENT_ID}
       - C2_CLIENT_SECRET=${C2_CLIENT_SECRET}
@@ -17,4 +17,4 @@ services:
     restart: unless-stopped
 
 volumes:
-  rowdash-data:
+  ergdash-data:
