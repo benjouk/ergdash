@@ -18,5 +18,8 @@
     "dev:docker:server": "npm run dev -w apps/docker/server",
     "test": "npm run test -w apps/docker/client && npm run test -w apps/docker/server",
     "test:docker": "npm run test -w apps/docker/client && npm run test -w apps/docker/server"
+  },
+  "optionalDependencies": {
+    "@rollup/rollup-linux-x64-gnu": "^4.62.2"
   }
 }
