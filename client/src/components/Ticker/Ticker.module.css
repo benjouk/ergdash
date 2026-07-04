@@ -166,6 +166,9 @@
 
 .navLink {
   position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
   font-family: var(--font-body);
   font-size: 0.8rem;
   font-weight: 600;

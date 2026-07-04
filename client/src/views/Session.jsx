@@ -17,12 +17,14 @@ import {
   ArrowLeft,
   BarChart3,
   CalendarDays,
+  Download,
   Flame,
   Gauge,
   HeartPulse,
   Loader2,
   Lock,
   MessageSquare,
+  Pin,
   Share2,
   Timer,
   Zap,
@@ -32,8 +34,11 @@ import {
 import { api } from '../api.js';
 import { AXIS_TICK } from '../styles/chartTheme.js';
 import { useUnits } from '../context/UnitsContext.jsx';
+import { useToast } from '../context/ToastContext.jsx';
+import { renderSessionCard } from '../utils/sessionCard.js';
 import PaceRibbon from '../components/PaceRibbon/PaceRibbon.jsx';
 import Sparkline from '../components/Feed/Sparkline.jsx';
+import PBBadges from '../components/PBBadge.jsx';
 import ComparisonOverlay from '../components/Charts/ComparisonOverlay.jsx';
 import IntervalRepChart from '../components/Session/IntervalRepChart.jsx';
 import RateVsPaceScatter from '../components/Charts/RateVsPaceScatter.jsx';
@@ -45,69 +50,159 @@ export default function Session() {
   const navigate = useNavigate();
   const [workout, setWorkout] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [enriching, setEnriching] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [shareMenuOpen, setShareMenuOpen] = useState(false);
+  const [cardRendering, setCardRendering] = useState(false);
   const [compareMode, setCompareMode] = useState(false);
   const [compareId, setCompareId] = useState(null);
   const [comparisonWorkout, setComparisonWorkout] = useState(null);
   const [comparisonLoading, setComparisonLoading] = useState(false);
   const [compareOptions, setCompareOptions] = useState([]);
+  const [pinSaving, setPinSaving] = useState(false);
+  const [notesDraft, setNotesDraft] = useState('');
+  const [notesSaving, setNotesSaving] = useState(false);
   const { units, formatPace, formatDistance, formatDistanceFull, formatTime } = useUnits();
+  const toast = useToast();
   const [compareMenuOpen, setCompareMenuOpen] = useState(false);
   const compareMenuRef = useRef(null);
+  const shareMenuRef = useRef(null);
 
   useEffect(() => {
+    let mounted = true;
+
     setLoading(true);
+    setLoadError('');
+    setWorkout(null);
+    setCompareOptions([]);
     setCompareMode(false);
     setCompareId(null);
-    api.getWorkout(id)
-      .then(currentWorkout => {
+
+    async function loadSession() {
+      try {
+        const currentWorkout = await api.getWorkout(id);
+        if (!mounted) return;
         setWorkout(currentWorkout);
+
         if (!currentWorkout.strokes?.length && !currentWorkout.pace_profile?.length) {
           setEnriching(true);
           api.enrichWorkout(id)
             .then(() => api.getWorkout(id))
-            .then(setWorkout)
-            .catch(() => {})
-            .finally(() => setEnriching(false));
+            .then(enrichedWorkout => {
+              if (mounted) setWorkout(enrichedWorkout);
+            })
+            .catch(err => {
+              if (mounted) toast.error(err.message || 'Could not fetch stroke data');
+            })
+            .finally(() => {
+              if (mounted) setEnriching(false);
+            });
         }
 
         // Load comparison options: other workouts of the same distance (±100m tolerance)
-        // This range accommodates slight variations in actual distance rowed vs. workout distance target
-        return Promise.all([
-          Promise.resolve(currentWorkout),
-          api.getWorkouts({ min_distance: currentWorkout.distance - 100, limit: 50 }),
-        ]);
-      })
-      .then(([currentWorkout, workoutsData]) => {
-        // Filter to workouts within ±100m and exclude current workout, limit to 20 most recent
-        const options = (workoutsData.data || [])
-          .filter(w => w.id !== currentWorkout.id && Math.abs(w.distance - currentWorkout.distance) < 100)
-          .slice(0, 20);
-        setCompareOptions(options);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [id]);
+        // This range accommodates slight variations in actual distance rowed vs. workout distance target.
+        api.getWorkouts({ min_distance: currentWorkout.distance - 100, limit: 50 })
+          .then(workoutsData => {
+            if (!mounted) return;
+            const options = (workoutsData.data || [])
+              .filter(w => w.id !== currentWorkout.id && Math.abs(w.distance - currentWorkout.distance) < 100)
+              .slice(0, 20);
+            setCompareOptions(options);
+          })
+          .catch(() => {
+            if (mounted) setCompareOptions([]);
+          });
+      } catch (err) {
+        if (!mounted) return;
+        const message = err.message || "Couldn't load session";
+        setLoadError(message);
+        toast.error(message);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
 
-  const handleShare = useCallback(async () => {
+    loadSession();
+
+    return () => {
+      mounted = false;
+    };
+  }, [id, toast]);
+
+  useEffect(() => {
+    setNotesDraft(workout?.notes || '');
+  }, [workout?.id, workout?.notes]);
+
+  const handleCopyLink = useCallback(async () => {
     if (!workout) return;
 
-    const title = `${formatTime(workout.time_ms)} Row`;
-    const text = `${title} - ${formatDistanceFull(workout.distance)} at ${formatPace(workout.pace_ms)}`;
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setCopied(true);
+      setShareMenuOpen(false);
+      toast.success('Link copied');
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch (err) {
+      setCopied(false);
+      toast.error(err.message || 'Could not copy link');
+    }
+  }, [toast, workout]);
+
+  const handleDownloadCard = useCallback(async () => {
+    if (!workout || cardRendering) return;
+
+    setCardRendering(true);
+    try {
+      const blob = await renderSessionCard(workout, { formatPace, formatDistanceFull, formatTime });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `ergdash-session-${workout.id}.png`;
+      link.click();
+      URL.revokeObjectURL(url);
+      setShareMenuOpen(false);
+      toast.success('Session card downloaded');
+    } catch (err) {
+      toast.error(err.message || 'Could not download card');
+    } finally {
+      setCardRendering(false);
+    }
+  }, [cardRendering, formatDistanceFull, formatPace, formatTime, toast, workout]);
+
+  const handleTogglePinned = useCallback(async () => {
+    if (!workout || pinSaving) return;
+
+    const nextPinned = !workout.pinned;
+    setPinSaving(true);
+    setWorkout(current => current ? { ...current, pinned: nextPinned } : current);
 
     try {
-      if (navigator.share) {
-        await navigator.share({ title: 'ErgDash workout', text, url: window.location.href });
-      } else if (navigator.clipboard) {
-        await navigator.clipboard.writeText(window.location.href);
-        setCopied(true);
-        window.setTimeout(() => setCopied(false), 1600);
-      }
-    } catch {
-      setCopied(false);
+      const updated = await api.updateWorkout(workout.id, { pinned: nextPinned });
+      setWorkout(current => current ? { ...current, pinned: updated.pinned } : current);
+      toast.success(nextPinned ? 'Pinned' : 'Unpinned');
+    } catch (err) {
+      setWorkout(current => current ? { ...current, pinned: !nextPinned } : current);
+      toast.error(err.message || 'Could not update pin');
+    } finally {
+      setPinSaving(false);
     }
-  }, [formatDistanceFull, formatPace, formatTime, workout]);
+  }, [pinSaving, toast, workout]);
+
+  const handleSaveNotes = useCallback(async () => {
+    if (!workout || notesSaving) return;
+
+    setNotesSaving(true);
+    try {
+      const updated = await api.updateWorkout(workout.id, { notes: notesDraft });
+      setWorkout(current => current ? { ...current, notes: updated.notes || '' } : current);
+      toast.success('Notes saved');
+    } catch (err) {
+      toast.error(err.message || 'Could not save notes');
+    } finally {
+      setNotesSaving(false);
+    }
+  }, [notesDraft, notesSaving, toast, workout]);
 
   const handleCompare = useCallback((comparisonWorkoutId) => {
     setCompareMenuOpen(false);
@@ -144,6 +239,26 @@ export default function Session() {
     };
   }, [compareMenuOpen]);
 
+  useEffect(() => {
+    if (!shareMenuOpen) return;
+
+    const handlePointerDown = (event) => {
+      if (shareMenuRef.current && !shareMenuRef.current.contains(event.target)) {
+        setShareMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') setShareMenuOpen(false);
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [shareMenuOpen]);
+
   const handleExitComparison = useCallback(() => {
     setCompareMode(false);
     setCompareId(null);
@@ -153,8 +268,19 @@ export default function Session() {
   const strokeData = useMemo(() => buildStrokeSeries(workout?.strokes), [workout?.strokes]);
   const splitRows = useMemo(() => buildSplitRows(workout), [workout]);
 
-  if (loading) return <div style={{ padding: 'var(--space-6)', color: 'var(--ink-3)' }}>Loading...</div>;
-  if (!workout) return <div style={{ padding: 'var(--space-6)', color: 'var(--ink-3)' }}>Workout not found</div>;
+  if (loading) return <div className={styles.statusState}>Loading...</div>;
+  if (loadError) {
+    return (
+      <div className={styles.statusState}>
+        <p>Couldn't load session</p>
+        <span>{loadError}</span>
+        <button type="button" onClick={() => navigate(-1)} className={styles.backButton}>
+          <ArrowLeft size={15} /> Back
+        </button>
+      </div>
+    );
+  }
+  if (!workout) return <div className={styles.statusState}>Workout not found</div>;
 
   if (compareMode && comparisonWorkout) {
     return <ComparisonOverlay workout1={workout} workout2={comparisonWorkout} onBack={handleExitComparison} />;
@@ -170,6 +296,8 @@ export default function Session() {
   const hasAnalysis = strokeData.length > 1;
   const hasPaceProfile = !hasAnalysis && workout.pace_profile?.length >= 2;
   const comments = workout.comments?.trim();
+  const savedNotes = workout.notes || '';
+  const notesChanged = notesDraft !== savedNotes;
   const primaryMetric = getPrimaryMetric(units);
 
   const summaryItems = [
@@ -260,8 +388,47 @@ export default function Session() {
               )}
             </div>
           )}
-          <button onClick={handleShare} className={styles.iconButton} title={copied ? 'Link copied' : 'Share workout'} aria-label="Share workout">
-            <Share2 size={15} />
+          <div className={styles.shareWrapper} ref={shareMenuRef}>
+            <button
+              type="button"
+              onClick={() => setShareMenuOpen(open => !open)}
+              className={styles.iconButton}
+              title={copied ? 'Link copied' : 'Share workout'}
+              aria-label="Share workout"
+              aria-haspopup="menu"
+              aria-expanded={shareMenuOpen}
+            >
+              <Share2 size={15} />
+            </button>
+            {shareMenuOpen && (
+              <div className={styles.shareMenu} role="menu">
+                <button type="button" className={styles.shareOption} role="menuitem" onClick={handleCopyLink}>
+                  <Share2 size={14} aria-hidden="true" />
+                  Copy link
+                </button>
+                <button
+                  type="button"
+                  className={styles.shareOption}
+                  role="menuitem"
+                  onClick={handleDownloadCard}
+                  disabled={cardRendering}
+                >
+                  {cardRendering ? <Loader2 size={14} className={styles.spinner} aria-hidden="true" /> : <Download size={14} aria-hidden="true" />}
+                  Download card
+                </button>
+              </div>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={handleTogglePinned}
+            disabled={pinSaving}
+            className={`${styles.iconButton} ${workout.pinned ? styles.iconButtonActive : ''}`}
+            title={workout.pinned ? 'Unpin workout' : 'Pin workout'}
+            aria-label={workout.pinned ? 'Unpin workout' : 'Pin workout'}
+            aria-pressed={workout.pinned}
+          >
+            <Pin size={15} fill={workout.pinned ? 'currentColor' : 'none'} />
           </button>
         </div>
       </div>
@@ -282,11 +449,14 @@ export default function Session() {
             </div>
           </div>
 
-          {tag && (
-            <span className={`${styles.tag} ${isInterval ? styles.tagInterval : ''}`}>
-              {tag}
-            </span>
-          )}
+          <div className={styles.heroBadges}>
+            <PBBadges distances={workout.pb_distances} />
+            {tag && (
+              <span className={`${styles.tag} ${isInterval ? styles.tagInterval : ''}`}>
+                {tag}
+              </span>
+            )}
+          </div>
         </div>
       </header>
 
@@ -314,7 +484,7 @@ export default function Session() {
       )}
 
       {workout.zone_times?.length > 0 && (
-        <div className={styles.card}>
+        <div className={`${styles.card} ${styles.cardVisible}`}>
           <div className={styles.cardHeader}>
             <div className={styles.cardTitle}>HR Zones</div>
           </div>
@@ -525,11 +695,37 @@ export default function Session() {
           <div className={styles.note}>
             <div className={styles.noteLabel}>
               <MessageSquare size={13} />
-              Notes
+              Concept2 comments
             </div>
             <p>{comments}</p>
           </div>
         )}
+      </div>
+
+      <div className={styles.card}>
+        <div className={styles.cardHeader}>
+          <div className={styles.cardTitle}>My Notes</div>
+        </div>
+        <div className={styles.notesEditor}>
+          <textarea
+            className={styles.notesTextarea}
+            value={notesDraft}
+            onChange={event => setNotesDraft(event.target.value)}
+            maxLength={5000}
+            placeholder="Add private notes for this session"
+          />
+          <div className={styles.notesFooter}>
+            <span>{notesDraft.length.toLocaleString()} / 5,000</span>
+            <button
+              type="button"
+              className={styles.saveNotesButton}
+              onClick={handleSaveNotes}
+              disabled={!notesChanged || notesSaving}
+            >
+              {notesSaving ? 'Saving...' : 'Save'}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

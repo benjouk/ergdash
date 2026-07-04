@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Dot } from 'recharts';
 import { api } from '../../api.js';
 import { useUnits } from '../../context/UnitsContext.jsx';
 import { useTimeRange } from '../../context/TimeRangeContext.jsx';
 import { AXIS_TICK, AXIS_LINE, SERIES, TOOLTIP_PROPS } from '../../styles/chartTheme.js';
+import { ChartSkeleton } from '../Skeleton/Skeleton.jsx';
+import ChartEmpty from './ChartEmpty.jsx';
+import { useChartData } from './useChartData.js';
 import styles from './Charts.module.css';
 
 const TAG_COLORS = {
@@ -18,20 +20,18 @@ function CustomDot(props) {
 }
 
 export default function PaceChart() {
-  const [data, setData] = useState([]);
   const { formatPace } = useUnits();
   const { from, to } = useTimeRange();
-
-  useEffect(() => {
+  const { data = [], loading, error, retry } = useChartData(() => {
     const params = { metric: 'pace', period: 'all' };
     if (from) params.from = from;
     if (to) params.to = to;
-    api.getTrends(params)
-      .then(d => setData(d.pace_trend || []))
-      .catch(() => {});
+    return api.getTrends(params).then(d => d.pace_trend || []);
   }, [from, to]);
 
-  if (data.length === 0) return null;
+  if (loading) return <ChartSkeleton />;
+  if (error) return <ChartEmpty title="Pace Trend" message="Couldn't load chart data." error onRetry={retry} />;
+  if (data.length === 0) return <ChartEmpty title="Pace Trend" />;
 
   const formatted = data.map(d => ({
     ...d,
@@ -49,7 +49,7 @@ export default function PaceChart() {
           <span className={styles.chartValueUnit}>latest</span>
         </div>
       </div>
-      <ResponsiveContainer width="100%" height={220}>
+      <ResponsiveContainer width="100%" height={170}>
         <LineChart data={formatted}>
           <XAxis
             dataKey="dateShort"

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { NavLink } from 'react-router-dom';
-import { Sun, Moon, CalendarRange, ChevronDown } from 'lucide-react';
+import { Calculator, Sun, Moon, CalendarRange, ChevronDown } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext.jsx';
 import { useSync } from '../../context/SyncContext.jsx';
 import { useUnits } from '../../context/UnitsContext.jsx';
@@ -122,6 +122,10 @@ export default function Ticker() {
         </NavLink>
         <NavLink to="/workouts" className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}>
           Workouts
+        </NavLink>
+        <NavLink to="/tools" className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}>
+          <Calculator size={13} aria-hidden="true" />
+          Tools
         </NavLink>
         <NavLink to="/settings" className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}>
           Settings

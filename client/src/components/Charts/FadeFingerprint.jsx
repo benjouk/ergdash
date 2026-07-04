@@ -1,6 +1,8 @@
-import { useState, useEffect } from 'react';
 import { api } from '../../api.js';
 import { useUnits } from '../../context/UnitsContext.jsx';
+import { ChartSkeleton } from '../Skeleton/Skeleton.jsx';
+import ChartEmpty from './ChartEmpty.jsx';
+import { useChartData } from './useChartData.js';
 import styles from './Charts.module.css';
 
 const DISTANCES = [2000, 5000, 10000];
@@ -21,33 +23,25 @@ function quartilePath(quartiles, min, max) {
 }
 
 export default function FadeFingerprint() {
-  const [panels, setPanels] = useState(null);
   const { formatPace, formatDistance } = useUnits();
+  const { data: panels = [], loading, error, retry } = useChartData(async () => {
+    const results = await Promise.all(DISTANCES.map(async distance => {
+      const recent = await api.getWorkouts({
+        min_distance: distance, max_distance: distance, limit: 1, sort: 'date_desc',
+      });
+      const workout = recent.data?.[0];
+      if (!workout) return null;
+      const curve = await api.getDecayCurve({ distance, workout_id: workout.id });
+      if (!curve.current || !curve.historical?.q1) return null;
+      return { distance, date: workout.date, ...curve };
+    }));
 
-  useEffect(() => {
-    let cancelled = false;
-
-    Promise.all(DISTANCES.map(async distance => {
-      try {
-        const recent = await api.getWorkouts({
-          min_distance: distance, max_distance: distance, limit: 1, sort: 'date_desc',
-        });
-        const workout = recent.data?.[0];
-        if (!workout) return null;
-        const curve = await api.getDecayCurve({ distance, workout_id: workout.id });
-        if (!curve.current || !curve.historical?.q1) return null;
-        return { distance, date: workout.date, ...curve };
-      } catch {
-        return null;
-      }
-    })).then(results => {
-      if (!cancelled) setPanels(results.filter(Boolean));
-    });
-
-    return () => { cancelled = true; };
+    return results.filter(Boolean);
   }, []);
 
-  if (!panels || panels.length === 0) return null;
+  if (loading) return <ChartSkeleton />;
+  if (error) return <ChartEmpty title="Fade Fingerprint" message="Couldn't load chart data." error onRetry={retry} />;
+  if (panels.length === 0) return <ChartEmpty title="Fade Fingerprint" />;
 
   return (
     <div className={styles.chartCard}>

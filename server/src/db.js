@@ -17,6 +17,8 @@ export function getDb() {
 export function initDb() {
   mkdirSync(DATA_DIR, { recursive: true });
 
+  if (db?.open) return db;
+
   db = new Database(DB_PATH);
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
@@ -26,6 +28,17 @@ export function initDb() {
   seedDefaults(db);
 
   return db;
+}
+
+export function closeDb() {
+  if (!db) return;
+  if (db.open) db.close();
+  db = undefined;
+}
+
+export function reopenDb() {
+  closeDb();
+  return initDb();
 }
 
 function runMigrations(db) {
@@ -54,7 +67,7 @@ function runMigrations(db) {
   }
 }
 
-function seedDefaults(db) {
+export function seedDefaults(db) {
   const insert = db.prepare(
     'INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)'
   );
@@ -62,9 +75,17 @@ function seedDefaults(db) {
     insert.run('theme', 'system');
     insert.run('units', 'pace');
     insert.run('sync_interval', '15');
+    insert.run('default_landing', '/');
+    insert.run('feed_limit', '50');
+    insert.run('week_start', 'monday');
+    insert.run('date_format', 'day-month');
   })();
 }
 
 export function getDbPath() {
   return DB_PATH;
+}
+
+export function getDataDir() {
+  return DATA_DIR;
 }

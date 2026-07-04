@@ -1,25 +1,25 @@
-import { useState, useEffect } from 'react';
 import { api } from '../../api.js';
 import { useTimeRange } from '../../context/TimeRangeContext.jsx';
+import { ChartSkeleton } from '../Skeleton/Skeleton.jsx';
 import Sparkline from '../Feed/Sparkline.jsx';
+import ChartEmpty from './ChartEmpty.jsx';
+import { useChartData } from './useChartData.js';
 import styles from './Charts.module.css';
 
 // Compact stat card: how tightly stroke rate held its band per session,
 // with a sparkline of recent scores.
 export default function RateDisciplineCard() {
-  const [data, setData] = useState([]);
   const { from, to } = useTimeRange();
-
-  useEffect(() => {
+  const { data = [], loading, error, retry } = useChartData(() => {
     const params = { metric: 'rate_discipline', period: 'all' };
     if (from) params.from = from;
     if (to) params.to = to;
-    api.getTrends(params)
-      .then(d => setData(d.rate_discipline_trend || []))
-      .catch(() => {});
+    return api.getTrends(params).then(d => d.rate_discipline_trend || []);
   }, [from, to]);
 
-  if (data.length < 3) return null;
+  if (loading) return <ChartSkeleton />;
+  if (error) return <ChartEmpty title="Rate Discipline" message="Couldn't load chart data." error onRetry={retry} />;
+  if (data.length < 3) return <ChartEmpty title="Rate Discipline" />;
 
   const recent = data.slice(-20);
   const latest = recent[recent.length - 1];

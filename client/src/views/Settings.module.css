@@ -102,6 +102,10 @@
 }
 
 .button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
   padding: var(--space-2) var(--space-4);
   border-radius: 999px;
   border: 1px solid var(--rule);
@@ -117,6 +121,19 @@
 .button:hover {
   color: var(--accent);
   border-color: var(--accent);
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  color: var(--ink-3);
+  border-color: var(--rule);
+  background: var(--surface-alt);
+  opacity: 0.7;
+}
+
+.button:disabled:hover {
+  color: var(--ink-3);
+  border-color: var(--rule);
 }
 
 .buttonDanger {
@@ -140,6 +157,83 @@
   color: var(--on-accent);
   background: var(--accent-deep);
   border-color: var(--accent-deep);
+}
+
+.inlineControls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.select,
+.confirmInput,
+.fileInput {
+  color: var(--ink);
+  background: var(--surface-alt);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  padding: var(--space-2) var(--space-3);
+}
+
+.select {
+  min-width: 160px;
+}
+
+.confirmInput {
+  width: 132px;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.fileInput {
+  max-width: 260px;
+}
+
+.select:focus,
+.confirmInput:focus,
+.fileInput:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.restoreBox {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4) 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.restoreBox:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.restoreControls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.warningText {
+  font-size: 0.75rem;
+  color: var(--negative);
+  margin-top: 2px;
+  line-height: 1.45;
+}
+
+.dangerSection {
+  border-color: var(--negative);
+  box-shadow: 0 0 0 1px var(--negative-bg), var(--shadow-sm);
+}
+
+.dangerSection .sectionTitle::before {
+  background: var(--negative);
 }
 
 .mono {

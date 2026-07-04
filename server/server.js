@@ -18,6 +18,7 @@ import {
   computeAllZoneTimes,
   computeAllBestEfforts,
 } from './src/analytics.js';
+import { backfillPbHistory } from './src/pbDetection.js';
 
 import healthRouter from './src/routes/health.js';
 import authRouter from './src/routes/auth.js';
@@ -26,6 +27,7 @@ import statsRouter from './src/routes/stats.js';
 import syncRouter from './src/routes/sync.js';
 import aiRouter from './src/routes/ai.js';
 import settingsRouter from './src/routes/settings.js';
+import adminRouter from './src/routes/admin.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = parseInt(process.env.PORT || '3000', 10);
@@ -63,6 +65,7 @@ app.use('/api/stats', requireAuth, statsRouter);
 app.use('/api/sync', requireAuth, syncRouter);
 app.use('/api/ai', requireAuth, aiRouter);
 app.use('/api/settings', requireAuth, settingsRouter);
+app.use('/api/admin', requireAuth, adminRouter);
 
 const distPath = join(__dirname, 'dist');
 app.use(express.static(distPath));
@@ -78,6 +81,7 @@ app.get('*', (req, res, next) => {
 app.use(errorHandler);
 
 recomputePacesIfMissing();
+backfillPbHistory();
 tagAllWorkouts();
 computeAllMetrics();
 computeFitnessLog();

@@ -4,6 +4,14 @@
   gap: var(--space-5);
 }
 
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
 .title {
   font-family: var(--font-hero);
   font-size: var(--text-xl);
@@ -13,15 +21,208 @@
   color: var(--ink);
 }
 
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 150ms ease, border-color 150ms ease, background 150ms ease;
+}
+
+.button:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.buttonWithIcon {
+  gap: var(--space-2);
+}
+
 .secondaryGrid {
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
 }
 
+.editHint {
+  margin: calc(-1 * var(--space-3)) 0 0;
+  font-size: 0.8rem;
+  color: var(--ink-3);
+}
+
+.editGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-4);
+}
+
+.editCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  border-radius: var(--radius-lg);
+  transition: opacity 150ms ease;
+}
+
+.editCardDragging {
+  opacity: 0.3;
+}
+
+.editCardGhost {
+  cursor: grabbing;
+}
+
+.editCardGhost .editToolbar {
+  border-color: var(--accent);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+}
+
+.editCardHidden {
+  opacity: 0.5;
+}
+
+.editToolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 38px;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--surface);
+}
+
+.editCardTitle {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.dragHandleButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent-bg);
+  color: var(--accent);
+  cursor: grab;
+  touch-action: none;
+}
+
+.dragHandleButton:active {
+  cursor: grabbing;
+}
+
+.dragHandleStatic {
+  cursor: grabbing;
+}
+
+.editPreviewViewport {
+  height: 170px;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  pointer-events: none;
+}
+
+.editPreviewScale {
+  width: 200%;
+  transform: scale(0.5);
+  transform-origin: top left;
+}
+
+.editPreviewEmpty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 72px;
+  border: 1px dashed var(--rule);
+  background: none;
+  color: var(--ink-3);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.widthBadge {
+  flex: 0 0 auto;
+  padding: 2px var(--space-2);
+  border-radius: 999px;
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-3);
+  cursor: pointer;
+  transition: color 150ms ease, border-color 150ms ease, background 150ms ease;
+}
+
+.iconButton:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+@media (min-width: 1100px) {
+  .editGrid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (min-width: 560px) and (max-width: 1099px) {
+  .editGrid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 @media (min-width: 1600px) {
   .secondaryGrid {
     display: grid;
     grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 767px) {
+  .actions {
+    width: 100%;
+  }
+
+  .button {
+    flex: 1;
   }
 }

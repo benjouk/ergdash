@@ -1,48 +1,119 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Download, ChevronUp, ChevronDown } from 'lucide-react';
+import { Download, ChevronUp, ChevronDown, Pin, Search } from 'lucide-react';
 import { api } from '../api.js';
+import { paceToWatts } from '../utils/ergMath.js';
 import { useUnits } from '../context/UnitsContext.jsx';
 import { useTimeRange } from '../context/TimeRangeContext.jsx';
+import { useToast } from '../context/ToastContext.jsx';
+import { usePrefs } from '../context/PrefsContext.jsx';
 import Sparkline from '../components/Feed/Sparkline.jsx';
+import { RowSkeleton } from '../components/Skeleton/Skeleton.jsx';
+import PBBadges from '../components/PBBadge.jsx';
 import styles from './Workouts.module.css';
 
 const TAGS = ['', 'endurance', 'interval'];
+const DISTANCE_PRESETS = [
+  { key: '', label: 'All', params: {} },
+  { key: 'lt2k', label: '<2k', params: { max_distance: 1899 } },
+  { key: '2k', label: '2k', params: { min_distance: 1900, max_distance: 2100 } },
+  { key: '5k', label: '5k', params: { min_distance: 4900, max_distance: 5100 } },
+  { key: '10k', label: '10k+', params: { min_distance: 9900 } },
+];
 
 const TAG_CLASS = {
   endurance: 'tagSteady',
   interval: 'tagInterval',
 };
 
-function formatDateShort(dateStr) {
-  return new Date(dateStr).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+function formatWatts(paceMs) {
+  const watts = paceToWatts(paceMs / 1000);
+  return watts ? Math.round(watts) : '—';
+}
+
+function formatDateShort(dateStr, dateFormat) {
+  const options = dateFormat === 'month-day'
+    ? { month: 'short', day: 'numeric' }
+    : { day: 'numeric', month: 'short' };
+  return new Date(dateStr).toLocaleDateString('en-GB', options);
 }
 
 export default function Workouts() {
   const [workouts, setWorkouts] = useState([]);
   const [total, setTotal] = useState(0);
+  const [filterTotals, setFilterTotals] = useState(null);
   const [offset, setOffset] = useState(0);
   const [sort, setSort] = useState('date_desc');
   const [tag, setTag] = useState('');
+  const [pinnedOnly, setPinnedOnly] = useState(false);
+  const [searchInput, setSearchInput] = useState('');
+  const [q, setQ] = useState('');
+  const [distancePreset, setDistancePreset] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const navigate = useNavigate();
   const { formatPace, formatDistanceFull, formatDistance, formatTime } = useUnits();
   const { from, to } = useTimeRange();
+  const { dateFormat } = usePrefs();
+  const toast = useToast();
   const limit = 20;
+  const loadRequestRef = useRef(0);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    // Reset on every mount so StrictMode's mount → cleanup → remount cycle
+    // doesn't leave the ref permanently false.
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const load = useCallback(() => {
+    const requestId = loadRequestRef.current + 1;
+    loadRequestRef.current = requestId;
     const params = { limit, offset, sort };
     if (tag) params.tag = tag;
+    if (pinnedOnly) params.pinned = 1;
+    if (q) params.q = q;
+    Object.assign(params, getDistancePresetParams(distancePreset));
     if (from) params.from = from;
     if (to) params.to = to;
+    setLoading(true);
+    setLoadError('');
     api.getWorkouts(params)
       .then(data => {
+        if (!mountedRef.current || loadRequestRef.current !== requestId) return;
         setWorkouts(data.data || []);
         setTotal(data.meta?.total || 0);
+        setFilterTotals(data.meta?.totals || null);
       })
-      .catch(() => {});
-  }, [offset, sort, tag, from, to]);
+      .catch(err => {
+        if (!mountedRef.current || loadRequestRef.current !== requestId) return;
+        setWorkouts([]);
+        setTotal(0);
+        setFilterTotals(null);
+        setLoadError(err.message || 'Could not load workouts');
+      })
+      .finally(() => {
+        if (mountedRef.current && loadRequestRef.current === requestId) setLoading(false);
+      });
+  }, [offset, sort, tag, pinnedOnly, q, distancePreset, from, to]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      const nextQuery = searchInput.trim();
+      setQ(previousQuery => {
+        if (previousQuery === nextQuery) return previousQuery;
+        setOffset(0);
+        return nextQuery;
+      });
+    }, 300);
+
+    return () => window.clearTimeout(timeout);
+  }, [searchInput]);
 
   const toggleSort = (field) => {
     setSort(prev => {
@@ -67,6 +138,9 @@ export default function Workouts() {
     do {
       const params = { limit: pageSize, offset: nextOffset, sort };
       if (tag) params.tag = tag;
+      if (pinnedOnly) params.pinned = 1;
+      if (q) params.q = q;
+      Object.assign(params, getDistancePresetParams(distancePreset));
       if (from) params.from = from;
       if (to) params.to = to;
 
@@ -78,7 +152,7 @@ export default function Workouts() {
     } while (allRows.length < expectedTotal);
 
     return allRows;
-  }, [sort, tag, from, to]);
+  }, [sort, tag, pinnedOnly, q, distancePreset, from, to]);
 
   const downloadBlob = (content, type, filename) => {
     const blob = new Blob([content], { type });
@@ -91,22 +165,59 @@ export default function Workouts() {
   };
 
   const exportCsv = async () => {
-    const rowsToExport = await exportRows();
-    const headers = ['Date', 'Tag', 'Distance', 'Time', 'Pace', 'Rate', 'HR', 'Calories'];
-    const rows = rowsToExport.map(w => [
-      w.date, w.inferred_tag || '', w.distance, formatTime(w.time_ms),
-      formatPace(w.pace_ms), w.stroke_rate || '', w.heart_rate_avg || '', w.calories || '',
-    ]);
-    const csv = [headers, ...rows].map(row => row.map(csvCell).join(',')).join('\n');
-    downloadBlob(csv, 'text/csv', 'ergdash-workouts.csv');
+    try {
+      const rowsToExport = await exportRows();
+      const headers = ['Date', 'Tag', 'Distance', 'Time', 'Pace', 'Rate', 'HR', 'Calories', 'Notes'];
+      const rows = rowsToExport.map(w => [
+        w.date, w.inferred_tag || '', w.distance, formatTime(w.time_ms),
+        formatPace(w.pace_ms), w.stroke_rate || '', w.heart_rate_avg || '', w.calories || '', w.notes || '',
+      ]);
+      const csv = [headers, ...rows].map(row => row.map(csvCell).join(',')).join('\n');
+      downloadBlob(csv, 'text/csv', 'ergdash-workouts.csv');
+      toast.success(`Exported ${rowsToExport.length} workouts`);
+    } catch (err) {
+      toast.error(err.message || 'Export failed');
+    }
   };
 
   const exportJson = async () => {
-    const rowsToExport = await exportRows();
-    downloadBlob(JSON.stringify({ workouts: rowsToExport }, null, 2), 'application/json', 'ergdash-workouts.json');
+    try {
+      const rowsToExport = await exportRows();
+      downloadBlob(JSON.stringify({ workouts: rowsToExport }, null, 2), 'application/json', 'ergdash-workouts.json');
+      toast.success(`Exported ${rowsToExport.length} workouts`);
+    } catch (err) {
+      toast.error(err.message || 'Export failed');
+    }
   };
 
   const openSession = (id) => navigate(`/session/${id}`);
+
+  const handleTogglePinned = async (event, workout) => {
+    event.stopPropagation();
+    const nextPinned = !workout.pinned;
+    setWorkouts(current => current.map(w => (
+      w.id === workout.id ? { ...w, pinned: nextPinned } : w
+    )));
+
+    try {
+      const updated = await api.updateWorkout(workout.id, { pinned: nextPinned });
+      setWorkouts(current => current.map(w => (
+        w.id === workout.id ? { ...w, pinned: updated.pinned } : w
+      )));
+      toast.success(nextPinned ? 'Pinned' : 'Unpinned');
+    } catch (err) {
+      setWorkouts(current => current.map(w => (
+        w.id === workout.id ? { ...w, pinned: workout.pinned } : w
+      )));
+      toast.error(err.message || 'Could not update pin');
+    }
+  };
+
+  const handleCardKeyDown = (event, id) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    openSession(id);
+  };
 
   return (
     <div className={styles.workouts}>
@@ -123,52 +234,110 @@ export default function Workouts() {
       </div>
 
       <div className={styles.filters}>
+        <label className={styles.searchBox}>
+          <Search size={14} />
+          <input
+            value={searchInput}
+            onChange={event => setSearchInput(event.target.value)}
+            maxLength={100}
+            placeholder="Search notes & comments"
+            aria-label="Search notes and comments"
+          />
+        </label>
+        <span className={styles.filterDivider} aria-hidden="true" />
         {TAGS.map(t => (
           <button
             key={t}
+            type="button"
             onClick={() => { setTag(t); setOffset(0); }}
             className={`${styles.filterChip} ${tag === t ? styles.filterChipActive : ''}`}
           >
             {t || 'All'}
           </button>
         ))}
+        <button
+          type="button"
+          onClick={() => { setPinnedOnly(value => !value); setOffset(0); }}
+          className={`${styles.filterChip} ${pinnedOnly ? styles.filterChipActive : ''}`}
+          aria-pressed={pinnedOnly}
+        >
+          Pinned
+        </button>
+        <span className={styles.filterDivider} aria-hidden="true" />
+        {DISTANCE_PRESETS.map(preset => (
+          <button
+            key={preset.key || 'all-distance'}
+            type="button"
+            onClick={() => { setDistancePreset(preset.key); setOffset(0); }}
+            className={`${styles.filterChip} ${distancePreset === preset.key ? styles.filterChipActive : ''}`}
+          >
+            {preset.label}
+          </button>
+        ))}
       </div>
+
+      {loadError && (
+        <div className={styles.errorBanner} role="alert">
+          <span>{loadError}</span>
+          <button type="button" onClick={load} className={styles.retryButton}>
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* Desktop / tablet table */}
       <div className={styles.tableCard}>
         <table className={styles.table}>
           <thead>
             <tr>
+              <Th></Th>
               <Th onClick={() => toggleSort('date')}>Date <SortIcon field="date" /></Th>
               <Th>Tag</Th>
               <Th onClick={() => toggleSort('distance')}>Distance <SortIcon field="distance" /></Th>
               <Th>Time</Th>
               <Th onClick={() => toggleSort('pace')}>Pace <SortIcon field="pace" /></Th>
+              <Th>Watts</Th>
               <Th>Rate</Th>
               <Th>HR</Th>
+              <Th>Cal</Th>
               <Th></Th>
             </tr>
           </thead>
           <tbody>
-            {workouts.map(w => (
+            {loading ? (
+              Array.from({ length: 8 }).map((_, index) => (
+                <RowSkeleton key={`row-skeleton-${index}`} />
+              ))
+            ) : workouts.map(w => (
               <tr
                 key={w.id}
                 tabIndex={0}
                 role="link"
-                aria-label={`Open session from ${formatDateShort(w.date)}`}
+                aria-label={`Open session from ${formatDateShort(w.date, dateFormat)}`}
                 onClick={() => openSession(w.id)}
                 onKeyDown={e => { if (e.key === 'Enter') openSession(w.id); }}
                 className={styles.row}
               >
-                <td>{formatDateShort(w.date)}</td>
+                <td className={styles.pinCell}>
+                  <PinButton
+                    pinned={w.pinned}
+                    onClick={event => handleTogglePinned(event, w)}
+                  />
+                </td>
+                <td>{formatDateShort(w.date, dateFormat)}</td>
                 <td>
-                  {w.inferred_tag && <TagBadge tag={w.inferred_tag} />}
+                  <span className={styles.badgeStack}>
+                    {w.inferred_tag && <TagBadge tag={w.inferred_tag} />}
+                    <PBBadges distances={w.pb_distances} compact />
+                  </span>
                 </td>
                 <td>{formatDistanceFull(w.distance)}</td>
                 <td>{formatTime(w.time_ms)}</td>
                 <td className={styles.paceCell}>{formatPace(w.pace_ms)}</td>
+                <td>{formatWatts(w.pace_ms)}</td>
                 <td>{w.stroke_rate || '—'}</td>
                 <td>{w.heart_rate_avg || '—'}</td>
+                <td>{w.calories || '—'}</td>
                 <td>
                   {w.pace_profile?.length >= 2 && (
                     <Sparkline
@@ -182,22 +351,49 @@ export default function Workouts() {
               </tr>
             ))}
           </tbody>
+          {filterTotals && workouts.length > 0 && (
+            <tfoot>
+              <tr className={styles.totalsRow}>
+                <td />
+                <td className={styles.totalsLabel}>Totals ({total})</td>
+                <td />
+                <td>{formatDistanceFull(filterTotals.distance)}</td>
+                <td>{formatTime(filterTotals.time_ms)}</td>
+                <td className={styles.paceCell}>{formatPace(filterTotals.avg_pace_ms)}</td>
+                <td>{formatWatts(filterTotals.avg_pace_ms)}</td>
+                <td colSpan={4} />
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
 
       {/* Mobile card list */}
       <div className={styles.cardList}>
-        {workouts.map(w => (
-          <button
+        {loading ? (
+          Array.from({ length: 6 }).map((_, index) => (
+            <MobileWorkoutSkeleton key={`card-skeleton-${index}`} />
+          ))
+        ) : workouts.map(w => (
+          <div
             key={w.id}
-            type="button"
+            role="button"
+            tabIndex={0}
             className={styles.workoutCard}
             onClick={() => openSession(w.id)}
-            aria-label={`Open session from ${formatDateShort(w.date)}`}
+            onKeyDown={event => handleCardKeyDown(event, w.id)}
+            aria-label={`Open session from ${formatDateShort(w.date, dateFormat)}`}
           >
             <div className={styles.cardTop}>
-              <span className={styles.cardDate}>{formatDateShort(w.date)}</span>
-              {w.inferred_tag && <TagBadge tag={w.inferred_tag} />}
+              <span className={styles.cardDate}>{formatDateShort(w.date, dateFormat)}</span>
+              <span className={styles.cardTopActions}>
+                <PBBadges distances={w.pb_distances} compact />
+                {w.inferred_tag && <TagBadge tag={w.inferred_tag} />}
+                <PinButton
+                  pinned={w.pinned}
+                  onClick={event => handleTogglePinned(event, w)}
+                />
+              </span>
             </div>
             <div className={styles.cardMain}>
               <span className={styles.cardPace}>{formatPace(w.pace_ms)}</span>
@@ -215,12 +411,13 @@ export default function Workouts() {
               {w.stroke_rate ? ` · ${w.stroke_rate}spm` : ''}
               {w.heart_rate_avg ? ` · ${w.heart_rate_avg}bpm` : ''}
             </div>
-          </button>
+          </div>
         ))}
       </div>
 
-      <div className={styles.pagination}>
-        <span>Showing {offset + 1}–{Math.min(offset + limit, total)} of {total}</span>
+      {!loading && !loadError && total > 0 && (
+        <div className={styles.pagination}>
+          <span>Showing {offset + 1}–{Math.min(offset + limit, total)} of {total}</span>
         <div className={styles.pageButtons}>
           <button
             onClick={() => setOffset(Math.max(0, offset - limit))}
@@ -233,7 +430,8 @@ export default function Workouts() {
             className={styles.pageButton}
           >Next</button>
         </div>
-      </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -252,6 +450,45 @@ function Th({ children, onClick }) {
 function TagBadge({ tag }) {
   const tagClass = styles[TAG_CLASS[tag]] || styles.tagOther;
   return <span className={`${styles.tag} ${tagClass}`}>{tag}</span>;
+}
+
+function PinButton({ pinned, onClick }) {
+  return (
+    <button
+      type="button"
+      className={`${styles.pinButton} ${pinned ? styles.pinButtonActive : ''}`}
+      onClick={onClick}
+      onKeyDown={event => event.stopPropagation()}
+      aria-label={pinned ? 'Unpin workout' : 'Pin workout'}
+      aria-pressed={pinned}
+      title={pinned ? 'Unpin workout' : 'Pin workout'}
+    >
+      <Pin size={14} fill={pinned ? 'currentColor' : 'none'} />
+    </button>
+  );
+}
+
+function MobileWorkoutSkeleton() {
+  return (
+    <div className={styles.workoutCard} aria-busy="true" aria-label="Loading workout">
+      <div className={styles.cardTop}>
+        <span className={`${styles.skeletonBlock} ${styles.skeletonDate}`} />
+        <span className={styles.cardTopActions}>
+          <span className={`${styles.skeletonBlock} ${styles.skeletonTag}`} />
+          <span className={`${styles.skeletonBlock} ${styles.skeletonPin}`} />
+        </span>
+      </div>
+      <div className={styles.cardMain}>
+        <span className={`${styles.skeletonBlock} ${styles.skeletonPace}`} />
+        <span className={`${styles.skeletonBlock} ${styles.skeletonSpark}`} />
+      </div>
+      <span className={`${styles.skeletonBlock} ${styles.skeletonMeta}`} />
+    </div>
+  );
+}
+
+function getDistancePresetParams(key) {
+  return DISTANCE_PRESETS.find(preset => preset.key === key)?.params || {};
 }
 
 function csvCell(value) {
