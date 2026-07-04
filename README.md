@@ -2,11 +2,28 @@
 
 A self-hosted dashboard for Concept2 RowErg users. Connects to the Concept2 Logbook API to sync your workout history and display training analytics — volume trends, pace tracking, personal bests, and fitness modelling.
 
+## Connecting to Concept2
+
+ErgDash talks to your Concept2 Logbook account via OAuth2, which means it needs its own API credentials before it can ask Concept2 for permission to read your workouts. This is a one-time, few-minute setup:
+
+1. Log in to your account at [log.concept2.com](https://log.concept2.com), then go to [log.concept2.com/developers](https://log.concept2.com/developers).
+2. Register a new application (sometimes labelled "API application" or "OAuth client"). The name is just a label for your own reference — e.g. `ErgDash` or `ErgDash (home server)`.
+3. Set the **redirect URI**. This must match `C2_REDIRECT_URI` *exactly* — same protocol, host, port, and path — or the OAuth login will fail:
+   - Docker (default setup): `http://localhost:3100/auth/callback`
+   - Local development: `http://localhost:3000/auth/callback`
+   - Anything else (custom domain, reverse proxy, different port): use that URL instead, and set `C2_REDIRECT_URI` in `.env` to match.
+4. Save the application. Concept2 will give you a **Client ID** and **Client Secret**.
+5. Copy those two values into `.env` as `C2_CLIENT_ID` and `C2_CLIENT_SECRET`.
+
+Your Concept2 username and password are never seen by ErgDash — they're entered directly on Concept2's login page during the OAuth flow. The Client ID/Secret above just identify the *app* to Concept2, similar to how any third-party integration (e.g. a Strava or Google sign-in) needs to be registered before it can request access.
+
+If you ever move ErgDash to a new host or domain, you'll need to update the redirect URI on both sides (Concept2's developer page and `C2_REDIRECT_URI` in `.env`).
+
 ## Quick Start (Docker)
 
 ```bash
 cp .env.example .env
-# Fill in C2_CLIENT_ID and C2_CLIENT_SECRET from https://log.concept2.com/developers
+# Fill in C2_CLIENT_ID and C2_CLIENT_SECRET — see "Connecting to Concept2" above
 docker compose up -d
 ```
 
