@@ -1,4 +1,9 @@
 async function request(path, options = {}) {
+  if (import.meta.env.VITE_DEMO === '1') {
+    const { demoRequest } = await import('./demoApi.js');
+    return demoRequest(path, options);
+  }
+
   const res = await fetch(path, {
     credentials: 'include',
     headers: { 'Content-Type': 'application/json', ...options.headers },
@@ -18,6 +23,10 @@ async function request(path, options = {}) {
 }
 
 async function uploadSqlite(path, file) {
+  if (import.meta.env.VITE_DEMO === '1') {
+    throw new Error('Demo mode — run ErgDash self-hosted to restore a backup');
+  }
+
   const res = await fetch(path, {
     method: 'POST',
     credentials: 'include',

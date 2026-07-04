@@ -1,0 +1,17 @@
+name: Weekly demo redeploy
+
+# Cloudflare Pages rebuilds on every push, which refreshes the seeded demo
+# data (dates are relative to build time — see scripts/build-demo-data.mjs).
+# This cron keeps the demo looking "recent" even during weeks with no
+# commits, by firing the same Cloudflare Pages deploy hook on a schedule.
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch: {}
+
+jobs:
+  redeploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Cloudflare Pages deploy hook
+        run: curl -fsS -X POST "${{ secrets.CF_DEPLOY_HOOK }}"
