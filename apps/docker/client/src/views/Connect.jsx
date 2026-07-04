@@ -41,7 +41,7 @@ export default function Connect() {
     <div className={styles.connect}>
       <div className={styles.inner}>
         <div className={styles.wordmark}>
-          ROW<span className={styles.wordmarkSlash}>//</span>DASH
+          Erg<span className={styles.wordmarkAccent}>Dash</span>
         </div>
 
         <p className={styles.tagline}>

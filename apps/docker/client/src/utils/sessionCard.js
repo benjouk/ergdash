@@ -54,11 +54,9 @@ function drawBackground(ctx) {
 function drawWordmark(ctx) {
   ctx.font = '900 42px Archivo, Outfit, system-ui, sans-serif';
   ctx.fillStyle = COLORS.ink;
-  ctx.fillText('ROW', 88, 132);
+  ctx.fillText('Erg', 88, 132);
   ctx.fillStyle = COLORS.accent;
-  ctx.fillText('//', 174, 132);
-  ctx.fillStyle = COLORS.ink;
-  ctx.fillText('DASH', 222, 132);
+  ctx.fillText('Dash', 166, 132);
 }
 
 function drawMainStats(ctx, workout, formatters) {

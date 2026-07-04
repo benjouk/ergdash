@@ -55,7 +55,7 @@ export default function Ticker() {
   return (
     <header className={styles.ticker}>
       <div className={styles.logo}>
-        ROW<span className={styles.logoSlash}>//</span>DASH
+        Erg<span className={styles.logoAccent}>Dash</span>
       </div>
 
       <div className={styles.stats}>

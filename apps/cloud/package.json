@@ -1,0 +1,14 @@
+{
+  "name": "@ergdash/cloud",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --config wrangler.jsonc",
+    "deploy": "wrangler deploy --config wrangler.jsonc",
+    "types": "wrangler types --config wrangler.jsonc"
+  },
+  "devDependencies": {
+    "wrangler": "^4.107.0"
+  }
+}

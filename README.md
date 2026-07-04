@@ -1,96 +1,97 @@
 # ErgDash
 
-A self-hosted dashboard for Concept2 RowErg users. Connects to the Concept2 Logbook API to sync your workout history and display training analytics — volume trends, pace tracking, personal bests, and fitness modelling.
+ErgDash is a Concept2 RowErg training dashboard. It connects to the Concept2 Logbook API to sync workout history and display training analytics: volume trends, pace tracking, personal bests, stroke metrics, and fitness modelling.
 
-## Quick Start (Docker)
+This repository now manages two deployment targets:
 
-```bash
-cp .env.example .env
-# Fill in C2_CLIENT_ID and C2_CLIENT_SECRET from https://log.concept2.com/developers
-docker compose up -d
+- **ErgDash Cloud** in `apps/cloud` — the Cloudflare Workers target for the public multi-user product.
+- **ErgDash Docker** in `apps/docker` — the current self-hosted single-user app and reference implementation.
+
+## Repository Layout
+
+```text
+apps/
+  cloud/          Cloudflare Worker shell for ergdash.com
+  docker/
+    client/       React 18 + Vite 5 frontend
+    server/       Express 4 + better-sqlite3 backend
+docs/
+  cloud.md        Cloud backend migration notes
+  self-hosted.md  Docker deploy and development notes
 ```
 
-The app will be available at `http://localhost:3100`.
-
-## Quick Start (Development)
+## Quick Start
 
 Requires Node.js 22+.
 
 ```bash
-# Server
-cd server
 npm install
-npm run seed   # populate DB with mock data (no C2 credentials needed)
-npm run dev    # starts on :3000 with --watch
+npm test
+```
 
-# Client (separate terminal)
-cd client
-npm install
-npm run dev    # starts Vite on :5173, proxies API to :3000
+Run the self-hosted Docker-era app in development:
+
+```bash
+npm run dev:docker:server
+npm run dev:docker:client
 ```
 
 Open `http://localhost:5173`. In dev mode a "Skip Auth" link appears on the login screen.
 
-## Architecture
+Run the Cloudflare Worker shell locally:
 
-Single-container stack: Express serves both the API and the built React frontend, backed by SQLite (WAL mode).
-
+```bash
+npm run build:cloud-assets
+npm run dev:cloud
 ```
-client/          React 18 + Vite 5 + React Router 6
-  src/
-    components/  Ticker, Feed, Charts, PaceRibbon, Stats
-    views/       Dashboard, Session, Progress, Workouts, Settings, Connect
-    context/     Theme, Auth, Sync, Units providers
-    styles/      Design tokens (light/dark), global reset
 
-server/          Express 4 + better-sqlite3
-  src/
-    routes/      auth, workouts, stats, sync, settings, health, ai (stub)
-    middleware/  error handler
-    db.js        DB init, migrations, WAL mode
-    auth.js      OAuth2 (Authorization Code + Refresh)
-    sync.js      Full sync, incremental sync, stroke enrichment
-    analytics.js Auto-tagging, fade index, consistency, CTL/ATL/TSB,
-                 HR zones, power curve, orchestration of stroke metrics
-    strokeMetrics.js Pure per-stroke maths (DPS, watts/beat, HR drift,
-                 rate discipline, HR recovery, zone time, best efforts)
-    hrZones.js   HR zone model (settings + observed-max fallback)
-    seed.js      Mock data generator (154 workouts)
-  test/          Vitest unit tests for the pure metric functions
-  migrations/    SQL schema
+## Docker Target
+
+The self-hosted app remains in `apps/docker`.
+
+```bash
+cd apps/docker
+cp .env.example .env
+# Fill in C2_CLIENT_ID and C2_CLIENT_SECRET from https://log.concept2.com/developers
+docker-compose up -d --build
 ```
+
+The Docker app is available at `http://localhost:3100`.
+
+## Cloud Target
+
+The Cloudflare Worker target lives in `apps/cloud`.
+
+Cloudflare Git integration can run:
+
+```bash
+npm ci
+npm run build:cloud-assets
+npm run deploy -w apps/cloud
+```
+
+The Worker currently serves the React app and exposes `/health`. The multi-user D1/Queues backend still needs to be built before ErgDash Cloud can replace the self-hosted backend.
 
 ## Features
 
 - **Dashboard** — Season metres, weekly volume chart, pace trend, personal bests, calendar heatmap, weekly time-in-zone, fitness sparkline
-- **Session Detail** — Canvas pace ribbon heatmap, stroke-level charts, interval rep chart with HR recovery, rate-vs-pace scatter, HR zone bar, computed metrics (fade index, consistency, effort, distance per stroke, watts/beat, HR drift, rate discipline)
-- **Workouts** — Filterable/sortable table with CSV export
-- **Progress** — Fitness (CTL/ATL/TSB), pace/volume trends, power-duration curve with 90-day ghost, time-in-zone and polarization stacks, efficiency (watts/beat), distance per stroke, HR drift, cumulative metres race line, drag factor timeline, fade fingerprint
-- **HR Zones** — Five configurable zones in Settings (% of max HR), estimated from observed data until set
-- **Feed** — Always-visible sidebar of recent sessions with sparklines
-- **Ticker** — Sticky header with key stats, pace trace, and navigation
+- **Session Detail** — Canvas pace ribbon heatmap, stroke-level charts, interval rep chart with HR recovery, rate-vs-pace scatter, HR zone bar, computed metrics
+- **Workouts** — Filterable/sortable table with CSV/JSON export
+- **Progress** — Fitness (CTL/ATL/TSB), pace/volume trends, power-duration curve, time-in-zone, polarization, efficiency, distance per stroke, HR drift, cumulative metres, drag factor, fade fingerprint
+- **HR Zones** — Five configurable zones in Settings
+- **Tools** — Performance calculators and training utilities
 - **Light/Dark theme** — System-aware with manual override
 - **Units** — Toggle between /500m pace, watts, and cal/hr
 
-## Environment Variables
-
-| Variable | Default | Description |
-|---|---|---|
-| `C2_CLIENT_ID` | — | Concept2 OAuth client ID |
-| `C2_CLIENT_SECRET` | — | Concept2 OAuth client secret |
-| `C2_REDIRECT_URI` | `http://localhost:3100/auth/callback` | OAuth redirect URI |
-| `PORT` | `3000` | Server listen port |
-| `DATA_DIR` | `/data` | SQLite database directory |
-| `SYNC_INTERVAL_MINUTES` | `15` | Auto-sync interval |
-| `SESSION_SECRET` | `change-me-in-production` | Session signing secret |
-
 ## Tech Stack
 
-**Client:** React, Vite, React Router, Recharts, D3 (scales only), Lucide icons, CSS Modules
+**Cloud:** Cloudflare Workers, Workers Static Assets, future D1/Queues/Cron
 
-**Server:** Express, better-sqlite3, node-cron
+**Docker client:** React, Vite, React Router, Recharts, D3 scales, Lucide icons, CSS Modules
 
-**Fonts:** Outfit (display), Fira Code (monospace) — self-hosted, variable woff2
+**Docker server:** Express, better-sqlite3, node-cron
+
+**Fonts:** Outfit, Archivo, Fira Code
 
 ## License
 
