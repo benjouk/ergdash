@@ -22,9 +22,8 @@
   animation: loadingPulse 1.4s ease-in-out infinite;
 }
 
-.loadingSlash {
+.loadingAccent {
   color: var(--accent);
-  font-style: italic;
 }
 
 @keyframes loadingPulse {

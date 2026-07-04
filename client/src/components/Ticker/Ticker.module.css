@@ -29,9 +29,8 @@
   flex-shrink: 0;
 }
 
-.logoSlash {
+.logoAccent {
   color: var(--ticker-accent);
-  font-style: italic;
 }
 
 .stats {

@@ -21,7 +21,7 @@ export default function App() {
     return (
       <div className={styles.loading}>
         <span className={styles.loadingMark}>
-          ROW<span className={styles.loadingSlash}>//</span>DASH
+          Erg<span className={styles.loadingAccent}>Dash</span>
         </span>
       </div>
     );
