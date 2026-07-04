@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = process.env.DATA_DIR || join(__dirname, '..', 'data');
-const DB_PATH = join(DATA_DIR, 'rowdash.db');
+const DB_PATH = join(DATA_DIR, 'ergdash.db');
 
 let db;
 

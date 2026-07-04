@@ -106,5 +106,5 @@ function recomputePacesIfMissing() {
 }
 
 app.listen(PORT, () => {
-  console.log(`RowDash server listening on port ${PORT}`);
+  console.log(`ErgDash server listening on port ${PORT}`);
 });

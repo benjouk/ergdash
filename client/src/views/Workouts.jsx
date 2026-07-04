@@ -98,12 +98,12 @@ export default function Workouts() {
       formatPace(w.pace_ms), w.stroke_rate || '', w.heart_rate_avg || '', w.calories || '',
     ]);
     const csv = [headers, ...rows].map(row => row.map(csvCell).join(',')).join('\n');
-    downloadBlob(csv, 'text/csv', 'rowdash-workouts.csv');
+    downloadBlob(csv, 'text/csv', 'ergdash-workouts.csv');
   };
 
   const exportJson = async () => {
     const rowsToExport = await exportRows();
-    downloadBlob(JSON.stringify({ workouts: rowsToExport }, null, 2), 'application/json', 'rowdash-workouts.json');
+    downloadBlob(JSON.stringify({ workouts: rowsToExport }, null, 2), 'application/json', 'ergdash-workouts.json');
   };
 
   const openSession = (id) => navigate(`/session/${id}`);

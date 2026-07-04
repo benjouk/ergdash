@@ -98,7 +98,7 @@ export default function Session() {
 
     try {
       if (navigator.share) {
-        await navigator.share({ title: 'RowDash workout', text, url: window.location.href });
+        await navigator.share({ title: 'ErgDash workout', text, url: window.location.href });
       } else if (navigator.clipboard) {
         await navigator.clipboard.writeText(window.location.href);
         setCopied(true);

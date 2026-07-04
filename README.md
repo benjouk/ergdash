@@ -1,4 +1,4 @@
-# ROW//DASH
+# ErgDash
 
 A self-hosted dashboard for Concept2 RowErg users. Connects to the Concept2 Logbook API to sync your workout history and display training analytics — volume trends, pace tracking, personal bests, and fitness modelling.
 

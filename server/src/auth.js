@@ -5,7 +5,7 @@ const C2_API_BASE = process.env.C2_API_BASE || 'https://log.concept2.com';
 const C2_CLIENT_ID = process.env.C2_CLIENT_ID || '';
 const C2_CLIENT_SECRET = process.env.C2_CLIENT_SECRET || '';
 const C2_REDIRECT_URI = process.env.C2_REDIRECT_URI || 'http://localhost:3100/auth/callback';
-const AUTH_COOKIE = 'rowdash_session';
+const AUTH_COOKIE = 'ergdash_session';
 const ENCRYPTED_PREFIX = 'enc:v1:';
 
 function initSessionSecret() {
