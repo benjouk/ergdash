@@ -8,7 +8,9 @@ dist/
 *.db-wal
 *.db-shm
 /data/
-server/data/
+apps/docker/server/data/
+.wrangler/
+.dev.vars
 .DS_Store
 
 # Local agent scratch space
