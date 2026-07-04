@@ -168,6 +168,8 @@ function SelectRow({ label, subtext, value, onChange, options }) {
   );
 }
 
+const isDemo = import.meta.env.VITE_DEMO === '1';
+
 export default function Settings() {
   const { theme, setTheme } = useTheme();
   const { units, setUnits } = useUnits();
@@ -388,7 +390,7 @@ export default function Settings() {
               {syncStatus?.status === 'syncing' ? 'Syncing...' : `Last sync: ${syncStatus?.last_completed || 'Never'}`}
             </div>
           </div>
-          <button onClick={triggerSync} className={styles.button}>Sync Now</button>
+          {!isDemo && <button onClick={triggerSync} className={styles.button}>Sync Now</button>}
         </div>
         <div className={styles.row}>
           <div>
@@ -401,54 +403,61 @@ export default function Settings() {
         </div>
       </div>
 
-      <div className={styles.section}>
-        <h3 className={styles.sectionTitle}>Backup & Restore</h3>
-        <div className={styles.row}>
-          <div>
-            <div className={styles.label}>Backup & Export</div>
-            <div className={styles.subtext}>Download a full SQLite snapshot or streamed JSON export</div>
-          </div>
-          <div className={styles.inlineControls}>
-            <a href="/api/admin/backup" className={styles.button}>
-              <Download size={14} /> Backup
-            </a>
-            <a href="/api/admin/export" className={styles.button}>
-              <FileJson size={14} /> Export JSON
-            </a>
-          </div>
+      {isDemo ? (
+        <div className={styles.section}>
+          <h3 className={styles.sectionTitle}>Backup & Restore</h3>
+          <div className={styles.subtext}>Not available in the demo — self-host ErgDash to back up and restore your own data.</div>
         </div>
-        <form className={styles.restoreBox} onSubmit={restoreDatabase}>
-          <div>
-            <div className={styles.label}>Restore Database</div>
-            <div className={styles.warningText}>
-              Current data will be replaced. The server keeps a safety copy named ergdash.db.pre-restore.sqlite3 before swapping files.
+      ) : (
+        <div className={styles.section}>
+          <h3 className={styles.sectionTitle}>Backup & Restore</h3>
+          <div className={styles.row}>
+            <div>
+              <div className={styles.label}>Backup & Export</div>
+              <div className={styles.subtext}>Download a full SQLite snapshot or streamed JSON export</div>
+            </div>
+            <div className={styles.inlineControls}>
+              <a href="/api/admin/backup" className={styles.button}>
+                <Download size={14} /> Backup
+              </a>
+              <a href="/api/admin/export" className={styles.button}>
+                <FileJson size={14} /> Export JSON
+              </a>
             </div>
           </div>
-          <div className={styles.restoreControls}>
-            <input
-              className={styles.fileInput}
-              type="file"
-              accept=".sqlite3,.sqlite,.db"
-              onChange={event => setRestoreFile(event.target.files?.[0] || null)}
-              aria-label="Choose SQLite database backup"
-            />
-            <input
-              className={styles.confirmInput}
-              value={restoreConfirm}
-              onChange={event => setRestoreConfirm(event.target.value)}
-              placeholder="RESTORE"
-              aria-label="Type RESTORE to confirm database restore"
-            />
-            <button
-              type="submit"
-              className={`${styles.button} ${styles.buttonDanger}`}
-              disabled={!restoreFile || restoreConfirm !== 'RESTORE' || restoreBusy}
-            >
-              <Upload size={14} /> {restoreBusy ? 'Restoring...' : 'Restore'}
-            </button>
-          </div>
-        </form>
-      </div>
+          <form className={styles.restoreBox} onSubmit={restoreDatabase}>
+            <div>
+              <div className={styles.label}>Restore Database</div>
+              <div className={styles.warningText}>
+                Current data will be replaced. The server keeps a safety copy named ergdash.db.pre-restore.sqlite3 before swapping files.
+              </div>
+            </div>
+            <div className={styles.restoreControls}>
+              <input
+                className={styles.fileInput}
+                type="file"
+                accept=".sqlite3,.sqlite,.db"
+                onChange={event => setRestoreFile(event.target.files?.[0] || null)}
+                aria-label="Choose SQLite database backup"
+              />
+              <input
+                className={styles.confirmInput}
+                value={restoreConfirm}
+                onChange={event => setRestoreConfirm(event.target.value)}
+                placeholder="RESTORE"
+                aria-label="Type RESTORE to confirm database restore"
+              />
+              <button
+                type="submit"
+                className={`${styles.button} ${styles.buttonDanger}`}
+                disabled={!restoreFile || restoreConfirm !== 'RESTORE' || restoreBusy}
+              >
+                <Upload size={14} /> {restoreBusy ? 'Restoring...' : 'Restore'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       <div className={styles.section}>
         <h3 className={styles.sectionTitle}>Data</h3>
@@ -468,55 +477,62 @@ export default function Settings() {
         </div>
       </div>
 
-      <div className={`${styles.section} ${styles.dangerSection}`}>
-        <h3 className={styles.sectionTitle}>Danger Zone</h3>
-        <div className={styles.row}>
-          <div>
-            <div className={styles.label}>Disconnect Concept2 Account</div>
-            <div className={styles.subtext}>Type DISCONNECT to remove OAuth tokens and end this session</div>
+      {isDemo ? (
+        <div className={`${styles.section} ${styles.dangerSection}`}>
+          <h3 className={styles.sectionTitle}>Danger Zone</h3>
+          <div className={styles.subtext}>Not available in the demo — self-host ErgDash to manage your own Concept2 connection.</div>
+        </div>
+      ) : (
+        <div className={`${styles.section} ${styles.dangerSection}`}>
+          <h3 className={styles.sectionTitle}>Danger Zone</h3>
+          <div className={styles.row}>
+            <div>
+              <div className={styles.label}>Disconnect Concept2 Account</div>
+              <div className={styles.subtext}>Type DISCONNECT to remove OAuth tokens and end this session</div>
+            </div>
+            <div className={styles.inlineControls}>
+              <input
+                className={styles.confirmInput}
+                value={dangerConfirm}
+                onChange={event => setDangerConfirm(event.target.value)}
+                placeholder="DISCONNECT"
+                aria-label="Type DISCONNECT to confirm account disconnect"
+              />
+              <button
+                type="button"
+                className={`${styles.button} ${styles.buttonDanger}`}
+                disabled={dangerConfirm !== 'DISCONNECT' || dangerBusy === 'disconnect'}
+                onClick={disconnectAccount}
+              >
+                <LogOut size={14} /> Disconnect
+              </button>
+            </div>
           </div>
-          <div className={styles.inlineControls}>
-            <input
-              className={styles.confirmInput}
-              value={dangerConfirm}
-              onChange={event => setDangerConfirm(event.target.value)}
-              placeholder="DISCONNECT"
-              aria-label="Type DISCONNECT to confirm account disconnect"
-            />
-            <button
-              type="button"
-              className={`${styles.button} ${styles.buttonDanger}`}
-              disabled={dangerConfirm !== 'DISCONNECT' || dangerBusy === 'disconnect'}
-              onClick={disconnectAccount}
-            >
-              <LogOut size={14} /> Disconnect
-            </button>
+          <div className={styles.row}>
+            <div>
+              <div className={styles.label}>Wipe Local Data & Re-sync</div>
+              <div className={styles.subtext}>Type WIPE to clear local workout data and start a fresh sync</div>
+            </div>
+            <div className={styles.inlineControls}>
+              <input
+                className={styles.confirmInput}
+                value={wipeConfirm}
+                onChange={event => setWipeConfirm(event.target.value)}
+                placeholder="WIPE"
+                aria-label="Type WIPE to confirm local data wipe"
+              />
+              <button
+                type="button"
+                className={`${styles.button} ${styles.buttonDanger}`}
+                disabled={wipeConfirm !== 'WIPE' || dangerBusy === 'wipe'}
+                onClick={wipeLocalData}
+              >
+                <Trash2 size={14} /> Wipe
+              </button>
+            </div>
           </div>
         </div>
-        <div className={styles.row}>
-          <div>
-            <div className={styles.label}>Wipe Local Data & Re-sync</div>
-            <div className={styles.subtext}>Type WIPE to clear local workout data and start a fresh sync</div>
-          </div>
-          <div className={styles.inlineControls}>
-            <input
-              className={styles.confirmInput}
-              value={wipeConfirm}
-              onChange={event => setWipeConfirm(event.target.value)}
-              placeholder="WIPE"
-              aria-label="Type WIPE to confirm local data wipe"
-            />
-            <button
-              type="button"
-              className={`${styles.button} ${styles.buttonDanger}`}
-              disabled={wipeConfirm !== 'WIPE' || dangerBusy === 'wipe'}
-              onClick={wipeLocalData}
-            >
-              <Trash2 size={14} /> Wipe
-            </button>
-          </div>
-        </div>
-      </div>
+      )}
     </div>
   );
 }
