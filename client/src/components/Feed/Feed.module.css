@@ -42,8 +42,20 @@
   font-size: 0.8rem;
 }
 
+.error {
+  padding: var(--space-4);
+  color: var(--negative);
+  font-size: 0.8rem;
+}
+
+.itemList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
 /* Horizontal snap-scroll variant — used inline on Dashboard below 1100px */
-.feedRow {
+.itemListRow {
   flex-direction: row;
   overflow-x: auto;
   scroll-snap-type: x mandatory;
@@ -51,7 +63,7 @@
   gap: var(--space-3);
 }
 
-.feedRow .item {
+.itemListRow .item {
   min-width: 230px;
   flex-shrink: 0;
   scroll-snap-align: start;
@@ -60,7 +72,7 @@
   box-shadow: var(--shadow-sm);
 }
 
-.feedRow .item:hover {
+.itemListRow .item:hover {
   box-shadow: var(--shadow-md);
 }
 
@@ -71,8 +83,24 @@
 }
 
 .itemDate {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
   font-size: 0.75rem;
   color: var(--ink-3);
+}
+
+.itemBadges {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+}
+
+.pinnedGlyph {
+  color: var(--accent);
+  flex: 0 0 auto;
 }
 
 .itemTag {

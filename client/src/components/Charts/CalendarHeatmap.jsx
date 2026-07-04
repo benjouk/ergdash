@@ -1,12 +1,16 @@
 import { useState, useEffect, useMemo } from 'react';
 import { scaleQuantize } from 'd3-scale';
 import { api } from '../../api.js';
+import { usePrefs } from '../../context/PrefsContext.jsx';
 import styles from './Charts.module.css';
 
 const CELL = 11;
 const GAP = 2;
 const WEEKS = 53;
-const DAY_LABELS = ['', 'Mon', '', 'Wed', '', 'Fri', ''];
+const DAY_LABELS = {
+  monday: ['Mon', '', 'Wed', '', 'Fri', '', 'Sun'],
+  sunday: ['Sun', '', 'Tue', '', 'Thu', '', 'Sat'],
+};
 const LEFT_PAD = 28;
 const TOP_PAD = 16;
 
@@ -14,30 +18,30 @@ function isoDate(d) {
   return d.toISOString().slice(0, 10);
 }
 
-// Grid starts on the Monday 52 weeks before this week's Monday.
-function gridStart(today) {
+function gridStart(today, weekStart) {
   const start = new Date(today);
-  const dow = (start.getDay() + 6) % 7; // 0 = Monday
+  const dow = weekStart === 'sunday' ? start.getDay() : (start.getDay() + 6) % 7;
   start.setDate(start.getDate() - dow - (WEEKS - 1) * 7);
   return start;
 }
 
 export default function CalendarHeatmap() {
   const [days, setDays] = useState(null);
+  const { weekStart } = usePrefs();
 
   useEffect(() => {
     const today = new Date();
-    const from = isoDate(gridStart(today));
+    const from = isoDate(gridStart(today, weekStart));
     api.getCalendar({ from })
       .then(d => setDays(d.days || []))
       .catch(() => setDays([]));
-  }, []);
+  }, [weekStart]);
 
   const grid = useMemo(() => {
     if (!days) return null;
     const byDate = new Map(days.map(d => [d.date, d]));
     const today = new Date();
-    const start = gridStart(today);
+    const start = gridStart(today, weekStart);
     const max = Math.max(0, ...days.map(d => d.meters));
     const opacity = scaleQuantize()
       .domain([1, Math.max(max, 1)])
@@ -72,7 +76,7 @@ export default function CalendarHeatmap() {
     }
     const total = days.reduce((s, d) => s + d.meters, 0);
     return { cells, monthLabels, total };
-  }, [days]);
+  }, [days, weekStart]);
 
   if (!grid || grid.cells.length === 0) return null;
 
@@ -106,7 +110,7 @@ export default function CalendarHeatmap() {
               {m.label}
             </text>
           ))}
-          {DAY_LABELS.map((label, i) => label && (
+          {DAY_LABELS[weekStart].map((label, i) => label && (
             <text
               key={label}
               x={0}

@@ -45,7 +45,7 @@ export default function IntervalRepChart({ intervals, formatPace }) {
   const hasRate = data.some(d => d.isWork && d.stroke_rate != null);
 
   return (
-    <ResponsiveContainer width="100%" height={240}>
+    <ResponsiveContainer width="100%" height={185}>
       <ComposedChart data={data} margin={{ top: 8, right: hasHr ? 8 : 0, bottom: 0, left: 0 }} barCategoryGap="18%">
         <XAxis
           dataKey="label"

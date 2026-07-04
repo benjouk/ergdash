@@ -1,24 +1,23 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { ComposedChart, Line, Scatter, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { api } from '../../api.js';
 import { useTimeRange } from '../../context/TimeRangeContext.jsx';
 import { AXIS_TICK, AXIS_LINE, SERIES, TOOLTIP_PROPS } from '../../styles/chartTheme.js';
+import { ChartSkeleton } from '../Skeleton/Skeleton.jsx';
+import ChartEmpty from './ChartEmpty.jsx';
+import { useChartData } from './useChartData.js';
 import styles from './Charts.module.css';
 
 const SMOOTH_WINDOW = 7;
 
 // Watts per heartbeat — the slow-moving "am I getting fitter?" line.
 export default function EfficiencyChart() {
-  const [data, setData] = useState([]);
   const { from, to } = useTimeRange();
-
-  useEffect(() => {
+  const { data = [], loading, error, retry } = useChartData(() => {
     const params = { metric: 'watts_per_beat', period: 'all' };
     if (from) params.from = from;
     if (to) params.to = to;
-    api.getTrends(params)
-      .then(d => setData(d.watts_per_beat_trend || []))
-      .catch(() => {});
+    return api.getTrends(params).then(d => d.watts_per_beat_trend || []);
   }, [from, to]);
 
   const formatted = useMemo(() => data.map((d, i) => {
@@ -30,7 +29,9 @@ export default function EfficiencyChart() {
     };
   }), [data]);
 
-  if (formatted.length < 3) return null;
+  if (loading) return <ChartSkeleton />;
+  if (error) return <ChartEmpty title="Efficiency" message="Couldn't load chart data." error onRetry={retry} />;
+  if (formatted.length < 3) return <ChartEmpty title="Efficiency" />;
 
   const latest = formatted[formatted.length - 1];
 
@@ -43,7 +44,7 @@ export default function EfficiencyChart() {
           <span className={styles.chartValueUnit}>w/beat</span>
         </div>
       </div>
-      <ResponsiveContainer width="100%" height={220}>
+      <ResponsiveContainer width="100%" height={170}>
         <ComposedChart data={formatted}>
           <XAxis
             dataKey="dateShort"

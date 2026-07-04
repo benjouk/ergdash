@@ -37,26 +37,26 @@
   --ink-3: #94949C;
   --rule: #E2E2E0;
 
-  /* Concept2-aligned palette: chartreuse brand green, blue for intervals,
-     gold for personal bests */
-  --accent: #8F9900;
-  --accent-bg: rgba(143, 153, 0, 0.1);
-  --accent-deep: #6E7600;
-  --accent-2: #0687F5;
-  --accent-2-bg: rgba(6, 135, 245, 0.08);
-  --accent-3: #D19000;
-  --accent-3-bg: rgba(209, 144, 0, 0.12);
+  /* Concept2-aligned palette, muted: olive chartreuse, steel blue for
+     intervals, antique gold for personal bests */
+  --accent: #767E2A;
+  --accent-bg: rgba(118, 126, 42, 0.09);
+  --accent-deep: #5C6220;
+  --accent-2: #4A7FA5;
+  --accent-2-bg: rgba(74, 127, 165, 0.08);
+  --accent-3: #A8862E;
+  --accent-3-bg: rgba(168, 134, 46, 0.1);
   /* Text color on accent-filled surfaces (chartreuse needs dark ink) */
   --on-accent: #171905;
   --on-accent-dim: rgba(23, 25, 5, 0.62);
 
   /* Semantic colors — deltas, heart rate */
-  --positive: #0E9F6E;
-  --positive-bg: rgba(14, 159, 110, 0.1);
-  --negative: #E02D3C;
-  --negative-bg: rgba(224, 45, 60, 0.08);
-  --hr: #E02D3C;
-  --hr-bg: rgba(224, 45, 60, 0.08);
+  --positive: #3D8B68;
+  --positive-bg: rgba(61, 139, 104, 0.09);
+  --negative: #B5525C;
+  --negative-bg: rgba(181, 82, 92, 0.08);
+  --hr: #B5525C;
+  --hr-bg: rgba(181, 82, 92, 0.08);
   --hot: var(--hr);
   --hot-bg: var(--hr-bg);
 
@@ -67,17 +67,17 @@
   --chart-grid: var(--rule);
   --chart-ref: var(--ink-3);
 
-  /* HR zones, cool → hot */
-  --zone-1: #7FB5D6;
-  --zone-2: #4C9E6B;
-  --zone-3: #C8B400;
-  --zone-4: #E08A00;
-  --zone-5: #E02D3C;
+  /* HR zones, cool → hot (muted) */
+  --zone-1: #8AA9BE;
+  --zone-2: #6A9B7E;
+  --zone-3: #B0A14C;
+  --zone-4: #C08A4A;
+  --zone-5: #B5525C;
 
   /* Ticker stays near-black in both themes — brand anchor (PM5 vibes) */
   --ticker-bg: #101014;
   --ticker-text: #ECECE8;
-  --ticker-accent: #C3D500;
+  --ticker-accent: #A9B54A;
   --ticker-dim: #4A4A52;
 
   --font-display: 'Outfit', system-ui, -apple-system, sans-serif;
@@ -85,41 +85,41 @@
   --font-mono: 'Fira Code', 'Fira Mono', monospace;
   --font-hero: 'Archivo', 'Outfit', system-ui, sans-serif;
 
-  /* Fluid type scale */
-  --text-xs: 0.72rem;
-  --text-sm: 0.84rem;
-  --text-base: 1rem;
-  --text-lg: clamp(1.1rem, 1rem + 0.5vw, 1.3rem);
-  --text-xl: clamp(1.4rem, 1.2rem + 1vw, 1.9rem);
-  --text-2xl: clamp(1.8rem, 1.4rem + 2vw, 2.8rem);
-  --text-hero: clamp(2.6rem, 1.8rem + 4vw, 4.5rem);
+  /* Fluid type scale — compact */
+  --text-xs: 0.68rem;
+  --text-sm: 0.78rem;
+  --text-base: 0.92rem;
+  --text-lg: clamp(1rem, 0.95rem + 0.3vw, 1.15rem);
+  --text-xl: clamp(1.2rem, 1.1rem + 0.6vw, 1.5rem);
+  --text-2xl: clamp(1.5rem, 1.2rem + 1.2vw, 2.1rem);
+  --text-hero: clamp(2rem, 1.6rem + 2vw, 3rem);
 
-  --ticker-height: 56px;
-  --ticker-height-mobile: 48px;
-  --bottom-nav-height: 64px;
-  --feed-width: 320px;
+  --ticker-height: 48px;
+  --ticker-height-mobile: 44px;
+  --bottom-nav-height: 56px;
+  --feed-width: 280px;
   --main-content-max-width: 2080px;
 
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 18px;
-  --radius-xl: 24px;
+  --radius-sm: 5px;
+  --radius-md: 7px;
+  --radius-lg: 9px;
+  --radius-xl: 12px;
 
-  --shadow-sm: 0 1px 3px rgba(16, 16, 20, 0.08);
-  --shadow-md: 0 4px 14px rgba(16, 16, 20, 0.12);
-  --shadow-lg: 0 12px 32px rgba(16, 16, 20, 0.18);
+  --shadow-sm: 0 1px 2px rgba(16, 16, 20, 0.06);
+  --shadow-md: 0 2px 8px rgba(16, 16, 20, 0.1);
+  --shadow-lg: 0 8px 24px rgba(16, 16, 20, 0.14);
 
-  --gradient-hero: linear-gradient(135deg, #BCC800 0%, #9AA400 60%, #869000 100%);
+  --gradient-hero: linear-gradient(135deg, #99A346 0%, #7E8735 60%, #6A7229 100%);
 
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 20px;
-  --space-6: 24px;
-  --space-8: 32px;
-  --space-10: 40px;
-  --space-12: 48px;
+  --space-1: 3px;
+  --space-2: 6px;
+  --space-3: 9px;
+  --space-4: 12px;
+  --space-5: 15px;
+  --space-6: 18px;
+  --space-8: 24px;
+  --space-10: 32px;
+  --space-12: 40px;
 }
 
 [data-theme="dark"] {
@@ -131,35 +131,35 @@
   --ink-3: #55555E;
   --rule: #26262C;
 
-  --accent: #C3D500;
-  --accent-bg: rgba(195, 213, 0, 0.09);
-  --accent-deep: #A3B000;
-  --accent-2: #38B6FF;
-  --accent-2-bg: rgba(56, 182, 255, 0.09);
-  --accent-3: #FFB000;
-  --accent-3-bg: rgba(255, 176, 0, 0.1);
+  --accent: #A9B54A;
+  --accent-bg: rgba(169, 181, 74, 0.08);
+  --accent-deep: #8C9639;
+  --accent-2: #6FA3C8;
+  --accent-2-bg: rgba(111, 163, 200, 0.08);
+  --accent-3: #C7A254;
+  --accent-3-bg: rgba(199, 162, 84, 0.09);
 
-  --positive: #26D07C;
-  --positive-bg: rgba(38, 208, 124, 0.1);
-  --negative: #FF4D5E;
-  --negative-bg: rgba(255, 77, 94, 0.09);
-  --hr: #FF4D5E;
-  --hr-bg: rgba(255, 77, 94, 0.09);
+  --positive: #5BAE87;
+  --positive-bg: rgba(91, 174, 135, 0.09);
+  --negative: #C96A74;
+  --negative-bg: rgba(201, 106, 116, 0.08);
+  --hr: #C96A74;
+  --hr-bg: rgba(201, 106, 116, 0.08);
 
-  --zone-1: #6FB6E8;
-  --zone-2: #4FC482;
-  --zone-3: #E3CC1F;
-  --zone-4: #FF9E2E;
-  --zone-5: #FF4D5E;
+  --zone-1: #7FA3C0;
+  --zone-2: #67A182;
+  --zone-3: #BDAE5A;
+  --zone-4: #C79459;
+  --zone-5: #C96A74;
 
   --ticker-bg: #0C0C0F;
   --ticker-text: #E4E4E0;
-  --ticker-accent: #C3D500;
+  --ticker-accent: #A9B54A;
   --ticker-dim: #3E3E46;
 
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.5);
-  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.6);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
 
-  --gradient-hero: linear-gradient(135deg, #C9DB0A 0%, #A4B000 60%, #8B9600 100%);
+  --gradient-hero: linear-gradient(135deg, #AEBA55 0%, #8C9639 60%, #767E2A 100%);
 }

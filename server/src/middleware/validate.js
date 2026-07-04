@@ -86,3 +86,44 @@ export function validateDistanceRange(req, res, next) {
 
   next();
 }
+
+export function validateSearchQuery(req, res, next) {
+  const { q } = req.query;
+
+  if (q == null) {
+    return next();
+  }
+
+  const trimmed = String(q).trim();
+  if (trimmed.length < 1 || trimmed.length > 100) {
+    return res.status(400).json({
+      error: 'Validation failed',
+      details: ['q must be between 1 and 100 characters'],
+    });
+  }
+
+  req.query.q = trimmed;
+  next();
+}
+
+export function validatePinnedFlag(req, res, next) {
+  const { pinned } = req.query;
+
+  if (pinned == null) {
+    return next();
+  }
+
+  const valid = ['0', '1', 'true', 'false'];
+  if (!valid.includes(String(pinned).toLowerCase())) {
+    return res.status(400).json({
+      error: 'Validation failed',
+      details: ['pinned must be one of: 0, 1, true, false'],
+    });
+  }
+
+  next();
+}
+
+export function escapeLikePattern(str) {
+  return String(str).replace(/[\\%_]/g, match => `\\${match}`);
+}

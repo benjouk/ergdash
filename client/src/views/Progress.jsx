@@ -1,50 +1,284 @@
-import FitnessChart from '../components/Charts/FitnessChart.jsx';
-import PaceChart from '../components/Charts/PaceChart.jsx';
-import VolumeChart from '../components/Charts/VolumeChart.jsx';
-import CumulativeMetersChart from '../components/Charts/CumulativeMetersChart.jsx';
-import EfficiencyChart from '../components/Charts/EfficiencyChart.jsx';
-import DpsTrendChart from '../components/Charts/DpsTrendChart.jsx';
-import PowerCurveChart from '../components/Charts/PowerCurveChart.jsx';
-import ZoneStackChart from '../components/Charts/ZoneStackChart.jsx';
-import HrDriftChart from '../components/Charts/HrDriftChart.jsx';
-import RateDisciplineCard from '../components/Charts/RateDisciplineCard.jsx';
-import DragFactorChart from '../components/Charts/DragFactorChart.jsx';
-import FadeFingerprint from '../components/Charts/FadeFingerprint.jsx';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  DndContext,
+  DragOverlay,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  arrayMove,
+  rectSortingStrategy,
+  sortableKeyboardCoordinates,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { Eye, EyeOff, GripVertical, SlidersHorizontal } from 'lucide-react';
+import { api } from '../api.js';
+import { useToast } from '../context/ToastContext.jsx';
+import { CHART_REGISTRY, DEFAULT_LAYOUT } from './progressChartRegistry.js';
+import { buildRows, mergeLayout, toggleHidden } from './progressLayout.js';
 import styles from './Progress.module.css';
 
+const REGISTRY_BY_ID = new Map(CHART_REGISTRY.map(chart => [chart.id, chart]));
+
 export default function Progress() {
+  const toast = useToast();
+  const [layout, setLayout] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [activeId, setActiveId] = useState(null);
+  const hasUserEdited = useRef(false);
+  const shouldPersist = useRef(false);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  useEffect(() => {
+    let active = true;
+
+    api.getSettings()
+      .then((settings) => {
+        if (!active || hasUserEdited.current) {
+          return;
+        }
+        setLayout(mergeLayout(settings.progress_layout, CHART_REGISTRY));
+      })
+      .catch(() => {
+        if (!active || hasUserEdited.current) {
+          return;
+        }
+        setLayout(DEFAULT_LAYOUT);
+        toast.error('Unable to load progress layout');
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [toast]);
+
+  useEffect(() => {
+    if (!layout || !shouldPersist.current) {
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => {
+      api.updateSettings({ progress_layout: JSON.stringify(layout) })
+        .catch(() => toast.error('Unable to save progress layout'));
+    }, 500);
+
+    return () => window.clearTimeout(timer);
+  }, [layout, toast]);
+
+  const rows = useMemo(() => (
+    layout && !isEditing ? buildRows(layout, CHART_REGISTRY) : []
+  ), [layout, isEditing]);
+
+  const editCharts = useMemo(() => {
+    if (!layout || !isEditing) {
+      return [];
+    }
+    return layout.charts
+      .filter(chart => REGISTRY_BY_ID.has(chart.id))
+      .map(chart => ({ ...REGISTRY_BY_ID.get(chart.id), hidden: Boolean(chart.hidden) }));
+  }, [layout, isEditing]);
+
+  const activeChart = activeId ? editCharts.find(chart => chart.id === activeId) : null;
+
+  function updateLayout(updater) {
+    hasUserEdited.current = true;
+    shouldPersist.current = true;
+    setLayout(current => updater(current || DEFAULT_LAYOUT));
+  }
+
+  function handleToggleHidden(id) {
+    updateLayout(current => toggleHidden(current, id));
+  }
+
+  function handleReset() {
+    updateLayout(() => DEFAULT_LAYOUT);
+  }
+
+  function handleDragEnd({ active, over }) {
+    setActiveId(null);
+    if (!over || active.id === over.id) {
+      return;
+    }
+
+    updateLayout((current) => {
+      const oldIndex = current.charts.findIndex(chart => chart.id === active.id);
+      const newIndex = current.charts.findIndex(chart => chart.id === over.id);
+      if (oldIndex === -1 || newIndex === -1) {
+        return current;
+      }
+      return { ...current, charts: arrayMove(current.charts, oldIndex, newIndex) };
+    });
+  }
+
+  function renderRow(row) {
+    if (row.length === 1 && row[0].width === 'full') {
+      const Chart = row[0].component;
+      return <Chart key={row[0].id} />;
+    }
+
+    return (
+      <div key={row.map(chart => chart.id).join('-')} className={styles.secondaryGrid}>
+        {row.map((chart) => {
+          const Chart = chart.component;
+          return <Chart key={chart.id} />;
+        })}
+      </div>
+    );
+  }
+
   return (
     <div className={styles.progress}>
-      <h2 className={styles.title}>Progress</h2>
-
-      <FitnessChart />
-
-      <div className={styles.secondaryGrid}>
-        <PaceChart />
-        <VolumeChart />
+      <div className={styles.header}>
+        <h2 className={styles.title}>Progress</h2>
+        <div className={styles.actions}>
+          {isEditing && (
+            <button type="button" className={styles.button} onClick={handleReset}>
+              Reset
+            </button>
+          )}
+          <button
+            type="button"
+            className={`${styles.button} ${!isEditing ? styles.buttonWithIcon : ''}`}
+            onClick={() => setIsEditing(current => !current)}
+          >
+            {isEditing ? (
+              'Done'
+            ) : (
+              <>
+                <SlidersHorizontal size={16} aria-hidden="true" />
+                Edit layout
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
-      <div className={styles.secondaryGrid}>
-        <PowerCurveChart />
-        <ZoneStackChart />
-      </div>
+      {isEditing ? (
+        <>
+          <p className={styles.editHint}>
+            Drag cards to reorder. Use the eye to show or hide a chart.
+          </p>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragStart={({ active }) => setActiveId(active.id)}
+            onDragCancel={() => setActiveId(null)}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext items={editCharts.map(chart => chart.id)} strategy={rectSortingStrategy}>
+              <div className={styles.editGrid}>
+                {editCharts.map(chart => (
+                  <SortableChartCard
+                    key={chart.id}
+                    chart={chart}
+                    onToggleHidden={handleToggleHidden}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+            <DragOverlay dropAnimation={{ duration: 180, easing: 'ease' }}>
+              {activeChart ? <ChartCardGhost chart={activeChart} /> : null}
+            </DragOverlay>
+          </DndContext>
+        </>
+      ) : (
+        rows.map(renderRow)
+      )}
+    </div>
+  );
+}
 
-      <div className={styles.secondaryGrid}>
-        <CumulativeMetersChart />
-        <DragFactorChart />
-      </div>
+function SortableChartCard({ chart, onToggleHidden }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: chart.id });
 
-      <div className={styles.secondaryGrid}>
-        <EfficiencyChart />
-        <DpsTrendChart />
-      </div>
+  const visibilityLabel = chart.hidden ? `Show ${chart.title}` : `Hide ${chart.title}`;
 
-      <div className={styles.secondaryGrid}>
-        <HrDriftChart />
-        <RateDisciplineCard />
-      </div>
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
 
-      <FadeFingerprint />
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={[
+        styles.editCard,
+        chart.hidden ? styles.editCardHidden : '',
+        isDragging ? styles.editCardDragging : '',
+      ].filter(Boolean).join(' ')}
+    >
+      <div className={styles.editToolbar}>
+        <button
+          ref={setActivatorNodeRef}
+          type="button"
+          className={styles.dragHandleButton}
+          aria-label={`Reorder ${chart.title}`}
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical size={16} aria-hidden="true" />
+        </button>
+        <span className={styles.editCardTitle}>{chart.title}</span>
+        {chart.width === 'full' && <span className={styles.widthBadge}>Full width</span>}
+        <button
+          type="button"
+          className={styles.iconButton}
+          onClick={() => onToggleHidden(chart.id)}
+          title={visibilityLabel}
+          aria-label={visibilityLabel}
+        >
+          {chart.hidden ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}
+        </button>
+      </div>
+      <ChartMiniature chart={chart} />
+    </div>
+  );
+}
+
+function ChartCardGhost({ chart }) {
+  return (
+    <div className={`${styles.editCard} ${styles.editCardGhost}`}>
+      <div className={styles.editToolbar}>
+        <span className={`${styles.dragHandleButton} ${styles.dragHandleStatic}`}>
+          <GripVertical size={16} aria-hidden="true" />
+        </span>
+        <span className={styles.editCardTitle}>{chart.title}</span>
+        {chart.width === 'full' && <span className={styles.widthBadge}>Full width</span>}
+      </div>
+    </div>
+  );
+}
+
+function ChartMiniature({ chart }) {
+  const Chart = chart.component;
+
+  if (chart.hidden) {
+    return <div className={`${styles.editPreviewViewport} ${styles.editPreviewEmpty}`}>Hidden</div>;
+  }
+
+  return (
+    <div className={styles.editPreviewViewport} aria-hidden="true">
+      <div className={styles.editPreviewScale}>
+        <Chart />
+      </div>
     </div>
   );
 }

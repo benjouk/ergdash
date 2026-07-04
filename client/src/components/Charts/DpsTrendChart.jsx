@@ -1,26 +1,26 @@
-import { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { api } from '../../api.js';
 import { useTimeRange } from '../../context/TimeRangeContext.jsx';
 import { AXIS_TICK, AXIS_LINE, SERIES, TOOLTIP_PROPS } from '../../styles/chartTheme.js';
+import { ChartSkeleton } from '../Skeleton/Skeleton.jsx';
+import ChartEmpty from './ChartEmpty.jsx';
+import { useChartData } from './useChartData.js';
 import styles from './Charts.module.css';
 
 // Monthly average distance per stroke — a stroke-length proxy that surfaces
 // long-term technique changes.
 export default function DpsTrendChart() {
-  const [data, setData] = useState([]);
   const { from, to } = useTimeRange();
-
-  useEffect(() => {
+  const { data = [], loading, error, retry } = useChartData(() => {
     const params = { metric: 'dps', period: 'all' };
     if (from) params.from = from;
     if (to) params.to = to;
-    api.getTrends(params)
-      .then(d => setData(d.dps_trend || []))
-      .catch(() => {});
+    return api.getTrends(params).then(d => d.dps_trend || []);
   }, [from, to]);
 
-  if (data.length < 2) return null;
+  if (loading) return <ChartSkeleton />;
+  if (error) return <ChartEmpty title="Distance Per Stroke" message="Couldn't load chart data." error onRetry={retry} />;
+  if (data.length < 2) return <ChartEmpty title="Distance Per Stroke" />;
 
   const latest = data[data.length - 1];
 
@@ -33,7 +33,7 @@ export default function DpsTrendChart() {
           <span className={styles.chartValueUnit}>m/stroke</span>
         </div>
       </div>
-      <ResponsiveContainer width="100%" height={220}>
+      <ResponsiveContainer width="100%" height={170}>
         <BarChart data={data} barCategoryGap="25%">
           <XAxis
             dataKey="month"

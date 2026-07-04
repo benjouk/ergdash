@@ -1,9 +1,12 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { api } from '../../api.js';
 import { useUnits } from '../../context/UnitsContext.jsx';
 import { AXIS_TICK, AXIS_LINE, SERIES, TOOLTIP_PROPS } from '../../styles/chartTheme.js';
+import { ChartSkeleton } from '../Skeleton/Skeleton.jsx';
+import ChartEmpty from './ChartEmpty.jsx';
+import { useChartData } from './useChartData.js';
 import styles from './Charts.module.css';
 
 const DURATION_LABELS = { 60: '1′', 240: '4′', 600: '10′', 1800: '30′', 3600: '60′' };
@@ -11,15 +14,9 @@ const DURATION_LABELS = { 60: '1′', 240: '4′', 600: '10′', 1800: '30′', 
 // Power-duration curve: best sustained watts over each window, with a ghost
 // line showing where those bests stood 90 days ago.
 export default function PowerCurveChart() {
-  const [data, setData] = useState(null);
   const { formatPace } = useUnits();
   const navigate = useNavigate();
-
-  useEffect(() => {
-    api.getPowerCurve()
-      .then(setData)
-      .catch(() => {});
-  }, []);
+  const { data, loading, error, retry } = useChartData(() => api.getPowerCurve(), []);
 
   const merged = useMemo(() => {
     if (!data) return [];
@@ -35,7 +32,9 @@ export default function PowerCurveChart() {
     return [...byDuration.values()].sort((a, b) => a.duration_s - b.duration_s);
   }, [data]);
 
-  if (merged.length < 2) return null;
+  if (loading) return <ChartSkeleton />;
+  if (error) return <ChartEmpty title="Power Curve" message="Couldn't load chart data." error onRetry={retry} />;
+  if (merged.length < 2) return <ChartEmpty title="Power Curve" />;
 
   return (
     <div className={styles.chartCard}>
@@ -45,7 +44,7 @@ export default function PowerCurveChart() {
           best watts by duration
         </div>
       </div>
-      <ResponsiveContainer width="100%" height={240}>
+      <ResponsiveContainer width="100%" height={185}>
         <LineChart data={merged}>
           <XAxis
             dataKey="duration_s"

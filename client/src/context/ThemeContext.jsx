@@ -39,7 +39,7 @@ export function ThemeProvider({ children }) {
 
   const setTheme = useCallback((t) => {
     setThemeState(t);
-    api.updateSettings({ theme: t }).catch(() => {});
+    return api.updateSettings({ theme: t });
   }, []);
 
   const toggleTheme = useCallback(() => {

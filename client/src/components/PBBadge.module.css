@@ -1,0 +1,28 @@
+.badges {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  border-radius: 999px;
+  padding: 1px 7px;
+  background: var(--accent-3-bg);
+  color: var(--accent-3);
+  font-family: var(--font-body);
+  font-size: 0.62rem;
+  font-weight: 800;
+  line-height: 1.4;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.badgeCompact {
+  padding: 1px 5px;
+  font-size: 0.58rem;
+}

@@ -1,0 +1,114 @@
+.block {
+  display: block;
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(90deg, var(--surface-alt) 0%, var(--rule) 45%, var(--surface-alt) 90%);
+  background-size: 220% 100%;
+  animation: skeletonShimmer 1.2s ease-in-out infinite;
+}
+
+@keyframes skeletonShimmer {
+  from {
+    background-position: 120% 0;
+  }
+  to {
+    background-position: -120% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .block {
+    animation: none;
+    background-size: 100% 100%;
+  }
+}
+
+.chartCard {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-sm);
+}
+
+.chartHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.chartTitle {
+  width: min(220px, 58%);
+  height: 13px;
+}
+
+.chartValue {
+  width: 82px;
+  height: 20px;
+}
+
+.chartBody {
+  width: 100%;
+  height: 220px;
+}
+
+.rowSkeleton td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--rule);
+}
+
+.rowBar {
+  width: 100%;
+  height: 28px;
+}
+
+.feedItem {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+}
+
+.feedTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.feedDate {
+  width: 64px;
+  height: 12px;
+}
+
+.feedTag {
+  width: 54px;
+  height: 14px;
+  border-radius: 3px;
+}
+
+.feedTitle {
+  width: 70%;
+  height: 14px;
+}
+
+.feedMetrics {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+.feedPace {
+  width: 58px;
+  height: 18px;
+}
+
+.feedDetail {
+  width: 116px;
+  height: 12px;
+}

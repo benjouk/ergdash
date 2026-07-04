@@ -6,6 +6,9 @@ import {
   validatePaginationParams,
   validateTag,
   validateDistanceRange,
+  validateSearchQuery,
+  validatePinnedFlag,
+  escapeLikePattern,
 } from '../middleware/validate.js';
 
 const router = Router();
@@ -14,6 +17,8 @@ router.use(validateDateRange);
 router.use(validatePaginationParams);
 router.use(validateTag);
 router.use(validateDistanceRange);
+router.use(validateSearchQuery);
+router.use(validatePinnedFlag);
 
 const SORT_ALLOWLIST = {
   date_desc: 'w.date DESC',
@@ -29,6 +34,7 @@ router.get('/', (req, res) => {
   const db = getDb();
   const {
     from, to, type, tag, min_distance, max_distance,
+    pinned, q,
     sort = 'date_desc', limit = '20', offset = '0',
   } = req.query;
 
@@ -41,6 +47,12 @@ router.get('/', (req, res) => {
   if (tag) { addTagCondition(conditions, params, tag); }
   if (min_distance) { conditions.push('w.distance >= ?'); params.push(Number(min_distance)); }
   if (max_distance) { conditions.push('w.distance <= ?'); params.push(Number(max_distance)); }
+  if (isPinnedQuery(pinned)) { conditions.push('w.pinned = 1'); }
+  if (q) {
+    const pattern = `%${escapeLikePattern(q)}%`;
+    conditions.push("(w.notes LIKE ? ESCAPE '\\' OR w.comments LIKE ? ESCAPE '\\')");
+    params.push(pattern, pattern);
+  }
 
   const where = conditions.join(' AND ');
   const orderBy = SORT_ALLOWLIST[sort] || 'w.date DESC';
@@ -48,6 +60,13 @@ router.get('/', (req, res) => {
   const off = Math.max(0, Number(offset));
 
   const total = db.prepare(`SELECT COUNT(*) as count FROM workouts w WHERE ${where}`).get(...params).count;
+
+  const totals = db.prepare(`
+    SELECT COALESCE(SUM(w.distance), 0) as distance,
+           COALESCE(SUM(w.time_ms), 0) as time_ms,
+           AVG(NULLIF(w.pace_ms, 0)) as avg_pace_ms
+    FROM workouts w WHERE ${where}
+  `).get(...params);
 
   const rows = db.prepare(`
     SELECT w.*, cm.fade_index, cm.consistency, cm.effort_score, cm.drag_delta,
@@ -63,9 +82,71 @@ router.get('/', (req, res) => {
   res.json({
     data: rows.map(row => ({
       ...formatWorkout(row),
+      pb_distances: getCurrentPbDistances(db, row.id),
       pace_profile: getPaceProfile(db, row.id),
     })),
-    meta: { total, limit: lim, offset: off },
+    meta: {
+      total,
+      limit: lim,
+      offset: off,
+      totals: {
+        distance: totals.distance,
+        time_ms: totals.time_ms,
+        avg_pace_ms: totals.avg_pace_ms ? Math.round(totals.avg_pace_ms) : null,
+      },
+    },
+  });
+});
+
+router.patch('/:id', (req, res) => {
+  const db = getDb();
+  const id = Number(req.params.id);
+  const body = req.body || {};
+  const updates = [];
+  const params = [];
+  const errors = [];
+
+  if (!Number.isInteger(id)) {
+    return res.status(400).json({ error: 'Invalid workout id' });
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, 'pinned')) {
+    if (typeof body.pinned !== 'boolean') {
+      errors.push('pinned must be a boolean');
+    } else {
+      updates.push('pinned = ?');
+      params.push(body.pinned ? 1 : 0);
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, 'notes')) {
+    if (typeof body.notes !== 'string' || body.notes.length > 5000) {
+      errors.push('notes must be a string of 5000 characters or fewer');
+    } else {
+      updates.push('notes = ?');
+      params.push(body.notes);
+    }
+  }
+
+  if (errors.length > 0) {
+    return res.status(400).json({ error: 'Validation failed', details: errors });
+  }
+
+  if (updates.length === 0) {
+    return res.status(400).json({ error: 'No valid fields provided' });
+  }
+
+  const exists = db.prepare('SELECT id FROM workouts WHERE id = ?').get(id);
+  if (!exists) {
+    return res.status(404).json({ error: 'Workout not found' });
+  }
+
+  db.prepare(`UPDATE workouts SET ${updates.join(', ')} WHERE id = ?`).run(...params, id);
+  const workout = getWorkoutWithMetrics(db, id);
+
+  res.json({
+    ...formatWorkout(workout),
+    pb_distances: getCurrentPbDistances(db, id),
   });
 });
 
@@ -73,14 +154,7 @@ router.get('/:id', (req, res) => {
   const db = getDb();
   const id = Number(req.params.id);
 
-  const workout = db.prepare(`
-    SELECT w.*, cm.fade_index, cm.consistency, cm.effort_score, cm.drag_delta,
-           cm.distance_per_stroke, cm.watts_per_beat, cm.hr_drift_pct,
-           cm.rate_discipline, cm.hr_recovery_avg
-    FROM workouts w
-    LEFT JOIN computed_metrics cm ON w.id = cm.workout_id
-    WHERE w.id = ?
-  `).get(id);
+  const workout = getWorkoutWithMetrics(db, id);
 
   if (!workout) {
     return res.status(404).json({ error: 'Workout not found' });
@@ -108,6 +182,7 @@ router.get('/:id', (req, res) => {
 
   res.json({
     ...formatWorkout(workout),
+    pb_distances: getCurrentPbDistances(db, id),
     intervals,
     strokes,
     recoveries,
@@ -137,6 +212,9 @@ function formatWorkout(row) {
     rest_distance: row.rest_distance,
     rest_time_ms: row.rest_time_ms,
     comments: row.comments,
+    pinned: !!row.pinned,
+    notes: row.notes,
+    pb_distances: [],
     has_stroke_data: !!row.has_stroke_data,
     metrics: {
       fade_index: row.fade_index,
@@ -152,8 +230,37 @@ function formatWorkout(row) {
   };
 }
 
+function getCurrentPbDistances(db, workoutId) {
+  return db.prepare(`
+    SELECT ph.distance
+    FROM pb_history ph
+    WHERE ph.workout_id = ?
+      AND ph.pace_ms = (
+        SELECT MIN(current.pace_ms)
+        FROM pb_history current
+        WHERE current.distance = ph.distance
+      )
+    ORDER BY ph.distance ASC
+  `).all(workoutId).map(row => row.distance);
+}
+
 function normalizeWorkoutTag(tag) {
   return tag === 'interval' ? 'interval' : 'endurance';
+}
+
+function isPinnedQuery(pinned) {
+  return ['1', 'true'].includes(String(pinned).toLowerCase());
+}
+
+function getWorkoutWithMetrics(db, id) {
+  return db.prepare(`
+    SELECT w.*, cm.fade_index, cm.consistency, cm.effort_score, cm.drag_delta,
+           cm.distance_per_stroke, cm.watts_per_beat, cm.hr_drift_pct,
+           cm.rate_discipline, cm.hr_recovery_avg
+    FROM workouts w
+    LEFT JOIN computed_metrics cm ON w.id = cm.workout_id
+    WHERE w.id = ?
+  `).get(id);
 }
 
 function addTagCondition(conditions, params, tag) {

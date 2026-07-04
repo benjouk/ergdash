@@ -1,27 +1,29 @@
-import { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { api } from '../../api.js';
 import { useTimeRange } from '../../context/TimeRangeContext.jsx';
 import { AXIS_TICK, AXIS_LINE, REF_LINE, SERIES, TOOLTIP_PROPS } from '../../styles/chartTheme.js';
+import { ChartSkeleton } from '../Skeleton/Skeleton.jsx';
+import ChartEmpty from './ChartEmpty.jsx';
+import { useChartData } from './useChartData.js';
 import styles from './Charts.module.css';
 
 export default function VolumeChart() {
-  const [data, setData] = useState([]);
   const { from, to } = useTimeRange();
-
-  useEffect(() => {
+  const { data = [], loading, error, retry } = useChartData(() => {
+    // Weekly buckets are produced by /api/stats/trends, so the client-side
+    // week_start preference is not applied here yet.
     const params = { metric: 'volume', period: 'all' };
     if (from) params.from = from;
     if (to) params.to = to;
-    api.getTrends(params)
-      .then(d => {
-        const rows = d.weekly_volume || [];
-        setData(from ? rows : rows.slice(-12));
-      })
-      .catch(() => {});
+    return api.getTrends(params).then(d => {
+      const rows = d.weekly_volume || [];
+      return from ? rows : rows.slice(-12);
+    });
   }, [from, to]);
 
-  if (data.length === 0) return null;
+  if (loading) return <ChartSkeleton />;
+  if (error) return <ChartEmpty title="Weekly Volume" message="Couldn't load chart data." error onRetry={retry} />;
+  if (data.length === 0) return <ChartEmpty title="Weekly Volume" />;
 
   const avg = data.reduce((s, d) => s + d.distance, 0) / data.length;
   const latest = data[data.length - 1];
@@ -35,7 +37,7 @@ export default function VolumeChart() {
           <span className={styles.chartValueUnit}>this week</span>
         </div>
       </div>
-      <ResponsiveContainer width="100%" height={220}>
+      <ResponsiveContainer width="100%" height={170}>
         <BarChart data={data} barCategoryGap="20%">
           <XAxis
             dataKey="week"
