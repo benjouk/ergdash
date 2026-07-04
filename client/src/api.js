@@ -17,17 +17,42 @@ async function request(path, options = {}) {
   return res.json();
 }
 
+async function uploadSqlite(path, file) {
+  const res = await fetch(path, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/octet-stream' },
+    body: file,
+  });
+
+  if (res.status === 401) {
+    throw new Error('Not authenticated');
+  }
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `API error: ${res.status}`);
+  }
+
+  return res.json();
+}
+
 export const api = {
   getAuthStatus: () => request('/auth/status'),
   logout: () => request('/auth/logout', { method: 'POST' }),
 
   getWorkouts: (params = {}) => request(`/api/workouts?${new URLSearchParams(params)}`),
   getWorkout: (id) => request(`/api/workouts/${id}`),
+  updateWorkout: (id, data) => request(`/api/workouts/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  }),
   enrichWorkout: (id) => request(`/api/workouts/${id}/enrich`, { method: 'POST' }),
 
   getSummary: (params = {}) => request(`/api/stats/summary?${new URLSearchParams(params)}`),
   getTrends: (params = {}) => request(`/api/stats/trends?${new URLSearchParams(params)}`),
   getPersonalBests: (params = {}) => request(`/api/stats/personal-bests?${new URLSearchParams(params)}`),
+  getPbHistory: (params = {}) => request(`/api/stats/pb-history?${new URLSearchParams(params)}`),
   getFitness: (params = {}) => request(`/api/stats/fitness?${new URLSearchParams(params)}`),
   getCompare: (id1, id2) => request(`/api/stats/compare?ids=${id1},${id2}`),
   getDecayCurve: (params = {}) => request(`/api/stats/decay-curve?${new URLSearchParams(params)}`),
@@ -45,4 +70,8 @@ export const api = {
     method: 'PATCH',
     body: JSON.stringify(data),
   }),
+  resetSettings: () => request('/api/settings/reset', { method: 'POST' }),
+  restoreDatabase: (file) => uploadSqlite('/api/admin/restore', file),
+  disconnectAccount: () => request('/api/admin/disconnect', { method: 'POST' }),
+  wipeLocalData: () => request('/api/admin/wipe', { method: 'POST' }),
 };

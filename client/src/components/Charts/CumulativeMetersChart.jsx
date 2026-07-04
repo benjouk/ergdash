@@ -1,20 +1,17 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { api } from '../../api.js';
 import { AXIS_TICK, AXIS_LINE, REF_LINE, SERIES, TOOLTIP_PROPS } from '../../styles/chartTheme.js';
+import { ChartSkeleton } from '../Skeleton/Skeleton.jsx';
+import ChartEmpty from './ChartEmpty.jsx';
+import { useChartData } from './useChartData.js';
 import styles from './Charts.module.css';
 
 const MONTH_STARTS = [1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335];
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 export default function CumulativeMetersChart() {
-  const [series, setSeries] = useState(null);
-
-  useEffect(() => {
-    api.getCumulative()
-      .then(setSeries)
-      .catch(() => setSeries(null));
-  }, []);
+  const { data: series, loading, error, retry } = useChartData(() => api.getCumulative(), []);
 
   const data = useMemo(() => {
     if (!series) return [];
@@ -36,7 +33,9 @@ export default function CumulativeMetersChart() {
     return rows;
   }, [series]);
 
-  if (!series || data.length === 0) return null;
+  if (loading) return <ChartSkeleton />;
+  if (error) return <ChartEmpty title="Cumulative Metres" message="Couldn't load chart data." error onRetry={retry} />;
+  if (!series || data.length === 0) return <ChartEmpty title="Cumulative Metres" />;
 
   const currentPoints = series.current || [];
   const latest = currentPoints[currentPoints.length - 1];
@@ -50,7 +49,7 @@ export default function CumulativeMetersChart() {
           <span className={styles.chartValueUnit}>{series.year}</span>
         </div>
       </div>
-      <ResponsiveContainer width="100%" height={220}>
+      <ResponsiveContainer width="100%" height={170}>
         <LineChart data={data}>
           <XAxis
             dataKey="doy"

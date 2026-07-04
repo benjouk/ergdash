@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, useCallback } from 'react';
+import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import styles from './PaceRibbon.module.css';
 
 function formatPaceLabel(paceMs) {
@@ -59,6 +59,11 @@ export default function PaceRibbon({ strokes, height = 48 }) {
   const [width, setWidth] = useState(0);
   const themeAttr = useThemeAttribute();
 
+  const paces = useMemo(
+    () => (strokes || []).map(s => s.pace_ms).filter(p => p > 0),
+    [strokes]
+  );
+
   useEffect(() => {
     if (!containerRef.current) return;
     const observer = new ResizeObserver(entries => {
@@ -69,7 +74,7 @@ export default function PaceRibbon({ strokes, height = 48 }) {
   }, []);
 
   useEffect(() => {
-    if (!strokes || strokes.length === 0 || !width) return;
+    if (paces.length === 0 || !width) return;
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
@@ -78,9 +83,6 @@ export default function PaceRibbon({ strokes, height = 48 }) {
     canvas.width = width * dpr;
     canvas.height = height * dpr;
     ctx.scale(dpr, dpr);
-
-    const paces = strokes.map(s => s.pace_ms).filter(p => p > 0);
-    if (paces.length === 0) return;
 
     const minPace = Math.min(...paces);
     const maxPace = Math.max(...paces);
@@ -105,28 +107,29 @@ export default function PaceRibbon({ strokes, height = 48 }) {
       else ctx.lineTo(x, y);
     });
     ctx.stroke();
-  }, [strokes, width, height, themeAttr]);
+  }, [paces, width, height, themeAttr]);
 
   const handleMouseMove = useCallback((e) => {
-    if (!strokes || strokes.length === 0 || !width) return;
+    if (paces.length === 0 || !width) return;
     const rect = canvasRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const idx = Math.floor((x / width) * strokes.length);
-    if (idx >= 0 && idx < strokes.length) {
-      const s = strokes[idx];
-      const paceMs = s.pace_ms;
-      const totalSeconds = paceMs / 1000;
-      const mins = Math.floor(totalSeconds / 60);
-      const secs = (totalSeconds % 60).toFixed(1).padStart(4, '0');
-      setTooltip({ x, label: `${mins}:${secs} /500m` });
-    }
-  }, [strokes, width]);
+    const x = Math.max(0, Math.min(width, e.clientX - rect.left));
+    const colWidth = Math.max(1, width / paces.length);
+    const idx = Math.min(paces.length - 1, Math.max(0, Math.floor(x / colWidth)));
+
+    const pace = paces[idx];
+    const minPace = Math.min(...paces);
+    const maxPace = Math.max(...paces);
+    const range = maxPace - minPace || 1;
+    const pointX = idx * colWidth + colWidth / 2;
+    const pointY = height - ((pace - minPace) / range) * (height - 8) - 4;
+
+    setTooltip({ x: pointX, y: pointY, label: formatPaceLabel(pace) });
+  }, [paces, width, height]);
 
   const handleMouseLeave = useCallback(() => setTooltip(null), []);
 
   if (!strokes || strokes.length === 0) return null;
 
-  const paces = strokes.map(s => s.pace_ms).filter(p => p > 0);
   const canvasLabel = paces.length > 0
     ? `Pace ribbon: ${strokes.length} strokes, ranging from ${formatPaceLabel(Math.min(...paces))} to ${formatPaceLabel(Math.max(...paces))} per 500m`
     : `Pace ribbon: ${strokes.length} strokes`;
@@ -135,9 +138,13 @@ export default function PaceRibbon({ strokes, height = 48 }) {
   return (
     <div className={styles.container} ref={containerRef}>
       {tooltip && (
-        <div className={styles.tooltip} style={{ left: tooltip.x }}>
-          {tooltip.label}
-        </div>
+        <>
+          <div className={styles.crosshairLine} style={{ left: tooltip.x, height }} />
+          <div className={styles.crosshairDot} style={{ left: tooltip.x, top: tooltip.y }} />
+          <div className={styles.tooltip} style={{ left: tooltip.x, top: tooltip.y }}>
+            {tooltip.label}
+          </div>
+        </>
       )}
       <canvas
         ref={canvasRef}

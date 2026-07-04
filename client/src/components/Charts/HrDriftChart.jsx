@@ -1,26 +1,26 @@
-import { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { api } from '../../api.js';
 import { useTimeRange } from '../../context/TimeRangeContext.jsx';
 import { AXIS_TICK, AXIS_LINE, SERIES, TOOLTIP_PROPS } from '../../styles/chartTheme.js';
+import { ChartSkeleton } from '../Skeleton/Skeleton.jsx';
+import ChartEmpty from './ChartEmpty.jsx';
+import { useChartData } from './useChartData.js';
 import styles from './Charts.module.css';
 
 // Aerobic decoupling per steady session; below the 5% line means the aerobic
 // base held up for the whole workout.
 export default function HrDriftChart() {
-  const [data, setData] = useState([]);
   const { from, to } = useTimeRange();
-
-  useEffect(() => {
+  const { data = [], loading, error, retry } = useChartData(() => {
     const params = { metric: 'hr_drift', period: 'all' };
     if (from) params.from = from;
     if (to) params.to = to;
-    api.getTrends(params)
-      .then(d => setData(d.hr_drift_trend || []))
-      .catch(() => {});
+    return api.getTrends(params).then(d => d.hr_drift_trend || []);
   }, [from, to]);
 
-  if (data.length < 3) return null;
+  if (loading) return <ChartSkeleton />;
+  if (error) return <ChartEmpty title="HR Drift" message="Couldn't load chart data." error onRetry={retry} />;
+  if (data.length < 3) return <ChartEmpty title="HR Drift" />;
 
   const formatted = data.map(d => ({
     ...d,
@@ -37,7 +37,7 @@ export default function HrDriftChart() {
           <span className={styles.chartValueUnit}>latest</span>
         </div>
       </div>
-      <ResponsiveContainer width="100%" height={220}>
+      <ResponsiveContainer width="100%" height={170}>
         <LineChart data={formatted}>
           <XAxis
             dataKey="dateShort"

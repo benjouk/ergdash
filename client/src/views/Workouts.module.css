@@ -48,6 +48,47 @@
 .filters {
   display: flex;
   gap: var(--space-2);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.searchBox {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: min(260px, 100%);
+  height: 32px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-3);
+}
+
+.searchBox:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-bg);
+}
+
+.searchBox input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.8rem;
+}
+
+.searchBox input::placeholder {
+  color: var(--ink-3);
+}
+
+.filterDivider {
+  width: 1px;
+  height: 20px;
+  background: var(--rule);
 }
 
 .filterChip {
@@ -74,6 +115,36 @@
   border-color: var(--accent);
 }
 
+.errorBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--negative);
+  border-radius: var(--radius-md);
+  background: var(--negative-bg);
+  color: var(--ink);
+  font-size: 0.8rem;
+}
+
+.retryButton {
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-2);
+  padding: var(--space-1) var(--space-3);
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 150ms ease, color 150ms ease;
+}
+
+.retryButton:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 /* Desktop table */
 .tableCard {
   background: var(--surface);
@@ -87,7 +158,7 @@
   width: 100%;
   border-collapse: collapse;
   font-family: var(--font-mono);
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-variant-numeric: tabular-nums;
 }
 
@@ -96,10 +167,7 @@
 }
 
 .table thead th {
-  position: sticky;
-  top: var(--ticker-height);
   background: var(--surface);
-  z-index: 1;
   padding: 0;
   text-align: left;
 }
@@ -152,6 +220,58 @@
   padding: var(--space-2) var(--space-3);
 }
 
+.totalsRow {
+  border-top: 2px solid var(--rule);
+  background: var(--surface-alt);
+}
+
+.totalsRow td {
+  padding: var(--space-2) var(--space-3);
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.totalsLabel {
+  color: var(--ink-2);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+
+.pinCell {
+  width: 36px;
+}
+
+.pinButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink-3);
+  cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+.pinButton:hover,
+.pinButton:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+  outline: none;
+}
+
+.pinButtonActive,
+.pinButtonActive:hover,
+.pinButtonActive:focus-visible {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
 .paceCell {
   color: var(--accent);
   font-weight: 700;
@@ -165,6 +285,13 @@
   padding: 1px 6px;
   border-radius: 999px;
   font-family: var(--font-body);
+}
+
+.badgeStack {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-wrap: wrap;
 }
 
 .tagSteady {
@@ -216,6 +343,12 @@
   gap: var(--space-2);
 }
 
+.cardTopActions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 .cardDate {
   font-size: 0.75rem;
   color: var(--ink-3);
@@ -243,6 +376,61 @@
   font-size: 0.78rem;
   color: var(--ink-2);
   font-variant-numeric: tabular-nums;
+}
+
+.skeletonBlock {
+  display: block;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(90deg, var(--surface-alt) 0%, var(--rule) 45%, var(--surface-alt) 90%);
+  background-size: 220% 100%;
+  animation: workoutsSkeletonShimmer 1.2s ease-in-out infinite;
+}
+
+@keyframes workoutsSkeletonShimmer {
+  from {
+    background-position: 120% 0;
+  }
+  to {
+    background-position: -120% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeletonBlock {
+    animation: none;
+    background-size: 100% 100%;
+  }
+}
+
+.skeletonDate {
+  width: 70px;
+  height: 12px;
+}
+
+.skeletonTag {
+  width: 58px;
+  height: 16px;
+}
+
+.skeletonPin {
+  width: 28px;
+  height: 28px;
+}
+
+.skeletonPace {
+  width: 78px;
+  height: 24px;
+}
+
+.skeletonSpark {
+  width: 96px;
+  height: 24px;
+}
+
+.skeletonMeta {
+  width: 68%;
+  height: 13px;
 }
 
 .pagination {
@@ -282,6 +470,18 @@
 }
 
 @media (max-width: 767px) {
+  .filters {
+    align-items: stretch;
+  }
+
+  .searchBox {
+    width: 100%;
+  }
+
+  .filterDivider {
+    display: none;
+  }
+
   .tableCard {
     display: none;
   }

@@ -60,7 +60,7 @@ export default function RateVsPaceScatter({ strokes, formatPace }) {
   if (points.length === 0) return null;
 
   return (
-    <ResponsiveContainer width="100%" height={240}>
+    <ResponsiveContainer width="100%" height={185}>
       <ScatterChart margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
         <XAxis
           dataKey="stroke_rate"

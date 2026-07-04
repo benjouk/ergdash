@@ -4,6 +4,7 @@ import { validateDateRange, validatePaginationParams } from '../middleware/valid
 import { BEST_EFFORT_DURATIONS } from '../analytics.js';
 import { getZoneModel, getObservedMaxHr } from '../hrZones.js';
 import { wattsFromPace, paceFromWatts } from '../strokeMetrics.js';
+import { STANDARD_PB_DISTANCES } from '../pbDetection.js';
 
 const router = Router();
 
@@ -54,6 +55,36 @@ router.get('/summary', (req, res) => {
     SELECT date FROM workouts WHERE type = 'rower'${dateFilter} ORDER BY date DESC LIMIT 1
   `).get(...dateParams);
 
+  const rangeMeters = (startMs, endMs) => {
+    const start = new Date(startMs).toISOString();
+    const end = new Date(endMs).toISOString();
+    return db.prepare(`
+      SELECT COALESCE(SUM(distance), 0) as meters FROM workouts
+      WHERE type = 'rower' AND date >= ? AND date < ?
+    `).get(start, end).meters;
+  };
+
+  const DAY = 86400000;
+  const nowMs = Date.now();
+  const weekly_meters = rangeMeters(nowMs - 7 * DAY, nowMs);
+  const prev_weekly_meters = rangeMeters(nowMs - 14 * DAY, nowMs - 7 * DAY);
+  const monthly_meters = rangeMeters(nowMs - 30 * DAY, nowMs);
+  const prev_monthly_meters = rangeMeters(nowMs - 60 * DAY, nowMs - 30 * DAY);
+
+  const volume_sparkline = db.prepare(`
+    SELECT strftime('%Y-W%W', date) as week, SUM(distance) as distance
+    FROM workouts
+    WHERE type = 'rower' AND date >= ?
+    GROUP BY week ORDER BY week
+  `).all(new Date(nowMs - 8 * 7 * DAY).toISOString()).map(r => r.distance);
+
+  const split = db.prepare(`
+    SELECT
+      COALESCE(SUM(CASE WHEN inferred_tag = 'interval' THEN distance ELSE 0 END), 0) as interval_m,
+      COALESCE(SUM(CASE WHEN inferred_tag = 'interval' THEN 0 ELSE distance END), 0) as steady_m
+    FROM workouts WHERE type = 'rower'${dateFilter}
+  `).get(...dateParams);
+
   res.json({
     total_meters: totals.total_meters,
     total_workouts: totals.total_workouts,
@@ -65,6 +96,13 @@ router.get('/summary', (req, res) => {
     current_streak_weeks: streak,
     last_workout_date: lastWorkout?.date || null,
     estimated_max_hr: getObservedMaxHr(db),
+    weekly_meters,
+    prev_weekly_meters,
+    monthly_meters,
+    prev_monthly_meters,
+    volume_sparkline,
+    split_steady_m: split.steady_m,
+    split_interval_m: split.interval_m,
   });
 });
 
@@ -219,7 +257,6 @@ router.get('/trends', (req, res) => {
 router.get('/personal-bests', (req, res) => {
   const db = getDb();
   const { from, to } = req.query;
-  const standardDistances = [500, 1000, 2000, 5000, 6000, 10000, 21097, 42195];
 
   let dateFilter = '';
   const dateParams = [];
@@ -227,7 +264,7 @@ router.get('/personal-bests', (req, res) => {
   if (to) { dateFilter += ' AND date < ?'; dateParams.push(to); }
 
   const pbs = [];
-  for (const dist of standardDistances) {
+  for (const dist of STANDARD_PB_DISTANCES) {
     const row = db.prepare(`
       SELECT w.id, w.date, w.time_ms, w.pace_ms, w.distance
       FROM workouts w
@@ -247,6 +284,37 @@ router.get('/personal-bests', (req, res) => {
   }
 
   res.json({ personal_bests: pbs });
+});
+
+router.get('/pb-history', (req, res) => {
+  const db = getDb();
+  const { since } = req.query;
+  const conditions = [];
+  const params = [];
+
+  if (since) {
+    const sinceDate = new Date(since);
+    if (Number.isNaN(sinceDate.getTime())) {
+      return res.status(400).json({
+        error: 'Validation failed',
+        details: ['Invalid "since" date format. Use ISO 8601'],
+      });
+    }
+    conditions.push('ph.achieved_at > ?');
+    params.push(since);
+  }
+
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+  const rows = db.prepare(`
+    SELECT ph.id, ph.workout_id, ph.distance, ph.pace_ms, ph.time_ms,
+           ph.achieved_at, w.date as workout_date
+    FROM pb_history ph
+    JOIN workouts w ON w.id = ph.workout_id
+    ${where}
+    ORDER BY ph.achieved_at ASC, ph.id ASC
+  `).all(...params);
+
+  res.json({ pb_history: rows });
 });
 
 router.get('/compare', (req, res) => {

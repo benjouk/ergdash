@@ -1,27 +1,27 @@
-import { useState, useEffect } from 'react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { api } from '../../api.js';
 import { useTimeRange } from '../../context/TimeRangeContext.jsx';
 import { AXIS_TICK, AXIS_LINE, SERIES, TOOLTIP_PROPS } from '../../styles/chartTheme.js';
+import { ChartSkeleton } from '../Skeleton/Skeleton.jsx';
+import ChartEmpty from './ChartEmpty.jsx';
+import { useChartData } from './useChartData.js';
 import styles from './Charts.module.css';
 
 export default function FitnessChart({ compact = false }) {
-  const [data, setData] = useState([]);
   const { from: rangeFrom, to: rangeTo } = useTimeRange();
-
-  useEffect(() => {
+  const { data = [], loading, error, retry } = useChartData(() => {
     const params = {};
     if (rangeFrom) params.from = rangeFrom;
     if (rangeTo) params.to = rangeTo;
-    api.getFitness(params)
-      .then(d => {
-        const rows = d.fitness_log || [];
-        setData(compact ? rows.slice(-30) : rows);
-      })
-      .catch(() => {});
+    return api.getFitness(params).then(d => {
+      const rows = d.fitness_log || [];
+      return compact ? rows.slice(-30) : rows;
+    });
   }, [compact, rangeFrom, rangeTo]);
 
-  if (data.length === 0) return null;
+  if (loading) return <ChartSkeleton />;
+  if (error) return <ChartEmpty title="Fitness / Fatigue / Form" message="Couldn't load chart data." error onRetry={retry} />;
+  if (data.length === 0) return <ChartEmpty title="Fitness / Fatigue / Form" />;
 
   const height = compact ? 80 : 240;
   const latest = data[data.length - 1];

@@ -1,8 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { api } from '../../api.js';
 import { useTimeRange } from '../../context/TimeRangeContext.jsx';
 import { AXIS_TICK, AXIS_LINE, ZONES, TOOLTIP_PROPS } from '../../styles/chartTheme.js';
+import { ChartSkeleton } from '../Skeleton/Skeleton.jsx';
+import ChartEmpty from './ChartEmpty.jsx';
+import { useChartData } from './useChartData.js';
 import styles from './Charts.module.css';
 
 function formatHours(seconds) {
@@ -20,28 +23,31 @@ const POLAR_COLORS = {
 // mode="percent3": 100%-stacked easy/moderate/hard polarization view.
 export default function ZoneStackChart({ compact = false }) {
   const [mode, setMode] = useState('time');
-  const [zoneWeeks, setZoneWeeks] = useState([]);
-  const [polarWeeks, setPolarWeeks] = useState([]);
-  const [zoneModel, setZoneModel] = useState(null);
   const { from, to } = useTimeRange();
-
-  useEffect(() => {
+  const { data: chartData, loading, error, retry } = useChartData(async () => {
     const params = {};
     if (from) params.from = from;
     if (to) params.to = to;
-    api.getZones({ ...params, group: 'week' })
-      .then(d => {
-        setZoneWeeks(from ? (d.weeks || []) : (d.weeks || []).slice(-12));
-        setZoneModel(d.zone_model);
-      })
-      .catch(() => {});
-    api.getPolarization(params)
-      .then(d => setPolarWeeks(from ? (d.weeks || []) : (d.weeks || []).slice(-12)))
-      .catch(() => {});
+
+    const [zones, polarization] = await Promise.all([
+      api.getZones({ ...params, group: 'week' }),
+      api.getPolarization(params),
+    ]);
+
+    return {
+      zoneWeeks: from ? (zones.weeks || []) : (zones.weeks || []).slice(-12),
+      polarWeeks: from ? (polarization.weeks || []) : (polarization.weeks || []).slice(-12),
+      zoneModel: zones.zone_model,
+    };
   }, [from, to]);
 
+  const zoneWeeks = chartData?.zoneWeeks || [];
+  const polarWeeks = chartData?.polarWeeks || [];
+  const zoneModel = chartData?.zoneModel;
   const data = mode === 'time' ? zoneWeeks : polarWeeks;
-  if (!zoneModel || zoneWeeks.length === 0) return null;
+  if (loading) return <ChartSkeleton />;
+  if (error) return <ChartEmpty title={mode === 'time' ? 'Time in Zone' : 'Polarization'} message="Couldn't load chart data." error onRetry={retry} />;
+  if (!zoneModel || zoneWeeks.length === 0) return <ChartEmpty title={mode === 'time' ? 'Time in Zone' : 'Polarization'} />;
 
   const height = compact ? 160 : 220;
 

@@ -1,12 +1,23 @@
 import { useState, useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { Pin } from 'lucide-react';
 import { api } from '../../api.js';
 import { useUnits } from '../../context/UnitsContext.jsx';
 import { useTimeRange } from '../../context/TimeRangeContext.jsx';
+import { usePrefs } from '../../context/PrefsContext.jsx';
+import { FeedItemSkeleton } from '../Skeleton/Skeleton.jsx';
+import PBBadges from '../PBBadge.jsx';
 import Sparkline from './Sparkline.jsx';
 import styles from './Feed.module.css';
 
-function formatRelativeDate(dateStr) {
+function formatDateShort(dateStr, dateFormat) {
+  const options = dateFormat === 'month-day'
+    ? { month: 'short', day: 'numeric' }
+    : { day: 'numeric', month: 'short' };
+  return new Date(dateStr).toLocaleDateString('en-GB', options);
+}
+
+function formatRelativeDate(dateStr, dateFormat) {
   const date = new Date(dateStr);
   const now = new Date();
   const diffMs = now - date;
@@ -17,7 +28,7 @@ function formatRelativeDate(dateStr) {
   if (diffHours < 24) return `${Math.floor(diffHours)}h ago`;
   if (diffDays < 2) return 'Yesterday';
   if (diffDays < 7) return `${Math.floor(diffDays)}d ago`;
-  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  return formatDateShort(dateStr, dateFormat);
 }
 
 const TAG_CLASS = {
@@ -33,65 +44,140 @@ function workoutTitle(w) {
 
 export default function FeedPanel({ layout = 'column' }) {
   const [workouts, setWorkouts] = useState([]);
+  const [pinnedWorkouts, setPinnedWorkouts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState('');
   const params = useParams();
   const { formatPace, formatDistance, formatTime } = useUnits();
   const { from, to } = useTimeRange();
+  const { feedLimit, dateFormat } = usePrefs();
 
   const isRow = layout === 'row';
 
   useEffect(() => {
-    const p = { limit: isRow ? 12 : 50, sort: 'date_desc' };
+    let mounted = true;
+    const p = { limit: isRow ? 12 : feedLimit, sort: 'date_desc' };
     if (from) p.from = from;
     if (to) p.to = to;
-    api.getWorkouts(p)
-      .then(data => setWorkouts(data.data || []))
-      .catch(() => {});
-  }, [from, to, isRow]);
+    const pinnedParams = { pinned: 1, limit: 10, sort: 'date_desc' };
+    setLoading(true);
+    setError('');
+    Promise.all([
+      api.getWorkouts(p),
+      api.getWorkouts(pinnedParams),
+    ])
+      .then(([recentData, pinnedData]) => {
+        if (!mounted) return;
+        setWorkouts(recentData.data || []);
+        setPinnedWorkouts(pinnedData.data || []);
+      })
+      .catch(err => {
+        if (!mounted) return;
+        setWorkouts([]);
+        setPinnedWorkouts([]);
+        setError(err.message || 'Could not load recent sessions');
+      })
+      .finally(() => {
+        if (!mounted) return;
+        setLoading(false);
+        setLoaded(true);
+      });
 
-  if (workouts.length === 0) return (
-    <div className={styles.feed}>
-      {!isRow && <div className={styles.feedHeader}>Recent Sessions</div>}
-      <div className={styles.empty}>No workouts yet</div>
-    </div>
-  );
+    return () => {
+      mounted = false;
+    };
+  }, [from, to, isRow, params.id, feedLimit]);
 
   return (
-    <div className={`${styles.feed} ${isRow ? styles.feedRow : ''}`}>
-      {!isRow && <div className={styles.feedHeader}>Recent Sessions</div>}
-      {workouts.map(w => (
-        <Link
-          key={w.id}
-          to={`/session/${w.id}`}
-          className={`${styles.item} ${params.id === String(w.id) ? styles.itemActive : ''}`}
-        >
-          <div className={styles.itemTop}>
-            <span className={styles.itemDate}>{formatRelativeDate(w.date)}</span>
-            {w.inferred_tag && (
-              <span className={`${styles.itemTag} ${TAG_CLASS[w.inferred_tag] || ''}`}>
-                {w.inferred_tag}
-              </span>
-            )}
-          </div>
-          <div className={styles.itemTitle}>{workoutTitle(w)}</div>
-          <div className={styles.itemMetrics}>
-            <span className={styles.itemPace}>{formatPace(w.pace_ms)}</span>
-            <span className={styles.itemDetail}>
-              {formatDistance(w.distance)} · {formatTime(w.time_ms)}
-              {w.stroke_rate ? ` · ${w.stroke_rate}spm` : ''}
-            </span>
-          </div>
-          {w.pace_profile?.length >= 2 && (
-            <div className={styles.sparklineRow}>
-              <Sparkline
-                data={w.pace_profile}
-                color={w.inferred_tag === 'interval' ? 'var(--accent-2)' : 'var(--accent)'}
-                width={96}
-                height={20}
+    <div className={styles.feed}>
+      {pinnedWorkouts.length > 0 && (
+        <>
+          <div className={styles.feedHeader}>Pinned</div>
+          <div className={`${styles.itemList} ${isRow ? styles.itemListRow : ''}`}>
+            {pinnedWorkouts.map(w => (
+              <FeedItem
+                key={`pinned-${w.id}`}
+                workout={w}
+                active={params.id === String(w.id)}
+                pinned
+                formatPace={formatPace}
+                formatDistance={formatDistance}
+                formatTime={formatTime}
+                dateFormat={dateFormat}
               />
-            </div>
-          )}
-        </Link>
-      ))}
+            ))}
+          </div>
+        </>
+      )}
+      <div className={styles.feedHeader}>Recent Sessions</div>
+      {loading && !loaded ? (
+        <div className={`${styles.itemList} ${isRow ? styles.itemListRow : ''}`}>
+          {Array.from({ length: isRow ? 4 : 6 }).map((_, index) => (
+            <FeedItemSkeleton key={`feed-skeleton-${index}`} />
+          ))}
+        </div>
+      ) : error ? (
+        <div className={styles.error}>{error}</div>
+      ) : workouts.length === 0 ? (
+        <div className={styles.empty}>No workouts yet</div>
+      ) : (
+        <div className={`${styles.itemList} ${isRow ? styles.itemListRow : ''}`}>
+          {workouts.map(w => (
+            <FeedItem
+              key={w.id}
+              workout={w}
+              active={params.id === String(w.id)}
+              formatPace={formatPace}
+              formatDistance={formatDistance}
+              formatTime={formatTime}
+              dateFormat={dateFormat}
+            />
+          ))}
+        </div>
+      )}
     </div>
+  );
+}
+
+function FeedItem({ workout, active, pinned = false, formatPace, formatDistance, formatTime, dateFormat }) {
+  return (
+    <Link
+      to={`/session/${workout.id}`}
+      className={`${styles.item} ${active ? styles.itemActive : ''}`}
+    >
+      <div className={styles.itemTop}>
+        <span className={styles.itemDate}>
+          {pinned && <Pin size={12} className={styles.pinnedGlyph} fill="currentColor" />}
+          {formatRelativeDate(workout.date, dateFormat)}
+        </span>
+        <span className={styles.itemBadges}>
+          <PBBadges distances={workout.pb_distances} compact />
+          {workout.inferred_tag && (
+            <span className={`${styles.itemTag} ${TAG_CLASS[workout.inferred_tag] || ''}`}>
+              {workout.inferred_tag}
+            </span>
+          )}
+        </span>
+      </div>
+      <div className={styles.itemTitle}>{workoutTitle(workout)}</div>
+      <div className={styles.itemMetrics}>
+        <span className={styles.itemPace}>{formatPace(workout.pace_ms)}</span>
+        <span className={styles.itemDetail}>
+          {formatDistance(workout.distance)} · {formatTime(workout.time_ms)}
+          {workout.stroke_rate ? ` · ${workout.stroke_rate}spm` : ''}
+        </span>
+      </div>
+      {workout.pace_profile?.length >= 2 && (
+        <div className={styles.sparklineRow}>
+          <Sparkline
+            data={workout.pace_profile}
+            color={workout.inferred_tag === 'interval' ? 'var(--accent-2)' : 'var(--accent)'}
+            width={96}
+            height={20}
+          />
+        </div>
+      )}
+    </Link>
   );
 }

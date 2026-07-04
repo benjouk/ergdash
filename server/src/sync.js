@@ -12,6 +12,7 @@ import {
   computeZoneTimesForWorkout,
   computeBestEffortsForWorkout,
 } from './analytics.js';
+import { detectNewPbs } from './pbDetection.js';
 
 let syncInProgress = false;
 
@@ -52,6 +53,7 @@ function delay(ms) {
 }
 
 function insertWorkout(db, workout) {
+  // pinned/notes are user-owned columns; sync must never overwrite them.
   const stmt = db.prepare(`
     INSERT OR IGNORE INTO workouts (
       id, user_id, date, timezone, type, workout_type,
@@ -71,7 +73,7 @@ function insertWorkout(db, workout) {
     ? Math.round((timeMs / workout.distance) * 500)
     : null;
 
-  stmt.run(
+  const result = stmt.run(
     workout.id,
     workout.user_id,
     workout.date,
@@ -114,6 +116,8 @@ function insertWorkout(db, workout) {
       );
     });
   }
+
+  return result.changes > 0 ? workout.id : null;
 }
 
 export async function runFullSync() {
@@ -132,6 +136,7 @@ export async function runFullSync() {
     const db = getDb();
     let page = 1;
     let totalSynced = 0;
+    const insertedWorkoutIds = [];
 
     while (true) {
       const data = await fetchC2Api(`/api/users/me/results?page=${page}&per_page=250&type=rower`, token);
@@ -141,7 +146,8 @@ export async function runFullSync() {
 
       db.transaction(() => {
         for (const workout of results) {
-          insertWorkout(db, workout);
+          const insertedId = insertWorkout(db, workout);
+          if (insertedId != null) insertedWorkoutIds.push(insertedId);
         }
       })();
 
@@ -157,7 +163,7 @@ export async function runFullSync() {
     }
 
     console.log(`Full sync complete: ${totalSynced} workouts synced`);
-    runPostSyncAnalytics();
+    runPostSyncAnalytics(insertedWorkoutIds);
     setSyncState('last_sync_completed', new Date().toISOString());
     setSyncState('sync_status', 'idle');
   } catch (err) {
@@ -178,6 +184,7 @@ export async function runIncrementalSync() {
 
     const db = getDb();
     const lastSync = getSyncStateValue('last_sync_completed');
+    const insertedWorkoutIds = [];
     setSyncState('sync_status', 'syncing');
 
     let url = '/api/users/me/results?per_page=50&type=rower';
@@ -191,11 +198,12 @@ export async function runIncrementalSync() {
     if (results && results.length > 0) {
       db.transaction(() => {
         for (const workout of results) {
-          insertWorkout(db, workout);
+          const insertedId = insertWorkout(db, workout);
+          if (insertedId != null) insertedWorkoutIds.push(insertedId);
         }
       })();
       console.log(`Incremental sync: ${results.length} new workouts`);
-      runPostSyncAnalytics();
+      runPostSyncAnalytics(insertedWorkoutIds);
     }
 
     setSyncState('last_sync_completed', new Date().toISOString());
@@ -208,7 +216,7 @@ export async function runIncrementalSync() {
   }
 }
 
-function runPostSyncAnalytics() {
+function runPostSyncAnalytics(insertedWorkoutIds = []) {
   try {
     tagAllWorkouts();
     computeAllMetrics();
@@ -216,6 +224,10 @@ function runPostSyncAnalytics() {
     computePredictions();
     computeAllZoneTimes();
     computeAllBestEfforts();
+    const newPbs = detectNewPbs(insertedWorkoutIds);
+    if (newPbs.length > 0) {
+      console.log(`Detected ${newPbs.length} new PB${newPbs.length === 1 ? '' : 's'}`);
+    }
     console.log('Post-sync analytics complete');
   } catch (err) {
     console.error('Post-sync analytics error:', err);

@@ -18,7 +18,7 @@ export function UnitsProvider({ children }) {
 
   const updateUnits = useCallback((nextUnits) => {
     setUnits(nextUnits);
-    api.updateSettings({ units: nextUnits }).catch(() => {});
+    return api.updateSettings({ units: nextUnits });
   }, []);
 
   const formatPace = useCallback((paceMs) => {

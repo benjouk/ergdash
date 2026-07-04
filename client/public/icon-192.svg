@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" role="img" aria-label="RowDash">
+  <rect width="192" height="192" rx="42" fill="#141418"/>
+  <path d="M36 122V70h43c14 0 24 9 24 22 0 9-5 16-13 19l18 11H84l-15-10H58v10H36Zm22-27h19c4 0 7-2 7-5s-3-5-7-5H58v10Z" fill="#C3D500"/>
+  <path d="M112 122l18-52h18l-18 52h-18Zm28 0 18-52h18l-18 52h-18Z" fill="#C3D500"/>
+</svg>

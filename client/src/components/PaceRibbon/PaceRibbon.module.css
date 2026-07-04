@@ -1,8 +1,8 @@
 .container {
   position: relative;
   width: 100%;
-  border-radius: var(--radius-sm);
-  overflow: hidden;
+  /* visible, not hidden — the hover tooltip sits above the canvas edge */
+  overflow: visible;
 }
 
 .canvas {
@@ -29,17 +29,41 @@
   font-weight: 600;
 }
 
+.crosshairLine {
+  position: absolute;
+  top: 0;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.55);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.crosshairDot {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ink);
+  border: 2px solid var(--surface);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.5);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+}
+
 .tooltip {
   position: absolute;
-  top: -30px;
   background: var(--surface);
   border: 1px solid var(--rule);
-  border-radius: var(--radius-sm);
-  padding: 2px 8px;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  padding: 3px 9px;
   font-family: var(--font-mono);
   font-size: 0.75rem;
+  font-weight: 600;
   color: var(--ink);
   pointer-events: none;
   white-space: nowrap;
-  transform: translateX(-50%);
+  transform: translate(-50%, calc(-100% - 10px));
+  z-index: 3;
 }

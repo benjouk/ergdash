@@ -1,0 +1,134 @@
+.wrap {
+  padding: var(--space-4) var(--space-5);
+}
+
+.barWrap {
+  position: relative;
+}
+
+.bar {
+  display: flex;
+  height: 10px;
+  border-radius: 5px;
+  overflow: hidden;
+  gap: 2px;
+  background: var(--surface-alt);
+}
+
+.segment {
+  min-width: 3px;
+  transition: opacity 120ms ease;
+}
+
+.segmentDimmed {
+  opacity: 0.4;
+}
+
+.crosshairLine {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.55);
+  pointer-events: none;
+  transform: translateX(-50%);
+  z-index: 1;
+}
+
+.tooltip {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  padding: 4px 10px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translateX(-50%);
+  z-index: 2;
+}
+
+.tooltipSwatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex: 0 0 auto;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin-top: var(--space-3);
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--ink-2);
+  white-space: nowrap;
+  border-radius: var(--radius-sm);
+  padding: 1px var(--space-1);
+  margin: -1px calc(-1 * var(--space-1));
+  transition: background 120ms ease;
+}
+
+.legendItemActive {
+  background: var(--surface-alt);
+}
+
+.swatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex: 0 0 auto;
+  transform: translateY(1px);
+}
+
+.zoneName {
+  color: var(--ink-3);
+  font-family: var(--font-body);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.legendValue {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.legendPct {
+  color: var(--ink-3);
+}
+
+.estimatedNote {
+  margin-left: auto;
+  font-size: 0.66rem;
+  color: var(--ink-3);
+  font-style: italic;
+}
+
+@media (max-width: 560px) {
+  .legend {
+    gap: var(--space-1) var(--space-3);
+  }
+
+  .estimatedNote {
+    margin-left: 0;
+    flex-basis: 100%;
+  }
+}

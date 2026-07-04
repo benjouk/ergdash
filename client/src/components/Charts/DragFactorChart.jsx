@@ -1,8 +1,11 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { ComposedChart, Area, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { api } from '../../api.js';
 import { useTimeRange } from '../../context/TimeRangeContext.jsx';
 import { AXIS_TICK, AXIS_LINE, SERIES, TOOLTIP_PROPS } from '../../styles/chartTheme.js';
+import { ChartSkeleton } from '../Skeleton/Skeleton.jsx';
+import ChartEmpty from './ChartEmpty.jsx';
+import { useChartData } from './useChartData.js';
 import styles from './Charts.module.css';
 
 const BAND = 5;
@@ -15,16 +18,12 @@ function DragDot(props) {
 }
 
 export default function DragFactorChart() {
-  const [data, setData] = useState([]);
   const { from, to } = useTimeRange();
-
-  useEffect(() => {
+  const { data = [], loading, error, retry } = useChartData(() => {
     const params = { metric: 'drag', period: 'all' };
     if (from) params.from = from;
     if (to) params.to = to;
-    api.getTrends(params)
-      .then(d => setData(d.drag_trend || []))
-      .catch(() => {});
+    return api.getTrends(params).then(d => d.drag_trend || []);
   }, [from, to]);
 
   const formatted = useMemo(() => data.map(d => {
@@ -38,7 +37,9 @@ export default function DragFactorChart() {
     };
   }), [data]);
 
-  if (formatted.length < 2) return null;
+  if (loading) return <ChartSkeleton />;
+  if (error) return <ChartEmpty title="Drag Factor" message="Couldn't load chart data." error onRetry={retry} />;
+  if (formatted.length < 2) return <ChartEmpty title="Drag Factor" />;
 
   const latest = formatted[formatted.length - 1];
 
@@ -51,7 +52,7 @@ export default function DragFactorChart() {
           <span className={styles.chartValueUnit}>latest</span>
         </div>
       </div>
-      <ResponsiveContainer width="100%" height={220}>
+      <ResponsiveContainer width="100%" height={170}>
         <ComposedChart data={formatted}>
           <XAxis
             dataKey="dateShort"
