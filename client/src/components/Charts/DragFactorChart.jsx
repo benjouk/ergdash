@@ -5,6 +5,7 @@ import { useTimeRange } from '../../context/TimeRangeContext.jsx';
 import { AXIS_TICK, AXIS_LINE, SERIES, TOOLTIP_PROPS } from '../../styles/chartTheme.js';
 import { ChartSkeleton } from '../Skeleton/Skeleton.jsx';
 import ChartEmpty from './ChartEmpty.jsx';
+import ChartInfo from './ChartInfo.jsx';
 import { useChartData } from './useChartData.js';
 import styles from './Charts.module.css';
 
@@ -46,7 +47,10 @@ export default function DragFactorChart() {
   return (
     <div className={styles.chartCard}>
       <div className={styles.chartHeader}>
-        <div className={styles.chartTitle}>Drag Factor</div>
+        <div className={styles.chartTitle}>
+          Drag Factor
+          <ChartInfo>The drag factor recorded for each session, with a band of ±5 around your 30-workout rolling average. Highlighted dots outside the band flag a damper or fan change that can skew pace comparisons.</ChartInfo>
+        </div>
         <div className={styles.chartValue}>
           {latest.drag_factor}
           <span className={styles.chartValueUnit}>latest</span>

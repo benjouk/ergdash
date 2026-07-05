@@ -3,6 +3,7 @@ import { useTimeRange } from '../../context/TimeRangeContext.jsx';
 import { ChartSkeleton } from '../Skeleton/Skeleton.jsx';
 import Sparkline from '../Feed/Sparkline.jsx';
 import ChartEmpty from './ChartEmpty.jsx';
+import ChartInfo from './ChartInfo.jsx';
 import { useChartData } from './useChartData.js';
 import styles from './Charts.module.css';
 
@@ -28,7 +29,10 @@ export default function RateDisciplineCard() {
   return (
     <div className={styles.chartCard}>
       <div className={styles.chartHeader}>
-        <div className={styles.chartTitle}>Rate Discipline</div>
+        <div className={styles.chartTitle}>
+          Rate Discipline
+          <ChartInfo>A 0-100 score for how steadily you held stroke rate within each session. Higher scores mean less drifting between ratings.</ChartInfo>
+        </div>
         <div className={styles.chartValue}>
           {latest.rate_discipline.toFixed(0)}
           <span className={styles.chartValueUnit}>/100</span>

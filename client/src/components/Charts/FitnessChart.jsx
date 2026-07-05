@@ -4,6 +4,7 @@ import { useTimeRange } from '../../context/TimeRangeContext.jsx';
 import { AXIS_TICK, AXIS_LINE, SERIES, TOOLTIP_PROPS } from '../../styles/chartTheme.js';
 import { ChartSkeleton } from '../Skeleton/Skeleton.jsx';
 import ChartEmpty from './ChartEmpty.jsx';
+import ChartInfo from './ChartInfo.jsx';
 import { useChartData } from './useChartData.js';
 import styles from './Charts.module.css';
 
@@ -29,7 +30,10 @@ export default function FitnessChart({ compact = false }) {
   return (
     <div className={styles.chartCard}>
       <div className={styles.chartHeader}>
-        <div className={styles.chartTitle}>Fitness / Fatigue / Form</div>
+        <div className={styles.chartTitle}>
+          Fitness / Fatigue / Form
+          <ChartInfo>Modelled from your training load. Fitness builds slowly with consistent volume, fatigue rises quickly after hard days, and form (fitness minus fatigue) shows freshness — above zero means ready to perform.</ChartInfo>
+        </div>
         <div className={styles.chartValue}>
           {latest.fitness.toFixed(1)}
           <span className={styles.chartValueUnit}>fitness</span>

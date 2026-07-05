@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useUnits } from '../../context/UnitsContext.jsx';
 import chartStyles from '../Charts/Charts.module.css';
+import ChartInfo from '../Charts/ChartInfo.jsx';
 import styles from './Stats.module.css';
 
 function AreaSparkline({ data, width = 260, height = 44 }) {
@@ -44,7 +45,10 @@ export default function VolumeSummaryCard({ summary }) {
   return (
     <div className={chartStyles.chartCard}>
       <div className={chartStyles.chartHeader}>
-        <div className={chartStyles.chartTitle}>Volume</div>
+        <div className={chartStyles.chartTitle}>
+          Volume
+          <ChartInfo>Distance totals for the current week and month, with the change versus the previous ones. The shaded area sketches recent weekly volume.</ChartInfo>
+        </div>
       </div>
       <div className={styles.volumeStats}>
         <MiniStat label="This Week" value={formatDistance(summary.weekly_meters)} delta={weekDelta} />

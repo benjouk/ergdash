@@ -5,6 +5,7 @@ import { useTimeRange } from '../../context/TimeRangeContext.jsx';
 import { AXIS_TICK, AXIS_LINE, ZONES, TOOLTIP_PROPS } from '../../styles/chartTheme.js';
 import { ChartSkeleton } from '../Skeleton/Skeleton.jsx';
 import ChartEmpty from './ChartEmpty.jsx';
+import ChartInfo from './ChartInfo.jsx';
 import { useChartData } from './useChartData.js';
 import styles from './Charts.module.css';
 
@@ -56,6 +57,11 @@ export default function ZoneStackChart({ compact = false }) {
       <div className={styles.chartHeader}>
         <div className={styles.chartTitle}>
           {mode === 'time' ? 'Time in Zone' : 'Polarization'}
+          <ChartInfo>
+            {mode === 'time'
+              ? 'Hours spent in each heart-rate zone per week, stacked from easy (Z1) to max (Z5). Zones are derived from your max heart rate.'
+              : 'Each week of training split into easy, moderate and hard as a share of total time. Polarized training keeps most work easy, a little hard, and not much in between.'}
+          </ChartInfo>
           {zoneModel.estimated && (
             <span
               className={styles.chartValueUnit}

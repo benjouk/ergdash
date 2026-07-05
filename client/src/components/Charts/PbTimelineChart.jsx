@@ -6,6 +6,7 @@ import { AXIS_LINE, AXIS_TICK, SERIES, TOOLTIP_PROPS } from '../../styles/chartT
 import { distanceLabel } from '../PBBadge.jsx';
 import { ChartSkeleton } from '../Skeleton/Skeleton.jsx';
 import ChartEmpty from './ChartEmpty.jsx';
+import ChartInfo from './ChartInfo.jsx';
 import { useChartData } from './useChartData.js';
 import styles from './Charts.module.css';
 
@@ -48,7 +49,10 @@ export default function PbTimelineChart() {
   return (
     <div className={styles.chartCard}>
       <div className={styles.chartHeader}>
-        <div className={styles.chartTitle}>PB Progression</div>
+        <div className={styles.chartTitle}>
+          PB Progression
+          <ChartInfo>Your personal-best pace for each distance over time — every point marks a new PB, and each line tracks one distance.</ChartInfo>
+        </div>
         <div className={styles.chartValue}>
           {distanceLabel(latest.distance)}
           <span className={styles.chartValueUnit}>latest</span>
