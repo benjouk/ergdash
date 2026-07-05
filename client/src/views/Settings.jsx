@@ -7,6 +7,7 @@ import { useSync } from '../context/SyncContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { usePrefs } from '../context/PrefsContext.jsx';
+import { useTimeRange } from '../context/TimeRangeContext.jsx';
 import styles from './Settings.module.css';
 
 const DEFAULT_ZONE_PERCENTS = [60, 70, 80, 90, 100];
@@ -176,6 +177,7 @@ export default function Settings() {
   const { syncStatus, triggerSync } = useSync();
   const { user } = useAuth();
   const { defaultLanding, feedLimit, weekStart, dateFormat, updatePref } = usePrefs();
+  const { defaultRange, setDefaultRange, PRESETS } = useTimeRange();
   const toast = useToast();
   const [health, setHealth] = useState(null);
   const [restoreFile, setRestoreFile] = useState(null);
@@ -294,6 +296,13 @@ export default function Settings() {
 
       <div className={styles.section}>
         <h3 className={styles.sectionTitle}>Preferences</h3>
+        <SelectRow
+          label="Default Time Range"
+          subtext="Period the selector opens on each visit"
+          value={defaultRange}
+          onChange={value => { setDefaultRange(value); toast.success('Settings saved'); }}
+          options={Object.entries(PRESETS).map(([value, label]) => ({ value, label }))}
+        />
         <SelectRow
           label="Default Landing"
           subtext="Choose the first view after connecting"
