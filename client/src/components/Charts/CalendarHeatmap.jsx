@@ -13,7 +13,7 @@ const DAY_LABELS = {
   sunday: ['Sun', '', 'Tue', '', 'Thu', '', 'Sat'],
 };
 const LEFT_PAD = 28;
-const TOP_PAD = 16;
+const TOP_PAD = 18;
 
 function isoDate(d) {
   return d.toISOString().slice(0, 10);
@@ -111,8 +111,8 @@ export default function CalendarHeatmap() {
             <text
               key={`${m.label}-${m.x}`}
               x={m.x}
-              y={10}
-              style={{ fontSize: 9, fill: 'var(--ink-3)', fontFamily: 'var(--font-mono)' }}
+              y={11}
+              style={{ fontSize: 11, fill: 'var(--ink-2)', fontFamily: 'var(--font-mono)' }}
             >
               {m.label}
             </text>
@@ -122,7 +122,7 @@ export default function CalendarHeatmap() {
               key={label}
               x={0}
               y={TOP_PAD + i * (CELL + GAP) + CELL - 2}
-              style={{ fontSize: 9, fill: 'var(--ink-3)', fontFamily: 'var(--font-mono)' }}
+              style={{ fontSize: 11, fill: 'var(--ink-2)', fontFamily: 'var(--font-mono)' }}
             >
               {label}
             </text>

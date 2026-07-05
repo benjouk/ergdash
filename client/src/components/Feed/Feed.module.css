@@ -7,11 +7,11 @@
 
 .feedHeader {
   font-family: var(--font-display);
-  font-size: 0.7rem;
+  font-size: var(--text-2xs);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--ink-3);
+  color: var(--ink-2);
   padding: var(--space-2) var(--space-2) var(--space-1);
 }
 
@@ -38,14 +38,14 @@
 
 .empty {
   padding: var(--space-4);
-  color: var(--ink-3);
-  font-size: 0.8rem;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
 }
 
 .error {
   padding: var(--space-4);
   color: var(--negative);
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
 }
 
 .itemList {
@@ -86,8 +86,8 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  font-size: 0.75rem;
-  color: var(--ink-3);
+  font-size: var(--text-xs);
+  color: var(--ink-2);
 }
 
 .itemBadges {
@@ -104,7 +104,7 @@
 }
 
 .itemTag {
-  font-size: 0.6rem;
+  font-size: var(--text-2xs);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -123,7 +123,7 @@
 }
 
 .itemTitle {
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   font-weight: 600;
   color: var(--ink);
   letter-spacing: -0.01em;
@@ -140,12 +140,12 @@
   font-size: 1.1rem;
   font-weight: 700;
   color: var(--ink);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
 }
 
 .itemDetail {
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
   color: var(--ink-2);
 }
 

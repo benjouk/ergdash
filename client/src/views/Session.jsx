@@ -762,10 +762,10 @@ function ChartTooltip({ active, payload, label, formatPace }) {
       borderRadius: 'var(--radius-sm)',
       padding: 'var(--space-2) var(--space-3)',
       color: 'var(--ink)',
-      fontSize: '0.78rem',
+      fontSize: 'var(--text-xs)',
       boxShadow: '0 12px 30px rgba(0, 0, 0, 0.18)',
     }}>
-      <div style={{ color: 'var(--ink-3)', fontFamily: 'var(--font-mono)', marginBottom: 4 }}>{Math.round(label)}m</div>
+      <div style={{ color: 'var(--ink-2)', fontFamily: 'var(--font-mono)', marginBottom: 4 }}>{Math.round(label)}m</div>
       {payload.map(item => (
         <div key={item.dataKey} style={{ display: 'flex', gap: 10, justifyContent: 'space-between', color: item.color }}>
           <span>{tooltipLabel(item.dataKey)}</span>

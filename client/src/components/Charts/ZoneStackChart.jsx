@@ -75,11 +75,11 @@ export default function ZoneStackChart({ compact = false }) {
                 onClick={() => setMode(m)}
                 style={{
                   background: mode === m ? 'var(--accent-bg)' : 'transparent',
-                  color: mode === m ? 'var(--ink)' : 'var(--ink-3)',
+                  color: mode === m ? 'var(--ink)' : 'var(--ink-2)',
                   border: '1px solid var(--rule)',
                   borderRadius: 'var(--radius-sm)',
                   padding: '2px 8px',
-                  fontSize: '0.68rem',
+                  fontSize: 'var(--text-2xs)',
                   fontFamily: 'var(--font-mono)',
                   cursor: 'pointer',
                 }}

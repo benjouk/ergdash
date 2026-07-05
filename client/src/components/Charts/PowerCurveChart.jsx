@@ -43,7 +43,7 @@ export default function PowerCurveChart() {
         <div className={styles.chartTitle}>
           Power Curve
         </div>
-        <div className={styles.chartValueUnit} style={{ color: 'var(--ink-3)' }}>
+        <div className={styles.chartValueUnit} style={{ color: 'var(--ink-2)' }}>
           best watts by duration
         </div>
       </div>
@@ -82,7 +82,7 @@ export default function PowerCurveChart() {
             }}
           />
           <Legend
-            wrapperStyle={{ fontSize: 11, fontFamily: 'var(--font-mono)' }}
+            wrapperStyle={{ fontSize: 12, fontFamily: 'var(--font-mono)' }}
             formatter={v => (v === 'ghost' ? `${data.ghost_days} days ago` : 'Current best')}
           />
           <Line
