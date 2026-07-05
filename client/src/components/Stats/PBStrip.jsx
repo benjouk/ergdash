@@ -21,21 +21,6 @@ const TIME_LABELS = {
   3600: '60 min',
 };
 
-// Only frame a gap once it's meaningful (≥ ~1s off the best).
-const MIN_GAP_MS = 1000;
-
-// The card's headline number is the PB itself; this describes how the rower's
-// most recent effort at the same distance compares, so it must read as "latest"
-// rather than implying the PB is off its own mark.
-function gapLabel(pb) {
-  if (!pb.recent_time_ms || pb.recent_time_ms <= pb.time_ms + MIN_GAP_MS) return null;
-  const seconds = Math.round((pb.recent_time_ms - pb.time_ms) / 1000);
-  const gap = seconds < 60
-    ? `+${seconds}s`
-    : `+${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
-  return `Latest ${gap}`;
-}
-
 export default function PBStrip() {
   const [pbs, setPbs] = useState([]);
   const [timeBests, setTimeBests] = useState([]);
@@ -59,25 +44,20 @@ export default function PBStrip() {
 
   return (
     <div className={styles.pbStrip}>
-      {pbs.map(pb => {
-        const gap = gapLabel(pb);
-        return (
-          <button
-            key={pb.distance}
-            type="button"
-            className={styles.pbCard}
-            onClick={() => navigate(`/session/${pb.workout_id}`)}
-            aria-label={`Open ${DISTANCE_LABELS[pb.distance] || `${pb.distance}m`} personal best`}
-          >
-            <span className={styles.pbDistance}>{DISTANCE_LABELS[pb.distance] || `${pb.distance}m`}</span>
-            <span className={styles.pbTime}>{formatTime(pb.time_ms)}</span>
-            <span className={styles.pbPace}>{formatPace(pb.pace_ms)}</span>
-            {gap
-              ? <span className={styles.pbGap}>{gap}</span>
-              : <span className={styles.pbDate}>{new Date(pb.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' })}</span>}
-          </button>
-        );
-      })}
+      {pbs.map(pb => (
+        <button
+          key={pb.distance}
+          type="button"
+          className={styles.pbCard}
+          onClick={() => navigate(`/session/${pb.workout_id}`)}
+          aria-label={`Open ${DISTANCE_LABELS[pb.distance] || `${pb.distance}m`} personal best`}
+        >
+          <span className={styles.pbDistance}>{DISTANCE_LABELS[pb.distance] || `${pb.distance}m`}</span>
+          <span className={styles.pbTime}>{formatTime(pb.time_ms)}</span>
+          <span className={styles.pbPace}>{formatPace(pb.pace_ms)}</span>
+          <span className={styles.pbDate}>{new Date(pb.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' })}</span>
+        </button>
+      ))}
 
       {timeBests.map(tb => (
         <button

@@ -273,22 +273,12 @@ router.get('/personal-bests', (req, res) => {
     `).get(dist, ...dateParams);
 
     if (row) {
-      // Most recent effort at the same distance, so the client can frame how
-      // far off the PB the rower's current form is.
-      const recent = db.prepare(`
-        SELECT time_ms, pace_ms FROM workouts
-        WHERE type = 'rower' AND distance = ? AND pace_ms > 0${dateFilter}
-        ORDER BY date DESC LIMIT 1
-      `).get(dist, ...dateParams);
-
       pbs.push({
         distance: dist,
         workout_id: row.id,
         date: row.date,
         time_ms: row.time_ms,
         pace_ms: row.pace_ms,
-        recent_time_ms: recent?.time_ms ?? null,
-        recent_pace_ms: recent?.pace_ms ?? null,
       });
     }
   }
