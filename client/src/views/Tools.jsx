@@ -7,8 +7,6 @@ import {
   formatDuration,
   formatPaceSeconds,
   paceToWatts,
-  parsePaceInput,
-  parseTimeInput,
   wattsToCalHr,
   wattsToPace,
 } from '../utils/ergMath.js';
@@ -29,32 +27,40 @@ const STRATEGY_OPTIONS = [
   { value: 'aggressive', label: 'Aggressive', hint: 'Fast start, hang on late.' },
 ];
 
+// Native <select> wheels avoid needing a colon key on a mobile keypad.
+const PACE_MINUTES = Array.from({ length: 10 }, (_, i) => i); // 0–9
+const TARGET_MINUTES = Array.from({ length: 100 }, (_, i) => i); // 0–99
+const SECONDS = Array.from({ length: 60 }, (_, i) => i); // 0–59
+
+function splitClock(totalSeconds) {
+  const rounded = Math.max(0, Math.round(Number(totalSeconds) || 0));
+  return { minutes: Math.floor(rounded / 60), seconds: rounded % 60 };
+}
+
 export default function Tools() {
   const { formatDistanceFull } = useUnits();
   const [paceSeconds, setPaceSeconds] = useState(120);
-  const [paceInput, setPaceInput] = useState('2:00.0');
   const [wattsInput, setWattsInput] = useState(String(Math.round(paceToWatts(120))));
   const [calHrInput, setCalHrInput] = useState(String(Math.round(wattsToCalHr(paceToWatts(120)))));
   const [distance, setDistance] = useState(2000);
   const [customDistance, setCustomDistance] = useState('');
-  const [targetTime, setTargetTime] = useState('8:00.0');
+  const [targetSeconds, setTargetSeconds] = useState(480);
   const [strategy, setStrategy] = useState('even');
 
   const watts = paceToWatts(paceSeconds);
   const calHr = wattsToCalHr(watts);
   const targetDistance = customDistance ? Number(customDistance) : distance;
-  const targetSeconds = parseTimeInput(targetTime);
+  const paceParts = splitClock(paceSeconds);
+  const targetParts = splitClock(targetSeconds);
   const racePlan = useMemo(() => (
     buildRacePlan(targetDistance, targetSeconds, 500, strategy)
   ), [targetDistance, targetSeconds, strategy]);
 
-  function setFromPace(value) {
-    setPaceInput(value);
-    const nextPace = parsePaceInput(value);
-    if (!nextPace) return;
-
-    const nextWatts = paceToWatts(nextPace);
-    setPaceSeconds(nextPace);
+  function setPaceFromParts(minutes, seconds) {
+    const total = minutes * 60 + seconds;
+    setPaceSeconds(total);
+    const nextWatts = paceToWatts(total);
+    if (!nextWatts) return;
     setWattsInput(String(Math.round(nextWatts)));
     setCalHrInput(String(Math.round(wattsToCalHr(nextWatts))));
   }
@@ -66,7 +72,6 @@ export default function Tools() {
     if (!nextPace) return;
 
     setPaceSeconds(nextPace);
-    setPaceInput(formatPaceSeconds(nextPace));
     setCalHrInput(String(Math.round(wattsToCalHr(nextWatts))));
   }
 
@@ -77,7 +82,6 @@ export default function Tools() {
     if (!nextWatts || !nextPace) return;
 
     setPaceSeconds(nextPace);
-    setPaceInput(formatPaceSeconds(nextPace));
     setWattsInput(String(Math.round(nextWatts)));
   }
 
@@ -98,17 +102,37 @@ export default function Tools() {
           </div>
 
           <div className={styles.converterGrid}>
-            <label className={styles.field}>
-              <span><Clock3 size={14} /> Pace /500m</span>
-              <input value={paceInput} onChange={event => setFromPace(event.target.value)} inputMode="decimal" />
-            </label>
+            <div className={styles.field}>
+              <span id="pace-label"><Clock3 size={14} /> Pace /500m</span>
+              <div className={styles.timePicker} role="group" aria-labelledby="pace-label">
+                <select
+                  className={styles.timeSelect}
+                  aria-label="Pace minutes"
+                  value={paceParts.minutes}
+                  onChange={event => setPaceFromParts(Number(event.target.value), paceParts.seconds)}
+                >
+                  {PACE_MINUTES.map(value => <option key={value} value={value}>{value}</option>)}
+                </select>
+                <span className={styles.timeColon} aria-hidden="true">:</span>
+                <select
+                  className={styles.timeSelect}
+                  aria-label="Pace seconds"
+                  value={paceParts.seconds}
+                  onChange={event => setPaceFromParts(paceParts.minutes, Number(event.target.value))}
+                >
+                  {SECONDS.map(value => (
+                    <option key={value} value={value}>{String(value).padStart(2, '0')}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
             <label className={styles.field}>
               <span><Zap size={14} /> Watts</span>
-              <input value={wattsInput} onChange={event => setFromWatts(event.target.value)} inputMode="decimal" />
+              <input value={wattsInput} onChange={event => setFromWatts(event.target.value)} inputMode="numeric" />
             </label>
             <label className={styles.field}>
               <span><Gauge size={14} /> Cal/hr</span>
-              <input value={calHrInput} onChange={event => setFromCalHr(event.target.value)} inputMode="decimal" />
+              <input value={calHrInput} onChange={event => setFromCalHr(event.target.value)} inputMode="numeric" />
             </label>
           </div>
 
@@ -151,10 +175,30 @@ export default function Tools() {
                 placeholder={String(distance)}
               />
             </label>
-            <label className={styles.field}>
-              <span>Target time</span>
-              <input value={targetTime} onChange={event => setTargetTime(event.target.value)} inputMode="decimal" />
-            </label>
+            <div className={styles.field}>
+              <span id="target-time-label">Target time</span>
+              <div className={styles.timePicker} role="group" aria-labelledby="target-time-label">
+                <select
+                  className={styles.timeSelect}
+                  aria-label="Target minutes"
+                  value={targetParts.minutes}
+                  onChange={event => setTargetSeconds(Number(event.target.value) * 60 + targetParts.seconds)}
+                >
+                  {TARGET_MINUTES.map(value => <option key={value} value={value}>{value}</option>)}
+                </select>
+                <span className={styles.timeColon} aria-hidden="true">:</span>
+                <select
+                  className={styles.timeSelect}
+                  aria-label="Target seconds"
+                  value={targetParts.seconds}
+                  onChange={event => setTargetSeconds(targetParts.minutes * 60 + Number(event.target.value))}
+                >
+                  {SECONDS.map(value => (
+                    <option key={value} value={value}>{String(value).padStart(2, '0')}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
           </div>
 
           <div className={styles.presets} role="group" aria-label="Pacing strategy">
