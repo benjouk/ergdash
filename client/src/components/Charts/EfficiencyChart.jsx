@@ -5,6 +5,7 @@ import { useTimeRange } from '../../context/TimeRangeContext.jsx';
 import { AXIS_TICK, AXIS_LINE, SERIES, TOOLTIP_PROPS } from '../../styles/chartTheme.js';
 import { ChartSkeleton } from '../Skeleton/Skeleton.jsx';
 import ChartEmpty from './ChartEmpty.jsx';
+import ChartInfo from './ChartInfo.jsx';
 import { useChartData } from './useChartData.js';
 import styles from './Charts.module.css';
 
@@ -38,7 +39,9 @@ export default function EfficiencyChart() {
   return (
     <div className={styles.chartCard}>
       <div className={styles.chartHeader}>
-        <div className={styles.chartTitle}>Efficiency</div>
+        <div className={styles.chartTitle}>
+          Efficiency
+        </div>
         <div className={styles.chartValue}>
           {latest.trend.toFixed(2)}
           <span className={styles.chartValueUnit}>w/beat</span>
@@ -79,6 +82,8 @@ export default function EfficiencyChart() {
           />
         </ComposedChart>
       </ResponsiveContainer>
+    
+      <ChartInfo>Average watts divided by average heart rate for each session — how much power each heartbeat buys. A smoothed trend that climbs over months signals improving aerobic fitness.</ChartInfo>
     </div>
   );
 }

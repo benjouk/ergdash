@@ -198,6 +198,7 @@
 
 /* Card — matches dashboard chartCard */
 .card {
+  position: relative;
   background: var(--surface);
   border: 1px solid var(--rule);
   border-radius: var(--radius-lg);

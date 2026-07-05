@@ -4,6 +4,7 @@ import { useTimeRange } from '../../context/TimeRangeContext.jsx';
 import { AXIS_TICK, AXIS_LINE, SERIES, TOOLTIP_PROPS } from '../../styles/chartTheme.js';
 import { ChartSkeleton } from '../Skeleton/Skeleton.jsx';
 import ChartEmpty from './ChartEmpty.jsx';
+import ChartInfo from './ChartInfo.jsx';
 import { useChartData } from './useChartData.js';
 import styles from './Charts.module.css';
 
@@ -27,7 +28,9 @@ export default function DpsTrendChart() {
   return (
     <div className={styles.chartCard}>
       <div className={styles.chartHeader}>
-        <div className={styles.chartTitle}>Distance Per Stroke</div>
+        <div className={styles.chartTitle}>
+          Distance Per Stroke
+        </div>
         <div className={styles.chartValue}>
           {latest.dps.toFixed(2)}
           <span className={styles.chartValueUnit}>m/stroke</span>
@@ -63,6 +66,8 @@ export default function DpsTrendChart() {
           <Bar dataKey="dps" fill={SERIES.tertiary} radius={[6, 6, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
+    
+      <ChartInfo>Average metres travelled per stroke, by month. Longer strokes at the same effort usually reflect improving technique.</ChartInfo>
     </div>
   );
 }

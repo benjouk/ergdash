@@ -4,6 +4,7 @@ import { api } from '../../api.js';
 import { AXIS_TICK, AXIS_LINE, REF_LINE, SERIES, TOOLTIP_PROPS } from '../../styles/chartTheme.js';
 import { ChartSkeleton } from '../Skeleton/Skeleton.jsx';
 import ChartEmpty from './ChartEmpty.jsx';
+import ChartInfo from './ChartInfo.jsx';
 import { useChartData } from './useChartData.js';
 import styles from './Charts.module.css';
 
@@ -43,7 +44,9 @@ export default function CumulativeMetersChart() {
   return (
     <div className={styles.chartCard}>
       <div className={styles.chartHeader}>
-        <div className={styles.chartTitle}>Cumulative Metres</div>
+        <div className={styles.chartTitle}>
+          Cumulative Metres
+        </div>
         <div className={styles.chartValue}>
           {latest ? `${(latest.cum_m / 1000).toFixed(0)}k` : '--'}
           <span className={styles.chartValueUnit}>{series.year}</span>
@@ -109,6 +112,8 @@ export default function CumulativeMetersChart() {
           )}
         </LineChart>
       </ResponsiveContainer>
+    
+      <ChartInfo>Metres accumulated through the calendar year, with the previous year overlaid for comparison. If you have set an annual goal, the goal line shows the pace needed to hit it.</ChartInfo>
     </div>
   );
 }

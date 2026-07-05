@@ -6,6 +6,7 @@ import { useUnits } from '../../context/UnitsContext.jsx';
 import { AXIS_TICK, AXIS_LINE, SERIES, TOOLTIP_PROPS } from '../../styles/chartTheme.js';
 import { ChartSkeleton } from '../Skeleton/Skeleton.jsx';
 import ChartEmpty from './ChartEmpty.jsx';
+import ChartInfo from './ChartInfo.jsx';
 import { useChartData } from './useChartData.js';
 import styles from './Charts.module.css';
 
@@ -39,7 +40,9 @@ export default function PowerCurveChart() {
   return (
     <div className={styles.chartCard}>
       <div className={styles.chartHeader}>
-        <div className={styles.chartTitle}>Power Curve</div>
+        <div className={styles.chartTitle}>
+          Power Curve
+        </div>
         <div className={styles.chartValueUnit} style={{ color: 'var(--ink-3)' }}>
           best watts by duration
         </div>
@@ -109,6 +112,8 @@ export default function PowerCurveChart() {
           />
         </LineChart>
       </ResponsiveContainer>
+    
+      <ChartInfo>The best average watts you have sustained over each duration, from 1 to 60 minutes. The ghost line shows the same bests 90 days ago, so gaps highlight recent gains.</ChartInfo>
     </div>
   );
 }

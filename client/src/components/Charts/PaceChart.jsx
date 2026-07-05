@@ -5,6 +5,7 @@ import { useTimeRange } from '../../context/TimeRangeContext.jsx';
 import { AXIS_TICK, AXIS_LINE, SERIES, TOOLTIP_PROPS } from '../../styles/chartTheme.js';
 import { ChartSkeleton } from '../Skeleton/Skeleton.jsx';
 import ChartEmpty from './ChartEmpty.jsx';
+import ChartInfo from './ChartInfo.jsx';
 import { useChartData } from './useChartData.js';
 import styles from './Charts.module.css';
 
@@ -43,7 +44,9 @@ export default function PaceChart() {
   return (
     <div className={styles.chartCard}>
       <div className={styles.chartHeader}>
-        <div className={styles.chartTitle}>Pace Trend</div>
+        <div className={styles.chartTitle}>
+          Pace Trend
+        </div>
         <div className={styles.chartValue}>
           {formatPace(latest.pace_ms)}
           <span className={styles.chartValueUnit}>latest</span>
@@ -81,6 +84,8 @@ export default function PaceChart() {
           />
         </LineChart>
       </ResponsiveContainer>
+    
+      <ChartInfo>Average pace of each session over time, coloured by session type (endurance or interval). The scale is flipped so higher points are faster.</ChartInfo>
     </div>
   );
 }

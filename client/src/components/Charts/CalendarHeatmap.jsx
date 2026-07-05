@@ -3,6 +3,7 @@ import { scaleQuantize } from 'd3-scale';
 import { api } from '../../api.js';
 import { usePrefs } from '../../context/PrefsContext.jsx';
 import styles from './Charts.module.css';
+import ChartInfo from './ChartInfo.jsx';
 
 const CELL = 11;
 const GAP = 2;
@@ -86,7 +87,9 @@ export default function CalendarHeatmap() {
   return (
     <div className={styles.chartCard}>
       <div className={styles.chartHeader}>
-        <div className={styles.chartTitle}>Training Calendar</div>
+        <div className={styles.chartTitle}>
+          Training Calendar
+        </div>
         <div className={styles.chartValue}>
           {(grid.total / 1000).toFixed(0)}k
           <span className={styles.chartValueUnit}>last 12 months</span>
@@ -140,6 +143,8 @@ export default function CalendarHeatmap() {
           ))}
         </svg>
       </div>
+    
+      <ChartInfo>A year of training at a glance: each cell is one day, shaded by metres rowed. Darker cells were bigger days.</ChartInfo>
     </div>
   );
 }

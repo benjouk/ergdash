@@ -41,6 +41,7 @@ import Sparkline from '../components/Feed/Sparkline.jsx';
 import PBBadges from '../components/PBBadge.jsx';
 import ComparisonOverlay from '../components/Charts/ComparisonOverlay.jsx';
 import IntervalRepChart from '../components/Session/IntervalRepChart.jsx';
+import ChartInfo from '../components/Charts/ChartInfo.jsx';
 import RateVsPaceScatter from '../components/Charts/RateVsPaceScatter.jsx';
 import ZoneBar from '../components/Stats/ZoneBar.jsx';
 import styles from './Session.module.css';
@@ -480,6 +481,7 @@ export default function Session() {
               <PaceRibbon strokes={workout.strokes} height={48} />
             </div>
           </div>
+          <ChartInfo>The whole session as one strip, coloured by pace, so surges and fades stand out at a glance.</ChartInfo>
         </div>
       )}
 
@@ -489,6 +491,7 @@ export default function Session() {
             <div className={styles.cardTitle}>HR Zones</div>
           </div>
           <ZoneBar zoneTimes={workout.zone_times} />
+          <ChartInfo>How time in this session split across the five heart-rate zones, from recovery to max effort.</ChartInfo>
         </div>
       )}
 
@@ -516,6 +519,7 @@ export default function Session() {
               </div>
             </div>
           </div>
+          <ChartInfo>The shape of your pace through this session, drawn from summary data — stroke-level detail is not available for this workout.</ChartInfo>
         </div>
       )}
 
@@ -565,6 +569,7 @@ export default function Session() {
                 </div>
               </div>
             </div>
+            <ChartInfo>Every stroke of the session plotted over distance, in your chosen pace unit. The dashed line marks the session average; higher on the chart is faster.</ChartInfo>
           </div>
 
           {(hasStrokeRate || hasHeartRate) && (
@@ -591,6 +596,7 @@ export default function Session() {
                   </div>
                 </div>
               </div>
+              <ChartInfo>Stroke rate (stepped line) and heart rate (smooth line) for every stroke, plotted over distance. The dashed line marks the average stroke rate.</ChartInfo>
             </div>
           )}
         </div>
@@ -605,6 +611,7 @@ export default function Session() {
             </span>
           </div>
           <IntervalRepChart intervals={workout.intervals} formatPace={formatPace} />
+          <ChartInfo>One bar per rep — taller bars are faster. Dots mark stroke rate, the line traces heart rate, and muted stubs are rest periods.</ChartInfo>
         </div>
       )}
 
@@ -615,6 +622,7 @@ export default function Session() {
             {hasHeartRate && <span className={styles.cardKicker}>coloured by HR</span>}
           </div>
           <RateVsPaceScatter strokes={workout.strokes} formatPace={formatPace} />
+          <ChartInfo>Each dot is a moment in the session, plotting stroke rate against the pace it produced, coloured by heart rate when available. Tight clusters mean consistent rowing.</ChartInfo>
         </div>
       )}
 

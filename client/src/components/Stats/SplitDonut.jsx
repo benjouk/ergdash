@@ -1,6 +1,7 @@
 import { Cell, Pie, PieChart, ResponsiveContainer } from 'recharts';
 import { useUnits } from '../../context/UnitsContext.jsx';
 import chartStyles from '../Charts/Charts.module.css';
+import ChartInfo from '../Charts/ChartInfo.jsx';
 import styles from './Stats.module.css';
 
 export default function SplitDonut({ summary }) {
@@ -20,7 +21,9 @@ export default function SplitDonut({ summary }) {
   return (
     <div className={chartStyles.chartCard}>
       <div className={chartStyles.chartHeader}>
-        <div className={chartStyles.chartTitle}>Session Mix</div>
+        <div className={chartStyles.chartTitle}>
+          Session Mix
+        </div>
       </div>
       <div className={styles.donutRow}>
         <div className={styles.donutViewport}>
@@ -54,6 +57,8 @@ export default function SplitDonut({ summary }) {
           ))}
         </div>
       </div>
+    
+      <ChartInfo>How the metres in this period split between steady endurance work and interval work.</ChartInfo>
     </div>
   );
 }
