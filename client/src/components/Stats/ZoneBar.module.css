@@ -47,7 +47,7 @@
   box-shadow: var(--shadow-md);
   padding: 4px 10px;
   font-family: var(--font-mono);
-  font-size: var(--text-2xs);
+  font-size: 0.72rem;
   font-weight: 600;
   color: var(--ink);
   white-space: nowrap;
@@ -76,7 +76,7 @@
   align-items: baseline;
   gap: var(--space-2);
   font-family: var(--font-mono);
-  font-size: var(--text-2xs);
+  font-size: 0.72rem;
   color: var(--ink-2);
   white-space: nowrap;
   border-radius: var(--radius-sm);
@@ -99,9 +99,9 @@
 }
 
 .zoneName {
-  color: var(--ink-2);
+  color: var(--ink-3);
   font-family: var(--font-body);
-  font-size: var(--text-2xs);
+  font-size: 0.68rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -112,13 +112,13 @@
 }
 
 .legendPct {
-  color: var(--ink-2);
+  color: var(--ink-3);
 }
 
 .estimatedNote {
   margin-left: auto;
-  font-size: var(--text-2xs);
-  color: var(--ink-2);
+  font-size: 0.66rem;
+  color: var(--ink-3);
   font-style: italic;
 }
 

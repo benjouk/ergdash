@@ -1,7 +1,7 @@
 // Centralized Recharts theming — all colors resolve through CSS variables so
 // light/dark themes apply without re-rendering charts.
 
-export const AXIS_TICK = { fontSize: 12, fill: 'var(--ink-2)', fontFamily: 'var(--font-mono)' };
+export const AXIS_TICK = { fontSize: 11, fill: 'var(--ink-3)', fontFamily: 'var(--font-mono)' };
 
 export const AXIS_LINE = { stroke: 'var(--chart-grid)' };
 

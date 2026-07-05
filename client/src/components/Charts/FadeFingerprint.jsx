@@ -50,7 +50,7 @@ export default function FadeFingerprint() {
         <div className={styles.chartTitle}>
           Fade Fingerprint
         </div>
-        <div className={styles.chartValueUnit} style={{ color: 'var(--ink-2)' }}>
+        <div className={styles.chartValueUnit} style={{ color: 'var(--ink-3)' }}>
           latest vs typical
         </div>
       </div>
@@ -69,7 +69,7 @@ export default function FadeFingerprint() {
           return (
             <div key={panel.distance}>
               <div style={{
-                fontSize: 'var(--text-2xs)',
+                fontSize: '0.72rem',
                 fontFamily: 'var(--font-mono)',
                 color: 'var(--ink-2)',
                 marginBottom: 2,
@@ -106,9 +106,9 @@ export default function FadeFingerprint() {
                 />
               </svg>
               <div style={{
-                fontSize: 'var(--text-2xs)',
+                fontSize: '0.65rem',
                 fontFamily: 'var(--font-mono)',
-                color: 'var(--ink-2)',
+                color: 'var(--ink-3)',
                 display: 'flex',
                 justifyContent: 'space-between',
                 width: W,

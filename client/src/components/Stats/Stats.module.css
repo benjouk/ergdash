@@ -40,27 +40,28 @@
 }
 
 .statLabel {
-  font-size: var(--text-2xs);
+  font-size: 0.66rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--ink-2);
+  color: var(--ink-3);
 }
 
 .statValue {
-  font-family: var(--font-mono);
-  font-weight: 700;
+  font-family: var(--font-hero);
+  font-weight: 800;
+  font-stretch: 108%;
   font-size: var(--text-xl);
   color: var(--ink);
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
   line-height: 1.1;
 }
 
 .statSub {
   font-family: var(--font-mono);
-  font-size: var(--text-2xs);
-  color: var(--ink-2);
+  font-size: 0.68rem;
+  color: var(--ink-3);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   overflow: hidden;
@@ -68,7 +69,7 @@
 }
 
 .statDelta {
-  font-size: var(--text-2xs);
+  font-size: 0.7rem;
   font-weight: 500;
 }
 
@@ -119,7 +120,7 @@
 
 .pbDistance {
   font-family: var(--font-display);
-  font-size: var(--text-xs);
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--ink-2);
   text-transform: uppercase;
@@ -141,8 +142,8 @@
 }
 
 .pbDate {
-  font-size: var(--text-2xs);
-  color: var(--ink-2);
+  font-size: 0.65rem;
+  color: var(--ink-3);
 }
 
 .metricsBar {
@@ -161,11 +162,11 @@
 }
 
 .metricLabel {
-  font-size: var(--text-2xs);
+  font-size: 0.65rem;
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--ink-2);
+  color: var(--ink-3);
 }
 
 .metricValue {
@@ -189,11 +190,11 @@
 }
 
 .miniStatLabel {
-  font-size: var(--text-2xs);
+  font-size: 0.62rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--ink-2);
+  color: var(--ink-3);
 }
 
 .miniStatValue {
@@ -205,8 +206,8 @@
 }
 
 .miniStatDelta {
-  font-size: var(--text-2xs);
-  color: var(--ink-2);
+  font-size: 0.64rem;
+  color: var(--ink-3);
 }
 
 .volumeSpark {
@@ -248,8 +249,8 @@
 }
 
 .donutCenterLabel {
-  font-size: var(--text-2xs);
-  color: var(--ink-2);
+  font-size: 0.6rem;
+  color: var(--ink-3);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -277,7 +278,7 @@
 
 .donutLegendLabel {
   flex: 1 1 auto;
-  font-size: var(--text-xs);
+  font-size: 0.75rem;
   color: var(--ink-2);
 }
 
@@ -303,10 +304,11 @@
   }
   .statValue {
     font-size: 0.95rem;
-    letter-spacing: -0.01em;
+    font-stretch: 100%;
+    letter-spacing: -0.03em;
   }
   .statSub {
-    font-size: 0.7rem;
+    font-size: 0.6rem;
   }
   .pbStrip {
     flex-wrap: wrap;

@@ -15,8 +15,9 @@
 .loadingMark {
   font-family: var(--font-hero);
   font-weight: 900;
+  font-stretch: 115%;
   font-size: 1.6rem;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
   color: var(--ink);
   animation: loadingPulse 1.4s ease-in-out infinite;
 }

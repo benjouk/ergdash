@@ -45,7 +45,7 @@ export default function RateDisciplineCard() {
           height={36}
           strokeWidth={1.6}
         />
-        <span style={{ fontSize: 'var(--text-2xs)', color: 'var(--ink-2)', fontFamily: 'var(--font-mono)' }}>
+        <span style={{ fontSize: '0.72rem', color: 'var(--ink-3)', fontFamily: 'var(--font-mono)' }}>
           avg {avg.toFixed(0)} over {recent.length} sessions
         </span>
       </div>

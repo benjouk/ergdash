@@ -61,14 +61,15 @@ input, select {
 
 .mono {
   font-family: var(--font-mono);
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
 }
 
 .heroNum {
   font-family: var(--font-hero);
   font-weight: 850;
-  letter-spacing: -0.01em;
+  font-stretch: 110%;
+  letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
   line-height: 1;
 }

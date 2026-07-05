@@ -68,8 +68,8 @@ export default function HrDriftChart() {
             label={{
               value: 'coupled < 5%',
               position: 'insideTopRight',
-              fill: 'var(--ink-2)',
-              fontSize: 12,
+              fill: 'var(--ink-3)',
+              fontSize: 10,
               fontFamily: 'var(--font-mono)',
             }}
           />
