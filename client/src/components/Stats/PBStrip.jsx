@@ -24,11 +24,16 @@ const TIME_LABELS = {
 // Only frame a gap once it's meaningful (≥ ~1s off the best).
 const MIN_GAP_MS = 1000;
 
+// The card's headline number is the PB itself; this describes how the rower's
+// most recent effort at the same distance compares, so it must read as "latest"
+// rather than implying the PB is off its own mark.
 function gapLabel(pb) {
   if (!pb.recent_time_ms || pb.recent_time_ms <= pb.time_ms + MIN_GAP_MS) return null;
-  const seconds = (pb.recent_time_ms - pb.time_ms) / 1000;
-  const rounded = seconds >= 10 ? Math.round(seconds) : seconds.toFixed(1);
-  return `${rounded}s from PB`;
+  const seconds = Math.round((pb.recent_time_ms - pb.time_ms) / 1000);
+  const gap = seconds < 60
+    ? `+${seconds}s`
+    : `+${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+  return `Latest ${gap}`;
 }
 
 export default function PBStrip() {
