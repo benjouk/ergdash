@@ -437,9 +437,8 @@
   background: var(--surface-alt);
 }
 
-/* Best split gets the volt treatment */
+/* Best split highlight */
 .bestRow {
-  border-left: 3px solid var(--accent-3);
   background: var(--accent-3-bg);
 }
 
@@ -542,7 +541,6 @@
 /* Coach card */
 .aiNote {
   border: 1px solid var(--rule);
-  border-left: 3px solid var(--accent-2);
   border-radius: var(--radius-md);
   background: var(--accent-2-bg);
   padding: var(--space-4) var(--space-5);
