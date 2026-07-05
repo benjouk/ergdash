@@ -473,6 +473,16 @@ export default function Session() {
         ))}
       </div>
 
+      {workout.insight?.length > 0 && (
+        <ul className={styles.insightRow} aria-label="Session insights">
+          {workout.insight.map(item => (
+            <li key={item.id} className={`${styles.insightChip} ${styles[`insight_${item.kind}`] || ''}`}>
+              {item.text}
+            </li>
+          ))}
+        </ul>
+      )}
+
       {workout.strokes?.length > 0 && (
         <div className={`${styles.card} ${styles.cardVisible}`}>
           <div className={styles.chartStack}>

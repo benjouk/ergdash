@@ -23,6 +23,12 @@ const DISTANCE_PRESETS = [
   { label: '10k', value: 10000 },
 ];
 
+const STRATEGY_OPTIONS = [
+  { value: 'even', label: 'Even', hint: 'Hold one pace start to finish.' },
+  { value: 'negative', label: 'Negative', hint: 'Start controlled, finish fast.' },
+  { value: 'aggressive', label: 'Aggressive', hint: 'Fast start, hang on late.' },
+];
+
 export default function Tools() {
   const { formatDistanceFull } = useUnits();
   const [paceSeconds, setPaceSeconds] = useState(120);
@@ -32,14 +38,15 @@ export default function Tools() {
   const [distance, setDistance] = useState(2000);
   const [customDistance, setCustomDistance] = useState('');
   const [targetTime, setTargetTime] = useState('8:00.0');
+  const [strategy, setStrategy] = useState('even');
 
   const watts = paceToWatts(paceSeconds);
   const calHr = wattsToCalHr(watts);
   const targetDistance = customDistance ? Number(customDistance) : distance;
   const targetSeconds = parseTimeInput(targetTime);
   const racePlan = useMemo(() => (
-    buildRacePlan(targetDistance, targetSeconds)
-  ), [targetDistance, targetSeconds]);
+    buildRacePlan(targetDistance, targetSeconds, 500, strategy)
+  ), [targetDistance, targetSeconds, strategy]);
 
   function setFromPace(value) {
     setPaceInput(value);
@@ -150,6 +157,20 @@ export default function Tools() {
             </label>
           </div>
 
+          <div className={styles.presets} role="group" aria-label="Pacing strategy">
+            {STRATEGY_OPTIONS.map(option => (
+              <button
+                key={option.value}
+                type="button"
+                className={`${styles.presetButton} ${strategy === option.value ? styles.presetButtonActive : ''}`}
+                onClick={() => setStrategy(option.value)}
+                title={option.hint}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+
           {racePlan ? (
             <>
               <div className={styles.planSummary}>
@@ -163,6 +184,7 @@ export default function Tools() {
                     <tr>
                       <th>Split</th>
                       <th>Distance</th>
+                      <th>Target /500m</th>
                       <th>Split time</th>
                       <th>Total</th>
                     </tr>
@@ -172,6 +194,7 @@ export default function Tools() {
                       <tr key={split.index}>
                         <td>{split.index}</td>
                         <td>{formatDistanceFull(split.cumulativeDistance)}</td>
+                        <td>{formatPaceSeconds(split.paceSeconds)}</td>
                         <td>{formatDuration(split.splitTimeSeconds)}</td>
                         <td>{formatDuration(split.cumulativeTimeSeconds)}</td>
                       </tr>

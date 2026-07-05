@@ -14,6 +14,10 @@ const TAG_COLORS = {
   interval: SERIES.secondary,
 };
 
+// Trailing sessions folded into the rolling-average line — enough to smooth
+// session-to-session noise without lagging behind real trends.
+const SMOOTH_WINDOW = 7;
+
 function CustomDot(props) {
   const { cx, cy, payload } = props;
   const color = TAG_COLORS[payload.inferred_tag] || SERIES.primary;
@@ -34,10 +38,14 @@ export default function PaceChart() {
   if (error) return <ChartEmpty title="Pace Trend" message="Couldn't load chart data." error onRetry={retry} />;
   if (data.length === 0) return <ChartEmpty title="Pace Trend" />;
 
-  const formatted = data.map(d => ({
-    ...d,
-    dateShort: new Date(d.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
-  }));
+  const formatted = data.map((d, i) => {
+    const window = data.slice(Math.max(0, i - SMOOTH_WINDOW + 1), i + 1);
+    return {
+      ...d,
+      pace_avg: Math.round(window.reduce((s, p) => s + p.pace_ms, 0) / window.length),
+      dateShort: new Date(d.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
+    };
+  });
 
   const latest = data[data.length - 1];
 
@@ -72,20 +80,34 @@ export default function PaceChart() {
           />
           <Tooltip
             {...TOOLTIP_PROPS}
-            formatter={(v) => [formatPace(v), 'Pace']}
+            formatter={(v, name) => [formatPace(v), name]}
           />
+          {/* Per-session pace: de-emphasised so the eye reads the trend, with
+              tag-coloured dots keeping the endurance/interval distinction. */}
           <Line
             type="monotone"
             dataKey="pace_ms"
-            stroke={SERIES.primary}
-            strokeWidth={2}
+            name="Session"
+            stroke="var(--ink-3)"
+            strokeWidth={1}
+            strokeOpacity={0.4}
             dot={<CustomDot />}
             activeDot={{ r: 5, stroke: SERIES.primary, fill: 'var(--surface)' }}
           />
+          {/* Rolling average: the signal through the noise. */}
+          <Line
+            type="monotone"
+            dataKey="pace_avg"
+            name={`${SMOOTH_WINDOW}-session avg`}
+            stroke={SERIES.primary}
+            strokeWidth={2.5}
+            dot={false}
+            activeDot={false}
+          />
         </LineChart>
       </ResponsiveContainer>
-    
-      <ChartInfo>Average pace of each session over time, coloured by session type (endurance or interval). The scale is flipped so higher points are faster.</ChartInfo>
+
+      <ChartInfo>Each session's average pace (faint, with dots coloured by type — endurance or interval) plus a {SMOOTH_WINDOW}-session rolling average that cuts through the noise. The scale is flipped so higher points are faster.</ChartInfo>
     </div>
   );
 }

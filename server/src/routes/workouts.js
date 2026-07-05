@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { getDb } from '../db.js';
 import { enrichSingleWorkout } from '../sync.js';
+import { buildWorkoutInsight } from '../insights.js';
 import {
   validateDateRange,
   validatePaginationParams,
@@ -180,8 +181,10 @@ router.get('/:id', (req, res) => {
     "SELECT * FROM ai_insights WHERE workout_id = ? AND type = 'session_note' ORDER BY created_at DESC LIMIT 1"
   ).get(id);
 
+  const formatted = formatWorkout(workout);
+
   res.json({
-    ...formatWorkout(workout),
+    ...formatted,
     pb_distances: getCurrentPbDistances(db, id),
     intervals,
     strokes,
@@ -189,8 +192,38 @@ router.get('/:id', (req, res) => {
     zone_times: zoneTimes,
     pace_profile: getPaceProfile(db, id),
     ai_note: aiNotes?.content || null,
+    insight: buildWorkoutInsight(formatted, getTagBaseline(db, workout)),
   });
 });
+
+// Median pace/HR across the rower's other sessions of the same tag, so a
+// single workout can be read relative to what's normal for them. Excludes the
+// workout itself.
+function getTagBaseline(db, workout) {
+  const isInterval = workout.inferred_tag === 'interval';
+  const tagCondition = isInterval
+    ? "inferred_tag = 'interval'"
+    : "(inferred_tag IS NULL OR inferred_tag != 'interval')";
+
+  const paces = db.prepare(`
+    SELECT pace_ms FROM workouts
+    WHERE type = 'rower' AND pace_ms > 0 AND id != ? AND ${tagCondition}
+  `).all(workout.id).map(r => r.pace_ms);
+
+  const hrs = db.prepare(`
+    SELECT heart_rate_avg FROM workouts
+    WHERE type = 'rower' AND heart_rate_avg > 0 AND id != ? AND ${tagCondition}
+  `).all(workout.id).map(r => r.heart_rate_avg);
+
+  return { medianPaceMs: median(paces), medianHr: median(hrs) };
+}
+
+function median(values) {
+  if (!values.length) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
+}
 
 function formatWorkout(row) {
   return {

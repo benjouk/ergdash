@@ -24,40 +24,76 @@ export function calHrToWatts(calHr) {
   return (value - 300) / CAL_HR_FACTOR;
 }
 
-export function buildRacePlan(targetDistance, targetTimeSeconds, intervalMeters = 500) {
+export const RACE_STRATEGIES = ['even', 'negative', 'aggressive'];
+
+// Per-500m pace offset (seconds) as a function of race progress p ∈ [0, 1].
+// Positive = slower than the average split, negative = faster. The overall
+// plan is re-scaled to the target time afterwards, so these only set the
+// *shape*; the total is always conserved.
+const STRATEGY_SPREAD = 2.5;
+function paceOffset(strategy, p) {
+  switch (strategy) {
+    // Start controlled, finish fast: slow → fast across the piece.
+    case 'negative': return STRATEGY_SPREAD * (1 - 2 * p);
+    // Fly and die: quick out of the gate, fading through the back half.
+    case 'aggressive': return STRATEGY_SPREAD * (2 * p - 1);
+    default: return 0;
+  }
+}
+
+export function buildRacePlan(targetDistance, targetTimeSeconds, intervalMeters = 500, strategy = 'even') {
   const distance = Number(targetDistance);
   const time = Number(targetTimeSeconds);
   const interval = Number(intervalMeters);
+  const mode = RACE_STRATEGIES.includes(strategy) ? strategy : 'even';
 
   if (!Number.isFinite(distance) || distance <= 0 || !Number.isFinite(time) || time <= 0) {
     return null;
   }
 
   const splitSeconds = (time / distance) * 500;
-  const splits = [];
-  let covered = 0;
-  let elapsed = 0;
+  const step = interval > 0 ? interval : 500;
 
+  // Lay out the split geometry first so we know how many there are.
+  const segments = [];
+  let covered = 0;
   while (covered < distance) {
-    const splitDistance = Math.min(interval > 0 ? interval : 500, distance - covered);
-    const splitTimeSeconds = (splitDistance / distance) * time;
+    const splitDistance = Math.min(step, distance - covered);
     covered += splitDistance;
+    segments.push({ splitDistance, cumulativeDistance: covered });
+  }
+
+  // Shape a raw target time per split, then scale everything so the plan sums
+  // exactly to the target time regardless of strategy.
+  const denom = Math.max(1, segments.length - 1);
+  const rawTimes = segments.map((seg, i) => {
+    const p = segments.length === 1 ? 0.5 : i / denom;
+    const pace = splitSeconds + paceOffset(mode, p);
+    return pace * (seg.splitDistance / 500);
+  });
+  const rawTotal = rawTimes.reduce((sum, t) => sum + t, 0);
+  const scale = rawTotal > 0 ? time / rawTotal : 1;
+
+  const splits = [];
+  let elapsed = 0;
+  segments.forEach((seg, i) => {
+    const splitTimeSeconds = rawTimes[i] * scale;
     elapsed += splitTimeSeconds;
     splits.push({
-      index: splits.length + 1,
-      distance: splitDistance,
-      cumulativeDistance: covered,
+      index: i + 1,
+      distance: seg.splitDistance,
+      cumulativeDistance: seg.cumulativeDistance,
       splitTimeSeconds,
       cumulativeTimeSeconds: elapsed,
-      paceSeconds: splitSeconds,
+      paceSeconds: (splitTimeSeconds / seg.splitDistance) * 500,
     });
-  }
+  });
 
   if (splits.length > 0) {
     splits[splits.length - 1].cumulativeTimeSeconds = time;
   }
 
-  return { targetDistance: distance, targetTimeSeconds: time, splitSeconds, splits };
+  return { targetDistance: distance, targetTimeSeconds: time, splitSeconds, strategy: mode, splits };
 }
 
 export function parsePaceInput(value) {

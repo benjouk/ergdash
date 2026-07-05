@@ -146,6 +146,13 @@
   color: var(--ink-3);
 }
 
+.pbGap {
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--accent-3);
+  letter-spacing: 0.02em;
+}
+
 .metricsBar {
   display: flex;
   gap: var(--space-4);

@@ -71,6 +71,8 @@ export const api = {
   getZones: (params = {}) => request(`/api/stats/zones?${new URLSearchParams(params)}`),
   getPolarization: (params = {}) => request(`/api/stats/polarization?${new URLSearchParams(params)}`),
 
+  getWeeklyInsight: () => request('/api/ai/weekly'),
+
   triggerSync: () => request('/api/sync', { method: 'POST' }),
   getSyncStatus: () => request('/api/sync/status'),
 
