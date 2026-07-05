@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo } from 'react';
 import {
   Area,
   AreaChart,
@@ -14,6 +14,7 @@ import {
 import { ArrowLeft } from 'lucide-react';
 import { useUnits } from '../../context/UnitsContext.jsx';
 import { AXIS_TICK } from '../../styles/chartTheme.js';
+import { useIsMobile, niceTicksFromZero } from './useChartData.js';
 import styles from './ComparisonOverlay.module.css';
 
 export default function ComparisonOverlay({ workout1, workout2, onBack }) {
@@ -36,6 +37,12 @@ export default function ComparisonOverlay({ workout1, workout2, onBack }) {
     const maxPace = Math.max(workout1?.pace_ms || 0, workout2?.pace_ms || 0);
     return Math.max(1000, Math.round(maxPace * 0.1));
   }, [workout1?.pace_ms, workout2?.pace_ms]);
+
+  const distanceTicks = useMemo(
+    () => niceTicksFromZero(Math.max(workout1?.distance || 0, workout2?.distance || 0), isMobile ? 4 : 6),
+    [workout1?.distance, workout2?.distance, isMobile]
+  );
+  const distanceDomain = useMemo(() => [0, distanceTicks[distanceTicks.length - 1]], [distanceTicks]);
 
   return (
     <div className={styles.comparison}>
@@ -110,6 +117,9 @@ export default function ComparisonOverlay({ workout1, workout2, onBack }) {
                 <CartesianGrid stroke="var(--rule)" strokeDasharray="5 7" />
                 <XAxis
                   dataKey="distance"
+                  type="number"
+                  domain={distanceDomain}
+                  ticks={distanceTicks}
                   tick={AXIS_TICK}
                   tickFormatter={v => `${v}m`}
                   axisLine={false}
@@ -117,6 +127,7 @@ export default function ComparisonOverlay({ workout1, workout2, onBack }) {
                 />
                 <YAxis
                   reversed
+                  allowDecimals={false}
                   tick={AXIS_TICK}
                   tickFormatter={v => formatPace(v)}
                   axisLine={false}
@@ -268,19 +279,6 @@ function ComparisonTooltip({ active, payload, label, formatPace }) {
       ))}
     </div>
   );
-}
-
-function useIsMobile() {
-  const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 768px)').matches);
-
-  useEffect(() => {
-    const mql = window.matchMedia('(max-width: 768px)');
-    const handler = e => setIsMobile(e.matches);
-    mql.addEventListener('change', handler);
-    return () => mql.removeEventListener('change', handler);
-  }, []);
-
-  return isMobile;
 }
 
 function buildStrokeSeries(strokes = []) {
