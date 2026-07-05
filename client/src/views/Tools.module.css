@@ -115,6 +115,15 @@
   box-shadow: 0 0 0 3px var(--accent-bg);
 }
 
+.hint {
+  color: var(--ink-3);
+  font-family: var(--font-body);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
 .resultBand {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

@@ -81,6 +81,16 @@ export default function Tools() {
     setWattsInput(String(Math.round(nextWatts)));
   }
 
+  function normalizePaceInput() {
+    const parsed = parsePaceInput(paceInput);
+    if (parsed) setPaceInput(formatPaceSeconds(parsed));
+  }
+
+  function normalizeTargetTime() {
+    const parsed = parseTimeInput(targetTime);
+    if (parsed) setTargetTime(formatDuration(parsed));
+  }
+
   return (
     <div className={styles.tools}>
       <div className={styles.header}>
@@ -100,7 +110,15 @@ export default function Tools() {
           <div className={styles.converterGrid}>
             <label className={styles.field}>
               <span><Clock3 size={14} /> Pace /500m</span>
-              <input value={paceInput} onChange={event => setFromPace(event.target.value)} inputMode="decimal" />
+              <input
+                value={paceInput}
+                onChange={event => setFromPace(event.target.value)}
+                onBlur={normalizePaceInput}
+                inputMode="decimal"
+                placeholder="2:00.0"
+                aria-describedby="pace-hint"
+              />
+              <small id="pace-hint" className={styles.hint}>No colon needed — type 158 for 1:58</small>
             </label>
             <label className={styles.field}>
               <span><Zap size={14} /> Watts</span>
@@ -153,7 +171,15 @@ export default function Tools() {
             </label>
             <label className={styles.field}>
               <span>Target time</span>
-              <input value={targetTime} onChange={event => setTargetTime(event.target.value)} inputMode="decimal" />
+              <input
+                value={targetTime}
+                onChange={event => setTargetTime(event.target.value)}
+                onBlur={normalizeTargetTime}
+                inputMode="decimal"
+                placeholder="8:00.0"
+                aria-describedby="target-time-hint"
+              />
+              <small id="target-time-hint" className={styles.hint}>No colon needed — type 800 for 8:00</small>
             </label>
           </div>
 

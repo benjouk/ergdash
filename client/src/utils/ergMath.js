@@ -96,13 +96,45 @@ export function buildRacePlan(targetDistance, targetTimeSeconds, intervalMeters 
   return { targetDistance: distance, targetTimeSeconds: time, splitSeconds, strategy: mode, splits };
 }
 
+// Interpret a colon-free entry as digits packed from the right: the last two
+// digits are seconds, the next two are minutes, and any remaining leading
+// digits are hours (when allowed). A trailing ".d" fraction is read as tenths
+// of a second. This lets a mobile numeric keypad — which has no colon key —
+// enter "1:58.5" as "158.5" and "8:00" as "800".
+function parsePackedTime(text, allowHours) {
+  const [intRaw, fracRaw = ''] = String(text).split('.');
+  const digits = intRaw.replace(/\D/g, '');
+  if (!digits) return null;
+
+  const seconds = Number(digits.slice(-2));
+  const rest = digits.slice(0, -2);
+
+  let minutes = 0;
+  let hours = 0;
+  if (allowHours) {
+    minutes = Number(rest.slice(-2) || '0');
+    hours = Number(rest.slice(0, -2) || '0');
+  } else {
+    minutes = Number(rest || '0');
+  }
+
+  if (seconds >= 60) return null;
+  if (allowHours && minutes >= 60) return null;
+
+  const fractionDigits = fracRaw.replace(/\D/g, '');
+  const fraction = fractionDigits ? Number(`0.${fractionDigits}`) : 0;
+  if (!Number.isFinite(fraction)) return null;
+
+  const total = hours * 3600 + minutes * 60 + seconds + fraction;
+  return total > 0 ? total : null;
+}
+
 export function parsePaceInput(value) {
   const text = String(value || '').trim();
   if (!text) return null;
 
   if (!text.includes(':')) {
-    const seconds = Number(text);
-    return Number.isFinite(seconds) && seconds > 0 ? seconds : null;
+    return parsePackedTime(text, false);
   }
 
   const [minutesPart, secondsPart] = text.split(':');
@@ -129,10 +161,13 @@ export function parseTimeInput(value) {
   const text = String(value || '').trim();
   if (!text) return null;
 
+  if (!text.includes(':')) {
+    return parsePackedTime(text, true);
+  }
+
   const parts = text.split(':').map(Number);
   if (parts.some(part => !Number.isFinite(part) || part < 0)) return null;
 
-  if (parts.length === 1) return parts[0] > 0 ? parts[0] : null;
   if (parts.length === 2) return parts[0] * 60 + parts[1];
   if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
   return null;
