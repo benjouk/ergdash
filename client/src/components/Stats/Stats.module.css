@@ -57,6 +57,9 @@
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
   line-height: 1.1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .statSub {
@@ -299,6 +302,10 @@
   }
   .statCell {
     padding: var(--space-3) var(--space-4);
+    min-width: 0;
+  }
+  .statValue {
+    font-size: clamp(0.95rem, 0.85rem + 0.5vw, 1.2rem);
   }
   .pbStrip {
     flex-wrap: wrap;
