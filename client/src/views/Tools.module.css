@@ -115,11 +115,38 @@
   box-shadow: 0 0 0 3px var(--accent-bg);
 }
 
-.hint {
-  color: var(--ink-3);
-  font-family: var(--font-body);
-  font-size: 0.68rem;
-  font-weight: 600;
+.timePicker {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.timeSelect {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+  color: var(--ink);
+  padding: var(--space-3);
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.timeSelect:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-bg);
+}
+
+.timePicker .timeColon {
+  flex: none;
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  font-weight: 700;
   letter-spacing: 0;
   text-transform: none;
 }

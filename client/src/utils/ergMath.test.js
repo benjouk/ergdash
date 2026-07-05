@@ -1,12 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  buildRacePlan,
-  paceToWatts,
-  wattsToPace,
-  parsePaceInput,
-  parseTimeInput,
-  RACE_STRATEGIES,
-} from './ergMath.js';
+import { buildRacePlan, paceToWatts, wattsToPace, RACE_STRATEGIES } from './ergMath.js';
 
 describe('erg math', () => {
   it('converts 2:00 pace to watts using the Concept2 formula', () => {
@@ -55,49 +48,5 @@ describe('erg math', () => {
     for (const split of splits) {
       expect(split.paceSeconds).toBeCloseTo(120, 6);
     }
-  });
-});
-
-describe('parsePaceInput', () => {
-  it('parses an explicit M:SS.t pace', () => {
-    expect(parsePaceInput('2:00.0')).toBe(120);
-    expect(parsePaceInput('1:58.5')).toBeCloseTo(118.5, 6);
-  });
-
-  it('parses colon-free packed digits as M:SS (no keypad colon needed)', () => {
-    expect(parsePaceInput('200')).toBe(120);
-    expect(parsePaceInput('158')).toBe(118);
-    expect(parsePaceInput('45')).toBe(45);
-    expect(parsePaceInput('5')).toBe(5);
-  });
-
-  it('reads a trailing decimal as tenths of a second', () => {
-    expect(parsePaceInput('158.5')).toBeCloseTo(118.5, 6);
-    expect(parsePaceInput('200.3')).toBeCloseTo(120.3, 6);
-  });
-
-  it('rejects invalid or empty pace entries', () => {
-    expect(parsePaceInput('')).toBe(null);
-    expect(parsePaceInput('175')).toBe(null); // 75 seconds is out of range
-    expect(parsePaceInput('2:75')).toBe(null);
-  });
-});
-
-describe('parseTimeInput', () => {
-  it('parses colon forms', () => {
-    expect(parseTimeInput('8:00.0')).toBe(480);
-    expect(parseTimeInput('1:30:00')).toBe(5400);
-  });
-
-  it('parses colon-free packed digits with hours support', () => {
-    expect(parseTimeInput('800')).toBe(480);
-    expect(parseTimeInput('130')).toBe(90);
-    expect(parseTimeInput('10000')).toBe(3600);
-    expect(parseTimeInput('4000')).toBe(2400);
-  });
-
-  it('rejects out-of-range packed entries', () => {
-    expect(parseTimeInput('880')).toBe(null); // 80 seconds
-    expect(parseTimeInput('')).toBe(null);
   });
 });
