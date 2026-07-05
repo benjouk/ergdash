@@ -3,6 +3,7 @@ import { api } from '../api.js';
 import { useTimeRange } from '../context/TimeRangeContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { distanceLabel } from '../components/PBBadge.jsx';
+import CoachCard from '../components/Stats/CoachCard.jsx';
 import StatsRow from '../components/Stats/StatsRow.jsx';
 import VolumeSummaryCard from '../components/Stats/VolumeSummaryCard.jsx';
 import SplitDonut from '../components/Stats/SplitDonut.jsx';
@@ -81,6 +82,8 @@ export default function Dashboard() {
           </button>
         </section>
       )}
+
+      <CoachCard />
 
       <StatsRow summary={summary} />
 

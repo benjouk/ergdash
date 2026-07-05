@@ -16,10 +16,16 @@ const DISTANCE_LABELS = {
   42195: 'FM',
 };
 
+const TIME_LABELS = {
+  1800: '30 min',
+  3600: '60 min',
+};
+
 export default function PBStrip() {
   const [pbs, setPbs] = useState([]);
+  const [timeBests, setTimeBests] = useState([]);
   const navigate = useNavigate();
-  const { formatPace, formatTime } = useUnits();
+  const { formatPace, formatTime, formatDistance } = useUnits();
   const { from, to } = useTimeRange();
 
   useEffect(() => {
@@ -27,11 +33,14 @@ export default function PBStrip() {
     if (from) params.from = from;
     if (to) params.to = to;
     api.getPersonalBests(params)
-      .then(d => setPbs(d.personal_bests || []))
+      .then(d => {
+        setPbs(d.personal_bests || []);
+        setTimeBests(d.time_bests || []);
+      })
       .catch(() => {});
   }, [from, to]);
 
-  if (pbs.length === 0) return null;
+  if (pbs.length === 0 && timeBests.length === 0) return null;
 
   return (
     <div className={styles.pbStrip}>
@@ -47,6 +56,21 @@ export default function PBStrip() {
           <span className={styles.pbTime}>{formatTime(pb.time_ms)}</span>
           <span className={styles.pbPace}>{formatPace(pb.pace_ms)}</span>
           <span className={styles.pbDate}>{new Date(pb.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' })}</span>
+        </button>
+      ))}
+
+      {timeBests.map(tb => (
+        <button
+          key={`t${tb.duration_s}`}
+          type="button"
+          className={styles.pbCard}
+          onClick={() => navigate(`/session/${tb.workout_id}`)}
+          aria-label={`Open ${TIME_LABELS[tb.duration_s] || `${tb.duration_s}s`} personal best`}
+        >
+          <span className={styles.pbDistance}>{TIME_LABELS[tb.duration_s] || `${tb.duration_s}s`}</span>
+          <span className={styles.pbTime}>{formatDistance(tb.distance)}</span>
+          <span className={styles.pbPace}>{formatPace(tb.pace_ms)}</span>
+          <span className={styles.pbDate}>{new Date(tb.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' })}</span>
         </button>
       ))}
     </div>

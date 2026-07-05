@@ -549,6 +549,39 @@
   line-height: 1.6;
 }
 
+.insightRow {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.insightChip {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--rule);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.insight_positive {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--rule));
+  background: var(--accent-bg);
+  color: var(--ink);
+}
+
+.insight_watch {
+  border-color: color-mix(in srgb, var(--accent-3) 45%, var(--rule));
+  background: var(--accent-3-bg);
+  color: var(--ink);
+}
+
 /* Comparison dropdown */
 .compareWrapper {
   position: relative;

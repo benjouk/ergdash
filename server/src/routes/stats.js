@@ -283,7 +283,32 @@ router.get('/personal-bests', (req, res) => {
     }
   }
 
-  res.json({ personal_bests: pbs });
+  // Fixed-duration bests (30 min / 60 min): the best sustained effort at each
+  // window, expressed as distance covered. Stroke-level best_efforts already
+  // stores these durations.
+  const timePbs = [];
+  for (const duration of [1800, 3600]) {
+    const best = db.prepare(`
+      SELECT be.avg_pace_ms, be.workout_id, w.date
+      FROM best_efforts be
+      JOIN workouts w ON w.id = be.workout_id
+      WHERE be.duration_s = ? AND be.avg_pace_ms > 0${dateFilter}
+      ORDER BY be.avg_watts DESC LIMIT 1
+    `).get(duration, ...dateParams);
+
+    if (best) {
+      timePbs.push({
+        duration_s: duration,
+        // metres = time / (seconds per metre); pace_ms is ms per 500m.
+        distance: Math.round((duration * 500 * 1000) / best.avg_pace_ms),
+        pace_ms: best.avg_pace_ms,
+        workout_id: best.workout_id,
+        date: best.date,
+      });
+    }
+  }
+
+  res.json({ personal_bests: pbs, time_bests: timePbs });
 });
 
 router.get('/pb-history', (req, res) => {
