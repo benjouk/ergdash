@@ -30,7 +30,6 @@ export default function DpsTrendChart() {
       <div className={styles.chartHeader}>
         <div className={styles.chartTitle}>
           Distance Per Stroke
-          <ChartInfo>Average metres travelled per stroke, by month. Longer strokes at the same effort usually reflect improving technique.</ChartInfo>
         </div>
         <div className={styles.chartValue}>
           {latest.dps.toFixed(2)}
@@ -67,6 +66,8 @@ export default function DpsTrendChart() {
           <Bar dataKey="dps" fill={SERIES.tertiary} radius={[6, 6, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
+    
+      <ChartInfo>Average metres travelled per stroke, by month. Longer strokes at the same effort usually reflect improving technique.</ChartInfo>
     </div>
   );
 }

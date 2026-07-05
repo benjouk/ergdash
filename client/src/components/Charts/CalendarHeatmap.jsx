@@ -89,7 +89,6 @@ export default function CalendarHeatmap() {
       <div className={styles.chartHeader}>
         <div className={styles.chartTitle}>
           Training Calendar
-          <ChartInfo>A year of training at a glance: each cell is one day, shaded by metres rowed. Darker cells were bigger days.</ChartInfo>
         </div>
         <div className={styles.chartValue}>
           {(grid.total / 1000).toFixed(0)}k
@@ -144,6 +143,8 @@ export default function CalendarHeatmap() {
           ))}
         </svg>
       </div>
+    
+      <ChartInfo>A year of training at a glance: each cell is one day, shaded by metres rowed. Darker cells were bigger days.</ChartInfo>
     </div>
   );
 }

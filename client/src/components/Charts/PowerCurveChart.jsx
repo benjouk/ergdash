@@ -42,7 +42,6 @@ export default function PowerCurveChart() {
       <div className={styles.chartHeader}>
         <div className={styles.chartTitle}>
           Power Curve
-          <ChartInfo>The best average watts you have sustained over each duration, from 1 to 60 minutes. The ghost line shows the same bests 90 days ago, so gaps highlight recent gains.</ChartInfo>
         </div>
         <div className={styles.chartValueUnit} style={{ color: 'var(--ink-3)' }}>
           best watts by duration
@@ -113,6 +112,8 @@ export default function PowerCurveChart() {
           />
         </LineChart>
       </ResponsiveContainer>
+    
+      <ChartInfo>The best average watts you have sustained over each duration, from 1 to 60 minutes. The ghost line shows the same bests 90 days ago, so gaps highlight recent gains.</ChartInfo>
     </div>
   );
 }

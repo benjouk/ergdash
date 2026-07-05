@@ -34,7 +34,6 @@ export default function VolumeChart() {
       <div className={styles.chartHeader}>
         <div className={styles.chartTitle}>
           Weekly Volume
-          <ChartInfo>Total metres rowed each week. The dashed line marks the average across the weeks shown.</ChartInfo>
         </div>
         <div className={styles.chartValue}>
           {(latest.distance / 1000).toFixed(1)}k
@@ -67,6 +66,8 @@ export default function VolumeChart() {
           <Bar dataKey="interval_m" stackId="a" fill={SERIES.secondary} radius={[6, 6, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
+    
+      <ChartInfo>Total metres rowed each week. The dashed line marks the average across the weeks shown.</ChartInfo>
     </div>
   );
 }

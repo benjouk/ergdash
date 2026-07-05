@@ -1,9 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import styles from './Charts.module.css';
 
-// Unobtrusive "?" toggle that reveals a short plain-language explanation of
-// the chart it sits next to. Click (not hover) so it works on touch; closes
-// on outside press or Escape.
 export default function ChartInfo({ children }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef(null);

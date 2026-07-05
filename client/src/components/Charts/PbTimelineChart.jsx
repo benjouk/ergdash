@@ -51,7 +51,6 @@ export default function PbTimelineChart() {
       <div className={styles.chartHeader}>
         <div className={styles.chartTitle}>
           PB Progression
-          <ChartInfo>Your personal-best pace for each distance over time — every point marks a new PB, and each line tracks one distance.</ChartInfo>
         </div>
         <div className={styles.chartValue}>
           {distanceLabel(latest.distance)}
@@ -95,6 +94,8 @@ export default function PbTimelineChart() {
           ))}
         </LineChart>
       </ResponsiveContainer>
+    
+      <ChartInfo>Your personal-best pace for each distance over time — every point marks a new PB, and each line tracks one distance.</ChartInfo>
     </div>
   );
 }

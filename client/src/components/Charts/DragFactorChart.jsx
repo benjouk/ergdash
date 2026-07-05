@@ -49,7 +49,6 @@ export default function DragFactorChart() {
       <div className={styles.chartHeader}>
         <div className={styles.chartTitle}>
           Drag Factor
-          <ChartInfo>The drag factor recorded for each session, with a band of ±5 around your 30-workout rolling average. Highlighted dots outside the band flag a damper or fan change that can skew pace comparisons.</ChartInfo>
         </div>
         <div className={styles.chartValue}>
           {latest.drag_factor}
@@ -98,6 +97,8 @@ export default function DragFactorChart() {
           />
         </ComposedChart>
       </ResponsiveContainer>
+    
+      <ChartInfo>The drag factor recorded for each session, with a band of ±5 around your 30-workout rolling average. Highlighted dots outside the band flag a damper or fan change that can skew pace comparisons.</ChartInfo>
     </div>
   );
 }

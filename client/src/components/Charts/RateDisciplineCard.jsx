@@ -31,7 +31,6 @@ export default function RateDisciplineCard() {
       <div className={styles.chartHeader}>
         <div className={styles.chartTitle}>
           Rate Discipline
-          <ChartInfo>A 0-100 score for how steadily you held stroke rate within each session. Higher scores mean less drifting between ratings.</ChartInfo>
         </div>
         <div className={styles.chartValue}>
           {latest.rate_discipline.toFixed(0)}
@@ -50,6 +49,8 @@ export default function RateDisciplineCard() {
           avg {avg.toFixed(0)} over {recent.length} sessions
         </span>
       </div>
+    
+      <ChartInfo>A 0-100 score for how steadily you held stroke rate within each session. Higher scores mean less drifting between ratings.</ChartInfo>
     </div>
   );
 }

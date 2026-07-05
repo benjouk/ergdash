@@ -46,7 +46,6 @@ export default function PaceChart() {
       <div className={styles.chartHeader}>
         <div className={styles.chartTitle}>
           Pace Trend
-          <ChartInfo>Average pace of each session over time, coloured by session type (endurance or interval). The scale is flipped so higher points are faster.</ChartInfo>
         </div>
         <div className={styles.chartValue}>
           {formatPace(latest.pace_ms)}
@@ -85,6 +84,8 @@ export default function PaceChart() {
           />
         </LineChart>
       </ResponsiveContainer>
+    
+      <ChartInfo>Average pace of each session over time, coloured by session type (endurance or interval). The scale is flipped so higher points are faster.</ChartInfo>
     </div>
   );
 }

@@ -47,7 +47,6 @@ export default function VolumeSummaryCard({ summary }) {
       <div className={chartStyles.chartHeader}>
         <div className={chartStyles.chartTitle}>
           Volume
-          <ChartInfo>Distance totals for the current week and month, with the change versus the previous ones. The shaded area sketches recent weekly volume.</ChartInfo>
         </div>
       </div>
       <div className={styles.volumeStats}>
@@ -70,6 +69,8 @@ function MiniStat({ label, value, delta }) {
           {delta.text}
         </span>
       )}
+    
+      <ChartInfo>Distance totals for the current week and month, with the change versus the previous ones. The shaded area sketches recent weekly volume.</ChartInfo>
     </div>
   );
 }

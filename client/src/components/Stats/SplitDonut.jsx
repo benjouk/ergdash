@@ -23,7 +23,6 @@ export default function SplitDonut({ summary }) {
       <div className={chartStyles.chartHeader}>
         <div className={chartStyles.chartTitle}>
           Session Mix
-          <ChartInfo>How the metres in this period split between steady endurance work and interval work.</ChartInfo>
         </div>
       </div>
       <div className={styles.donutRow}>
@@ -58,6 +57,8 @@ export default function SplitDonut({ summary }) {
           ))}
         </div>
       </div>
+    
+      <ChartInfo>How the metres in this period split between steady endurance work and interval work.</ChartInfo>
     </div>
   );
 }

@@ -46,7 +46,6 @@ export default function CumulativeMetersChart() {
       <div className={styles.chartHeader}>
         <div className={styles.chartTitle}>
           Cumulative Metres
-          <ChartInfo>Metres accumulated through the calendar year, with the previous year overlaid for comparison. If you have set an annual goal, the goal line shows the pace needed to hit it.</ChartInfo>
         </div>
         <div className={styles.chartValue}>
           {latest ? `${(latest.cum_m / 1000).toFixed(0)}k` : '--'}
@@ -113,6 +112,8 @@ export default function CumulativeMetersChart() {
           )}
         </LineChart>
       </ResponsiveContainer>
+    
+      <ChartInfo>Metres accumulated through the calendar year, with the previous year overlaid for comparison. If you have set an annual goal, the goal line shows the pace needed to hit it.</ChartInfo>
     </div>
   );
 }

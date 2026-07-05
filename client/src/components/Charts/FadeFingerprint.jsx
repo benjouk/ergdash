@@ -49,7 +49,6 @@ export default function FadeFingerprint() {
       <div className={styles.chartHeader}>
         <div className={styles.chartTitle}>
           Fade Fingerprint
-          <ChartInfo>Pace across the four quarters of your latest 2k, 5k and 10k, with your historical average as a ghost line. A flat shape means even pacing; a downward slope means fading late in the piece.</ChartInfo>
         </div>
         <div className={styles.chartValueUnit} style={{ color: 'var(--ink-3)' }}>
           latest vs typical
@@ -120,6 +119,8 @@ export default function FadeFingerprint() {
           );
         })}
       </div>
+    
+      <ChartInfo>Pace across the four quarters of your latest 2k, 5k and 10k, with your historical average as a ghost line. A flat shape means even pacing; a downward slope means fading late in the piece.</ChartInfo>
     </div>
   );
 }

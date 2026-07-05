@@ -477,19 +477,21 @@ export default function Session() {
         <div className={`${styles.card} ${styles.cardVisible}`}>
           <div className={styles.chartStack}>
             <div className={styles.chartBlock}>
-              <div className={styles.chartLabel}>Pace Ribbon <ChartInfo>The whole session as one strip, coloured by pace, so surges and fades stand out at a glance.</ChartInfo></div>
+              <div className={styles.chartLabel}>Pace Ribbon</div>
               <PaceRibbon strokes={workout.strokes} height={48} />
             </div>
           </div>
+          <ChartInfo>The whole session as one strip, coloured by pace, so surges and fades stand out at a glance.</ChartInfo>
         </div>
       )}
 
       {workout.zone_times?.length > 0 && (
         <div className={`${styles.card} ${styles.cardVisible}`}>
           <div className={styles.cardHeader}>
-            <div className={styles.cardTitle}>HR Zones <ChartInfo>How time in this session split across the five heart-rate zones, from recovery to max effort.</ChartInfo></div>
+            <div className={styles.cardTitle}>HR Zones</div>
           </div>
           <ZoneBar zoneTimes={workout.zone_times} />
+          <ChartInfo>How time in this session split across the five heart-rate zones, from recovery to max effort.</ChartInfo>
         </div>
       )}
 
@@ -505,7 +507,6 @@ export default function Session() {
             <div className={styles.chartBlock}>
               <div className={styles.chartLabel}>
                 Pace profile
-                <ChartInfo>The shape of your pace through this session, drawn from summary data — stroke-level detail is not available for this workout.</ChartInfo>
               </div>
               <div className={styles.sparklineBox}>
                 <Sparkline
@@ -518,6 +519,7 @@ export default function Session() {
               </div>
             </div>
           </div>
+          <ChartInfo>The shape of your pace through this session, drawn from summary data — stroke-level detail is not available for this workout.</ChartInfo>
         </div>
       )}
 
@@ -546,7 +548,6 @@ export default function Session() {
               <div className={styles.chartBlock}>
                 <div className={styles.chartLabel}>
                   {primaryMetric.chartLabel} <span className={styles.chartUnit}>{primaryMetric.chartUnit}</span>
-                  <ChartInfo>Every stroke of the session plotted over distance, in your chosen pace unit. The dashed line marks the session average; higher on the chart is faster.</ChartInfo>
                 </div>
                 <div className={styles.chartBox}>
                   <ResponsiveContainer width="100%" height="100%">
@@ -568,6 +569,7 @@ export default function Session() {
                 </div>
               </div>
             </div>
+            <ChartInfo>Every stroke of the session plotted over distance, in your chosen pace unit. The dashed line marks the session average; higher on the chart is faster.</ChartInfo>
           </div>
 
           {(hasStrokeRate || hasHeartRate) && (
@@ -577,7 +579,6 @@ export default function Session() {
                   <div className={styles.chartLabel}>
                     Stroke Rate <span className={styles.chartUnit}>spm</span>
                     {hasHeartRate && <> · Heart Rate <span className={styles.chartUnit}>bpm</span></>}
-                    <ChartInfo>Stroke rate (stepped line) and heart rate (smooth line) for every stroke, plotted over distance. The dashed line marks the average stroke rate.</ChartInfo>
                   </div>
                   <div className={`${styles.chartBox}`}>
                     <ResponsiveContainer width="100%" height="100%">
@@ -595,6 +596,7 @@ export default function Session() {
                   </div>
                 </div>
               </div>
+              <ChartInfo>Stroke rate (stepped line) and heart rate (smooth line) for every stroke, plotted over distance. The dashed line marks the average stroke rate.</ChartInfo>
             </div>
           )}
         </div>
@@ -603,22 +605,24 @@ export default function Session() {
       {workout.intervals?.filter(i => i.type !== 'rest').length >= 2 && (
         <div className={styles.card}>
           <div className={styles.cardHeader}>
-            <div className={styles.cardTitle}>Interval Reps <ChartInfo>One bar per rep — taller bars are faster. Dots mark stroke rate, the line traces heart rate, and muted stubs are rest periods.</ChartInfo></div>
+            <div className={styles.cardTitle}>Interval Reps</div>
             <span className={styles.cardKicker}>
               {workout.intervals.filter(i => i.type !== 'rest').length} reps
             </span>
           </div>
           <IntervalRepChart intervals={workout.intervals} formatPace={formatPace} />
+          <ChartInfo>One bar per rep — taller bars are faster. Dots mark stroke rate, the line traces heart rate, and muted stubs are rest periods.</ChartInfo>
         </div>
       )}
 
       {hasAnalysis && workout.strokes?.filter(s => s.stroke_rate > 0 && s.pace_ms > 0).length >= 20 && (
         <div className={styles.card}>
           <div className={styles.cardHeader}>
-            <div className={styles.cardTitle}>Rate vs Pace <ChartInfo>Each dot is a moment in the session, plotting stroke rate against the pace it produced, coloured by heart rate when available. Tight clusters mean consistent rowing.</ChartInfo></div>
+            <div className={styles.cardTitle}>Rate vs Pace</div>
             {hasHeartRate && <span className={styles.cardKicker}>coloured by HR</span>}
           </div>
           <RateVsPaceScatter strokes={workout.strokes} formatPace={formatPace} />
+          <ChartInfo>Each dot is a moment in the session, plotting stroke rate against the pace it produced, coloured by heart rate when available. Tight clusters mean consistent rowing.</ChartInfo>
         </div>
       )}
 

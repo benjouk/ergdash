@@ -1,4 +1,5 @@
 .chartCard {
+  position: relative;
   background: var(--surface);
   border: 1px solid var(--rule);
   border-radius: var(--radius-lg);
@@ -35,42 +36,43 @@
 }
 
 .infoWrap {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  vertical-align: middle;
+  position: absolute;
+  bottom: var(--space-3);
+  right: var(--space-3);
+  z-index: 5;
 }
 
 .infoButton {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   padding: 0;
   border: 1px solid var(--rule);
   border-radius: 50%;
   background: transparent;
   color: var(--ink-3);
   font-family: var(--font-body);
-  font-size: 0.58rem;
+  font-size: 0.6rem;
   font-weight: 700;
   line-height: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: color 150ms ease, border-color 150ms ease;
+  opacity: 0.5;
+  transition: opacity 150ms ease, color 150ms ease, border-color 150ms ease;
 }
 
 .infoButton:hover,
 .infoButton[aria-expanded='true'] {
+  opacity: 1;
   color: var(--accent);
   border-color: var(--accent);
 }
 
 .infoPopover {
   position: absolute;
-  top: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%);
+  bottom: calc(100% + 6px);
+  right: 0;
   z-index: 30;
   width: max-content;
   max-width: min(240px, 72vw);

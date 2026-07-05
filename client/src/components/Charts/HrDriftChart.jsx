@@ -34,7 +34,6 @@ export default function HrDriftChart() {
       <div className={styles.chartHeader}>
         <div className={styles.chartTitle}>
           HR Drift
-          <ChartInfo>How much heart rate rose from the first half to the second half of steady sessions (aerobic decoupling). Staying under the 5% line means your aerobic base lasted the whole workout.</ChartInfo>
         </div>
         <div className={styles.chartValue}>
           {latest.hr_drift_pct > 0 ? '+' : ''}{latest.hr_drift_pct.toFixed(1)}%
@@ -85,6 +84,8 @@ export default function HrDriftChart() {
           />
         </LineChart>
       </ResponsiveContainer>
+    
+      <ChartInfo>How much heart rate rose from the first half to the second half of steady sessions (aerobic decoupling). Staying under the 5% line means your aerobic base lasted the whole workout.</ChartInfo>
     </div>
   );
 }
