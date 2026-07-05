@@ -43,12 +43,14 @@ import ComparisonOverlay from '../components/Charts/ComparisonOverlay.jsx';
 import IntervalRepChart from '../components/Session/IntervalRepChart.jsx';
 import ChartInfo from '../components/Charts/ChartInfo.jsx';
 import RateVsPaceScatter from '../components/Charts/RateVsPaceScatter.jsx';
+import { useIsMobile, niceTicksFromZero } from '../components/Charts/useChartData.js';
 import ZoneBar from '../components/Stats/ZoneBar.jsx';
 import styles from './Session.module.css';
 
 export default function Session() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const [workout, setWorkout] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -268,6 +270,14 @@ export default function Session() {
 
   const strokeData = useMemo(() => buildStrokeSeries(workout?.strokes), [workout?.strokes]);
   const splitRows = useMemo(() => buildSplitRows(workout), [workout]);
+  const maxStrokeDistance = strokeData.length ? Math.max(...strokeData.map(p => p.distance)) : 0;
+  const distanceTicks = useMemo(
+    () => niceTicksFromZero(maxStrokeDistance, isMobile ? 4 : 6),
+    [maxStrokeDistance, isMobile]
+  );
+  const distanceDomain = useMemo(() => [0, distanceTicks[distanceTicks.length - 1]], [distanceTicks]);
+  const strokeRateDomain = useMemo(() => padRoundDomain(strokeData, 'stroke_rate', 2), [strokeData]);
+  const heartRateDomain = useMemo(() => padRoundDomain(strokeData, 'heart_rate', 5), [strokeData]);
 
   if (loading) return <div className={styles.statusState}>Loading...</div>;
   if (loadError) {
@@ -569,8 +579,17 @@ export default function Session() {
                         </linearGradient>
                       </defs>
                       <CartesianGrid stroke="var(--rule)" strokeDasharray="5 7" />
-                      <XAxis dataKey="distance" tick={AXIS_TICK} tickFormatter={v => `${v}m`} axisLine={false} tickLine={false} />
-                      <YAxis reversed tick={AXIS_TICK} tickFormatter={v => formatPace(v)} axisLine={false} tickLine={false} width={58} domain={['dataMin - 1500', 'dataMax + 1500']} />
+                      <XAxis
+                        dataKey="distance"
+                        type="number"
+                        domain={distanceDomain}
+                        ticks={distanceTicks}
+                        tick={AXIS_TICK}
+                        tickFormatter={v => `${v}m`}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <YAxis reversed allowDecimals={false} tick={AXIS_TICK} tickFormatter={v => formatPace(v)} axisLine={false} tickLine={false} width={58} domain={['dataMin - 1500', 'dataMax + 1500']} />
                       <ReferenceLine y={workout.pace_ms} stroke="var(--ink-2)" strokeDasharray="4 4" />
                       <Tooltip content={<ChartTooltip formatPace={formatPace} />} />
                       <Area type="monotone" dataKey="pace_ms" stroke="var(--accent)" strokeWidth={2} fill="url(#paceFill)" dot={false} activeDot={{ r: 4 }} />
@@ -594,9 +613,18 @@ export default function Session() {
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={strokeData} margin={{ top: 8, right: hasHeartRate ? 8 : 0, bottom: 0, left: 0 }}>
                         <CartesianGrid stroke="var(--rule)" strokeDasharray="5 7" />
-                        <XAxis dataKey="distance" tick={AXIS_TICK} tickFormatter={v => `${v}m`} axisLine={false} tickLine={false} />
-                        <YAxis yAxisId="rate" tick={AXIS_TICK} axisLine={false} tickLine={false} width={38} domain={['dataMin - 2', 'dataMax + 2']} />
-                        {hasHeartRate && <YAxis yAxisId="hr" orientation="right" tick={AXIS_TICK} axisLine={false} tickLine={false} width={38} domain={['dataMin - 5', 'dataMax + 5']} />}
+                        <XAxis
+                          dataKey="distance"
+                          type="number"
+                          domain={distanceDomain}
+                          ticks={distanceTicks}
+                          tick={AXIS_TICK}
+                          tickFormatter={v => `${v}m`}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <YAxis yAxisId="rate" allowDecimals={false} tick={AXIS_TICK} axisLine={false} tickLine={false} width={38} domain={strokeRateDomain} />
+                        {hasHeartRate && <YAxis yAxisId="hr" orientation="right" allowDecimals={false} tick={AXIS_TICK} axisLine={false} tickLine={false} width={38} domain={heartRateDomain} />}
                         {workout.stroke_rate && <ReferenceLine yAxisId="rate" y={workout.stroke_rate} stroke="var(--ink-2)" strokeDasharray="4 4" />}
                         <Tooltip content={<ChartTooltip formatPace={formatPace} />} />
                         {hasStrokeRate && <Line yAxisId="rate" type="stepAfter" dataKey="stroke_rate" stroke="var(--accent-2)" strokeWidth={2} dot={false} />}
@@ -789,6 +817,14 @@ function tooltipValue(key, value, formatPace) {
   if (key === 'stroke_rate') return `${Number(value).toFixed(1)} s/m`;
   if (key === 'heart_rate') return `${Math.round(value)} bpm`;
   return value;
+}
+
+// Pad dataMin/dataMax by a fixed amount and round to whole numbers, so the
+// padding itself doesn't introduce a fractional tick offset.
+function padRoundDomain(points, key, padding) {
+  const values = points.map(p => p[key]).filter(v => v != null);
+  if (!values.length) return ['auto', 'auto'];
+  return [Math.floor(Math.min(...values) - padding), Math.ceil(Math.max(...values) + padding)];
 }
 
 function buildStrokeSeries(strokes = []) {

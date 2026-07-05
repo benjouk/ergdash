@@ -111,15 +111,15 @@
 
   --gradient-hero: linear-gradient(135deg, #99A346 0%, #7E8735 60%, #6A7229 100%);
 
-  --space-1: 3px;
-  --space-2: 6px;
-  --space-3: 9px;
-  --space-4: 12px;
-  --space-5: 15px;
-  --space-6: 18px;
-  --space-8: 24px;
-  --space-10: 32px;
-  --space-12: 40px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 18px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-8: 44px;
+  --space-10: 56px;
+  --space-12: 72px;
 }
 
 [data-theme="dark"] {
