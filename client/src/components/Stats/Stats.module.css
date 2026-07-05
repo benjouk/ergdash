@@ -15,9 +15,8 @@
   box-shadow: var(--shadow-sm);
 }
 
-/* Lead cell (season/total metres) — accent as a rule, not a field */
+/* Lead cell (season/total metres) */
 .statCellLead {
-  border-left: 3px solid var(--accent);
 }
 
 .statIcon {
@@ -94,7 +93,6 @@
   flex-shrink: 0;
   background: var(--surface);
   border: 1px solid var(--rule);
-  border-left: 3px solid var(--accent-3);
   border-radius: var(--radius-md);
   padding: var(--space-3) var(--space-4);
   min-width: 140px;

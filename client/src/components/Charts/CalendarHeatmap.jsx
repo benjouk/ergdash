@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { scaleQuantize } from 'd3-scale';
 import { api } from '../../api.js';
 import { usePrefs } from '../../context/PrefsContext.jsx';
@@ -79,6 +79,10 @@ export default function CalendarHeatmap() {
     return { cells, monthLabels, total };
   }, [days, weekStart]);
 
+  const scrollRef = useCallback((node) => {
+    if (node) node.scrollLeft = node.scrollWidth;
+  }, []);
+
   if (!grid || grid.cells.length === 0) return null;
 
   const width = LEFT_PAD + WEEKS * (CELL + GAP);
@@ -95,7 +99,7 @@ export default function CalendarHeatmap() {
           <span className={styles.chartValueUnit}>last 12 months</span>
         </div>
       </div>
-      <div style={{ overflowX: 'auto' }}>
+      <div ref={scrollRef} style={{ overflowX: 'auto' }}>
         <svg
           width={width}
           height={height}
