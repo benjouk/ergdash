@@ -300,7 +300,9 @@ export default function Settings() {
           label="Default Time Range"
           subtext="Period the selector opens on each visit"
           value={defaultRange}
-          onChange={value => { setDefaultRange(value); toast.success('Settings saved'); }}
+          onChange={value => setDefaultRange(value)
+            .then(() => toast.success('Settings saved'))
+            .catch(err => toast.error(err.message || 'Could not save settings'))}
           options={Object.entries(PRESETS).map(([value, label]) => ({ value, label }))}
         />
         <SelectRow

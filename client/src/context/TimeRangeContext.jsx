@@ -1,24 +1,14 @@
-import { createContext, useContext, useState, useMemo, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
+import { api } from '../api.js';
 import { PRESETS, computeDateRange } from '../utils/timeRange.js';
 
 const TimeRangeContext = createContext();
 
-// The period selector always opens on this range unless the user has chosen a
-// different default in Settings. Stored in localStorage (a per-device view
-// preference), so ad-hoc changes in the header stay transient and every reload
-// starts from the chosen default.
-const DEFAULT_RANGE_STORAGE_KEY = 'ergdash-default-range';
+// The period selector always opens on the saved default. It lives in account
+// settings (not localStorage) so a self-hosted user gets the same default
+// across every device. Until the setting loads — and on a fresh install — we
+// fall back to the last 30 days.
 const FALLBACK_DEFAULT_RANGE = '30d';
-
-export function getDefaultRange() {
-  try {
-    const stored = localStorage.getItem(DEFAULT_RANGE_STORAGE_KEY);
-    if (stored && PRESETS[stored]) return stored;
-  } catch {
-    // localStorage unavailable (private mode / SSR) — fall through to default.
-  }
-  return FALLBACK_DEFAULT_RANGE;
-}
 
 function formatShort(iso) {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -36,24 +26,34 @@ function describeRange(key) {
 }
 
 export function TimeRangeProvider({ children }) {
-  const [defaultRange, setDefaultRangeState] = useState(getDefaultRange);
-  const [rangeKey, setRangeKey] = useState(getDefaultRange);
+  const [defaultRange, setDefaultRangeState] = useState(FALLBACK_DEFAULT_RANGE);
+  const [rangeKey, setRangeKey] = useState(FALLBACK_DEFAULT_RANGE);
+
+  useEffect(() => {
+    let active = true;
+    api.getSettings()
+      .then(s => {
+        if (!active) return;
+        if (s.time_range && PRESETS[s.time_range]) {
+          setDefaultRangeState(s.time_range);
+          setRangeKey(s.time_range);
+        }
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
 
   // Header selection: transient for the session, resets to the default on reload.
   const setRange = useCallback((key) => {
     if (PRESETS[key]) setRangeKey(key);
   }, []);
 
-  // Settings override: persist the default and apply it right away.
+  // Settings override: persist the default to account settings and apply it now.
   const setDefaultRange = useCallback((key) => {
-    if (!PRESETS[key]) return;
-    try {
-      localStorage.setItem(DEFAULT_RANGE_STORAGE_KEY, key);
-    } catch {
-      // Preference just won't persist; still honour it for this session.
-    }
+    if (!PRESETS[key]) return Promise.resolve();
     setDefaultRangeState(key);
     setRangeKey(key);
+    return api.updateSettings({ time_range: key });
   }, []);
 
   const { from, to } = useMemo(() => computeDateRange(rangeKey), [rangeKey]);
