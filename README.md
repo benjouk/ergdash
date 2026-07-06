@@ -24,6 +24,8 @@ If you ever move ErgDash to a new host or domain, you'll need to update the redi
 ```bash
 cp .env.example .env
 # Fill in C2_CLIENT_ID and C2_CLIENT_SECRET — see "Connecting to Concept2" above
+# Generate a SESSION_SECRET (required — the server refuses to start without one):
+#   openssl rand -base64 32
 docker compose up -d
 ```
 
@@ -99,7 +101,8 @@ server/          Express 4 + better-sqlite3
 | `PORT` | `3000` | Server listen port |
 | `DATA_DIR` | `/data` | SQLite database directory |
 | `SYNC_INTERVAL_MINUTES` | `15` | Auto-sync interval |
-| `SESSION_SECRET` | `change-me-in-production` | Session signing secret |
+| `SESSION_SECRET` | — | Session signing secret (required in production; generate with `openssl rand -base64 32`) |
+| `COOKIE_SECURE` | auto | Force the session cookie's `Secure` flag on/off; auto-detects from `C2_REDIRECT_URI` |
 
 ## Tech Stack
 

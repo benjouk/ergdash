@@ -52,29 +52,46 @@ function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-function insertWorkout(db, workout) {
-  // pinned/notes are user-owned columns; sync must never overwrite them.
-  const stmt = db.prepare(`
-    INSERT OR IGNORE INTO workouts (
-      id, user_id, date, timezone, type, workout_type,
-      distance, time_ms, pace_ms, stroke_rate, stroke_count,
-      calories, heart_rate_avg, heart_rate_max, drag_factor,
-      comments, rest_distance, rest_time_ms, raw_json, synced_at
-    ) VALUES (
-      ?, ?, ?, ?, ?, ?,
-      ?, ?, ?, ?, ?,
-      ?, ?, ?, ?,
-      ?, ?, ?, ?, datetime('now')
-    )
+function writeIntervals(db, workoutId, intervals) {
+  db.prepare('DELETE FROM intervals WHERE workout_id = ?').run(workoutId);
+  if (!intervals || intervals.length === 0) return;
+
+  const intervalStmt = db.prepare(`
+    INSERT INTO intervals (
+      workout_id, interval_index, type, distance, time_ms,
+      pace_ms, stroke_rate, stroke_count, calories,
+      heart_rate_avg, heart_rate_max
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
+  intervals.forEach((iv, idx) => {
+    const ivTimeMs = iv.time ? Math.round(iv.time * 100) : null;
+    const ivPaceMs = (ivTimeMs > 0 && iv.distance > 0)
+      ? Math.round((ivTimeMs / iv.distance) * 500)
+      : null;
+    intervalStmt.run(
+      workoutId, idx, iv.type || 'work',
+      iv.distance, ivTimeMs, ivPaceMs,
+      iv.stroke_rate, iv.stroke_count, iv.calories_total,
+      iv.heart_rate?.average || null, iv.heart_rate?.max || null
+    );
+  });
+}
+
+// Returns { id, inserted } — inserted is true only for brand-new workouts,
+// so callers (e.g. PB detection) don't treat updates as new results.
+export function insertWorkout(db, workout) {
+  const rawJson = JSON.stringify(workout);
+  const existing = db.prepare('SELECT raw_json FROM workouts WHERE id = ?').get(workout.id);
+  if (existing && existing.raw_json === rawJson) {
+    return null;
+  }
 
   const timeMs = workout.time ? Math.round(workout.time * 100) : 0;
   const paceMs = (timeMs > 0 && workout.distance > 0)
     ? Math.round((timeMs / workout.distance) * 500)
     : null;
 
-  const result = stmt.run(
-    workout.id,
+  const fields = [
     workout.user_id,
     workout.date,
     workout.timezone,
@@ -92,32 +109,39 @@ function insertWorkout(db, workout) {
     workout.comments,
     workout.rest_distance || null,
     workout.rest_time ? Math.round(workout.rest_time * 100) : null,
-    JSON.stringify(workout)
-  );
+    rawJson,
+  ];
 
-  if (workout.intervals && workout.intervals.length > 0) {
-    const intervalStmt = db.prepare(`
-      INSERT OR IGNORE INTO intervals (
-        workout_id, interval_index, type, distance, time_ms,
-        pace_ms, stroke_rate, stroke_count, calories,
-        heart_rate_avg, heart_rate_max
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-    workout.intervals.forEach((iv, idx) => {
-      const ivTimeMs = iv.time ? Math.round(iv.time * 100) : null;
-      const ivPaceMs = (ivTimeMs > 0 && iv.distance > 0)
-        ? Math.round((ivTimeMs / iv.distance) * 500)
-        : null;
-      intervalStmt.run(
-        workout.id, idx, iv.type || 'work',
-        iv.distance, ivTimeMs, ivPaceMs,
-        iv.stroke_rate, iv.stroke_count, iv.calories_total,
-        iv.heart_rate?.average || null, iv.heart_rate?.max || null
-      );
-    });
+  if (existing) {
+    // pinned/notes are user-owned columns; sync must never overwrite them.
+    db.prepare(`
+      UPDATE workouts SET
+        user_id = ?, date = ?, timezone = ?, type = ?, workout_type = ?,
+        distance = ?, time_ms = ?, pace_ms = ?, stroke_rate = ?, stroke_count = ?,
+        calories = ?, heart_rate_avg = ?, heart_rate_max = ?, drag_factor = ?,
+        comments = ?, rest_distance = ?, rest_time_ms = ?, raw_json = ?,
+        synced_at = datetime('now')
+      WHERE id = ?
+    `).run(...fields, workout.id);
+    writeIntervals(db, workout.id, workout.intervals);
+    return { id: workout.id, inserted: false };
   }
 
-  return result.changes > 0 ? workout.id : null;
+  db.prepare(`
+    INSERT INTO workouts (
+      id, user_id, date, timezone, type, workout_type,
+      distance, time_ms, pace_ms, stroke_rate, stroke_count,
+      calories, heart_rate_avg, heart_rate_max, drag_factor,
+      comments, rest_distance, rest_time_ms, raw_json, synced_at
+    ) VALUES (
+      ?, ?, ?, ?, ?, ?,
+      ?, ?, ?, ?, ?,
+      ?, ?, ?, ?,
+      ?, ?, ?, ?, datetime('now')
+    )
+  `).run(workout.id, ...fields);
+  writeIntervals(db, workout.id, workout.intervals);
+  return { id: workout.id, inserted: true };
 }
 
 export async function runFullSync() {
@@ -137,6 +161,7 @@ export async function runFullSync() {
     let page = 1;
     let totalSynced = 0;
     const insertedWorkoutIds = [];
+    const updatedWorkoutIds = [];
 
     while (true) {
       const data = await fetchC2Api(`/api/users/me/results?page=${page}&per_page=250&type=rower`, token);
@@ -146,8 +171,10 @@ export async function runFullSync() {
 
       db.transaction(() => {
         for (const workout of results) {
-          const insertedId = insertWorkout(db, workout);
-          if (insertedId != null) insertedWorkoutIds.push(insertedId);
+          const result = insertWorkout(db, workout);
+          if (!result) continue;
+          if (result.inserted) insertedWorkoutIds.push(result.id);
+          else updatedWorkoutIds.push(result.id);
         }
       })();
 
@@ -163,7 +190,7 @@ export async function runFullSync() {
     }
 
     console.log(`Full sync complete: ${totalSynced} workouts synced`);
-    runPostSyncAnalytics(insertedWorkoutIds);
+    runPostSyncAnalytics(insertedWorkoutIds, updatedWorkoutIds);
     setSyncState('last_sync_completed', new Date().toISOString());
     setSyncState('sync_status', 'idle');
   } catch (err) {
@@ -185,25 +212,50 @@ export async function runIncrementalSync() {
     const db = getDb();
     const lastSync = getSyncStateValue('last_sync_completed');
     const insertedWorkoutIds = [];
+    const updatedWorkoutIds = [];
     setSyncState('sync_status', 'syncing');
 
-    let url = '/api/users/me/results?per_page=50&type=rower';
+    // Concept2 filters `from` by workout date, not upload/update time, so a
+    // late-uploaded or edited older workout can fall outside a tight cursor.
+    // Re-scan a trailing window on every run; insertWorkout() is a no-op for
+    // unchanged rows, so the overlap is cheap.
+    let fromParam = null;
     if (lastSync) {
-      url += `&from=${encodeURIComponent(lastSync)}`;
+      const windowStart = new Date(new Date(lastSync).getTime() - 30 * 24 * 60 * 60 * 1000);
+      fromParam = windowStart.toISOString();
     }
 
-    const data = await fetchC2Api(url, token);
-    const results = data.data || data;
+    let page = 1;
+    let totalFetched = 0;
+    while (true) {
+      let url = `/api/users/me/results?page=${page}&per_page=250&type=rower`;
+      if (fromParam) url += `&from=${encodeURIComponent(fromParam)}`;
 
-    if (results && results.length > 0) {
+      const data = await fetchC2Api(url, token);
+      const results = data.data || data;
+      if (!results || results.length === 0) break;
+
       db.transaction(() => {
         for (const workout of results) {
-          const insertedId = insertWorkout(db, workout);
-          if (insertedId != null) insertedWorkoutIds.push(insertedId);
+          const result = insertWorkout(db, workout);
+          if (!result) continue;
+          if (result.inserted) insertedWorkoutIds.push(result.id);
+          else updatedWorkoutIds.push(result.id);
         }
       })();
-      console.log(`Incremental sync: ${results.length} new workouts`);
-      runPostSyncAnalytics(insertedWorkoutIds);
+      totalFetched += results.length;
+
+      const meta = data.meta;
+      if (meta && meta.pagination && page >= meta.pagination.last_page) break;
+      if (!Array.isArray(data.data) && results.length < 250) break;
+
+      page++;
+      await delay(200);
+    }
+
+    if (totalFetched > 0) {
+      console.log(`Incremental sync: ${totalFetched} workouts scanned, ${insertedWorkoutIds.length} new, ${updatedWorkoutIds.length} updated`);
+      runPostSyncAnalytics(insertedWorkoutIds, updatedWorkoutIds);
     }
 
     setSyncState('last_sync_completed', new Date().toISOString());
@@ -216,7 +268,7 @@ export async function runIncrementalSync() {
   }
 }
 
-function runPostSyncAnalytics(insertedWorkoutIds = []) {
+function runPostSyncAnalytics(insertedWorkoutIds = [], updatedWorkoutIds = []) {
   try {
     tagAllWorkouts();
     computeAllMetrics();
@@ -224,6 +276,11 @@ function runPostSyncAnalytics(insertedWorkoutIds = []) {
     computePredictions();
     computeAllZoneTimes();
     computeAllBestEfforts();
+    // computeAllX() above are cache-gated on existing rows, so changed
+    // workouts (which already have stale rows) need an explicit recompute.
+    for (const id of updatedWorkoutIds) {
+      recomputeWorkoutAnalytics(id);
+    }
     const newPbs = detectNewPbs(insertedWorkoutIds);
     if (newPbs.length > 0) {
       console.log(`Detected ${newPbs.length} new PB${newPbs.length === 1 ? '' : 's'}`);

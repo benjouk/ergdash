@@ -8,12 +8,18 @@ const C2_REDIRECT_URI = process.env.C2_REDIRECT_URI || 'http://localhost:3100/au
 const AUTH_COOKIE = 'ergdash_session';
 const ENCRYPTED_PREFIX = 'enc:v1:';
 
+const WEAK_SESSION_SECRETS = new Set(['change-me-in-production', 'changeme', 'secret']);
+
 function initSessionSecret() {
+  if (process.env.NODE_ENV === 'production') {
+    const secret = process.env.SESSION_SECRET || '';
+    if (!secret || secret.length < 16 || WEAK_SESSION_SECRETS.has(secret)) {
+      throw new Error('SESSION_SECRET environment variable must be set to a strong value in production. Generate with: openssl rand -base64 32');
+    }
+    return secret;
+  }
   if (process.env.SESSION_SECRET) {
     return process.env.SESSION_SECRET;
-  }
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('SESSION_SECRET environment variable is required in production. Generate with: openssl rand -base64 32');
   }
   const db = getDb();
   let secret = db.prepare("SELECT value FROM sync_state WHERE key = 'generated_session_secret'").get()?.value;
@@ -89,13 +95,21 @@ function hashToken(token) {
   return crypto.createHash('sha256').update(token).digest('base64url');
 }
 
+function useSecureCookies() {
+  if (process.env.COOKIE_SECURE === 'true') return true;
+  if (process.env.COOKIE_SECURE === 'false') return false;
+  return C2_REDIRECT_URI.startsWith('https://');
+}
+
 function cookieOptions(maxAgeSeconds) {
-  return [
+  const parts = [
     `Path=/`,
     'HttpOnly',
     'SameSite=Lax',
     `Max-Age=${maxAgeSeconds}`,
-  ].join('; ');
+  ];
+  if (useSecureCookies()) parts.push('Secure');
+  return parts.join('; ');
 }
 
 export function getAuthorizationUrl() {

@@ -29,9 +29,12 @@ router.get('/callback', async (req, res) => {
     }
 
     const db = getDb();
-    const savedState = db.prepare("SELECT value FROM sync_state WHERE key = 'oauth_state'").get();
-    if (savedState && state !== savedState.value) {
-      return res.status(400).json({ error: 'Invalid state parameter' });
+    const savedState = db.prepare(
+      "SELECT value FROM sync_state WHERE key = 'oauth_state' AND updated_at >= datetime('now', '-10 minutes')"
+    ).get();
+    db.prepare("DELETE FROM sync_state WHERE key = 'oauth_state'").run();
+    if (!state || !savedState || state !== savedState.value) {
+      return res.status(400).json({ error: 'Invalid or expired state parameter' });
     }
 
     const tokens = await exchangeCodeForTokens(code);
@@ -66,6 +69,9 @@ router.get('/status', (req, res) => {
 });
 
 router.post('/logout', (req, res) => {
+  if (process.env.NODE_ENV === 'production' && !hasValidSession(req)) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
   clearAuthSession(req, res);
   clearAuth();
   res.json({ ok: true });
