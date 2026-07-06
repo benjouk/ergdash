@@ -1,11 +1,19 @@
 import { Router } from 'express';
 import { statSync } from 'fs';
 import { getDb, getDbPath } from '../db.js';
+import { hasValidSession } from '../auth.js';
 
 const router = Router();
 const startTime = Date.now();
 
 router.get('/', (req, res) => {
+  // Unauthenticated callers (uptime monitors, container healthchecks) only
+  // get a liveness signal; instance metadata requires a valid session.
+  const authenticated = process.env.NODE_ENV !== 'production' || hasValidSession(req);
+  if (!authenticated) {
+    return res.json({ status: 'ok' });
+  }
+
   const db = getDb();
   const workoutCount = db.prepare('SELECT COUNT(*) as count FROM workouts').get().count;
 
