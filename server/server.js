@@ -41,7 +41,10 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 app.use(helmet({ contentSecurityPolicy: false }));
-app.use(cors({ credentials: true }));
+// The client is always same-origin (Express serves the built frontend; the
+// Vite dev server proxies /api, /auth and /health), so cross-origin access is
+// disabled unless explicitly opted in via CORS_ORIGIN.
+app.use(cors({ origin: process.env.CORS_ORIGIN || false, credentials: true }));
 app.use(compression());
 app.use(morgan('short'));
 app.use(express.json());

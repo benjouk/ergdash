@@ -103,6 +103,18 @@ server/          Express 4 + better-sqlite3
 | `SYNC_INTERVAL_MINUTES` | `15` | Auto-sync interval |
 | `SESSION_SECRET` | — | Session signing secret (required in production; generate with `openssl rand -base64 32`) |
 | `COOKIE_SECURE` | auto | Force the session cookie's `Secure` flag on/off; auto-detects from `C2_REDIRECT_URI` |
+| `CORS_ORIGIN` | disabled | Allow cross-origin API access from this origin. Not needed for normal setups — the frontend is served same-origin |
+
+## Security Model
+
+ErgDash is a **single-user, self-hosted** app: one Concept2 account, one set of
+OAuth tokens (encrypted at rest), one SQLite database, and one session gating
+all `/api` routes. It's designed for a home server or LAN. If you expose it to
+the internet, put it behind HTTPS and set a strong `SESSION_SECRET`. The
+unauthenticated `/health` endpoint returns only a liveness signal; instance
+metadata requires a session. CSRF is mitigated by `SameSite=Lax` HttpOnly
+cookies, a JSON-only body parser, and CORS being disabled by default. See
+[SECURITY.md](SECURITY.md) for details and vulnerability reporting.
 
 ## Tech Stack
 
