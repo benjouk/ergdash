@@ -70,13 +70,20 @@ describe('insertWorkout', () => {
     db.prepare('UPDATE workouts SET pinned = 1, notes = ? WHERE id = ?').run('my notes', 1);
 
     const result = insertWorkout(db, c2Workout({ comments: 'updated comment', heart_rate: { average: 160, max: 180 } }));
-    expect(result).toEqual({ id: 1, inserted: false });
+    expect(result).toEqual({ id: 1, inserted: false, affectedDistances: [] });
 
     const row = db.prepare('SELECT * FROM workouts WHERE id = ?').get(1);
     expect(row.comments).toBe('updated comment');
     expect(row.heart_rate_avg).toBe(160);
     expect(row.pinned).toBe(1);
     expect(row.notes).toBe('my notes');
+  });
+
+  it('flags affected distances when a correction changes pace-affecting fields', () => {
+    insertWorkout(db, c2Workout());
+    const result = insertWorkout(db, c2Workout({ time: 4700 }));
+    expect(result.inserted).toBe(false);
+    expect(result.affectedDistances).toEqual([2000, 2000]);
   });
 
   it('replaces intervals on update instead of accumulating duplicates', () => {
