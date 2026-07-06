@@ -55,7 +55,7 @@ Single-container stack: Express serves both the API and the built React frontend
 ```
 client/          React 18 + Vite 5 + React Router 6
   src/
-    components/  Ticker, Feed, Charts, PaceRibbon, Stats
+    components/  Ticker, Feed, Charts, Stats
     views/       Dashboard, Session, Progress, Workouts, Settings, Connect
     context/     Theme, Auth, Sync, Units providers
     styles/      Design tokens (light/dark), global reset

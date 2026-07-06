@@ -36,7 +36,6 @@ import { AXIS_TICK } from '../styles/chartTheme.js';
 import { useUnits } from '../context/UnitsContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { renderSessionCard } from '../utils/sessionCard.js';
-import PaceRibbon from '../components/PaceRibbon/PaceRibbon.jsx';
 import Sparkline from '../components/Feed/Sparkline.jsx';
 import PBBadges from '../components/PBBadge.jsx';
 import ComparisonOverlay from '../components/Charts/ComparisonOverlay.jsx';
@@ -491,18 +490,6 @@ export default function Session() {
             </li>
           ))}
         </ul>
-      )}
-
-      {workout.strokes?.length > 0 && (
-        <div className={`${styles.card} ${styles.cardVisible}`}>
-          <div className={styles.chartStack}>
-            <div className={styles.chartBlock}>
-              <div className={styles.chartLabel}>Pace Ribbon</div>
-              <PaceRibbon strokes={workout.strokes} height={48} />
-            </div>
-          </div>
-          <ChartInfo>The whole session as one strip, coloured by pace, so surges and fades stand out at a glance.</ChartInfo>
-        </div>
       )}
 
       {workout.zone_times?.length > 0 && (

@@ -3,7 +3,7 @@ import { ScatterChart, Scatter, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell
 import { AXIS_TICK, AXIS_LINE, TOOLTIP_PROPS } from '../../styles/chartTheme.js';
 
 // CSS variables can't be interpolated, so resolve the endpoint colors once per
-// theme flip and blend in JS (same approach as PaceRibbon's canvas scale).
+// theme flip and blend in JS.
 function parseHexColor(str) {
   const hex = str.trim().replace('#', '');
   if (hex.length !== 6) return null;
