@@ -50,11 +50,12 @@ export default function VolumeSummaryCard({ summary }) {
         </div>
       </div>
       <div className={styles.volumeStats}>
-        <MiniStat label="This Week" value={formatDistance(summary.weekly_meters)} delta={weekDelta} />
-        <MiniStat label="Last Week" value={formatDistance(summary.prev_weekly_meters)} />
-        <MiniStat label="This Month" value={formatDistance(summary.monthly_meters)} delta={monthDelta} />
+        <MiniStat label="Last 7 Days" value={formatDistance(summary.weekly_meters)} delta={weekDelta} />
+        <MiniStat label="Prior 7 Days" value={formatDistance(summary.prev_weekly_meters)} />
+        <MiniStat label="Last 30 Days" value={formatDistance(summary.monthly_meters)} delta={monthDelta} />
       </div>
       <AreaSparkline data={summary.volume_sparkline} />
+      <ChartInfo>Distance totals for rolling 7- and 30-day windows, with the change versus the windows before them. The shaded area sketches recent weekly volume.</ChartInfo>
     </div>
   );
 }
@@ -69,8 +70,6 @@ function MiniStat({ label, value, delta }) {
           {delta.text}
         </span>
       )}
-    
-      <ChartInfo>Distance totals for the current week and month, with the change versus the previous ones. The shaded area sketches recent weekly volume.</ChartInfo>
     </div>
   );
 }

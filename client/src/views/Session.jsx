@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { api } from '../api.js';
 import { AXIS_TICK } from '../styles/chartTheme.js';
+import { paceToWatts as ergPaceToWatts, wattsToCalHr as ergWattsToCalHr } from '../utils/ergMath.js';
 import { useUnits } from '../context/UnitsContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { renderSessionCard } from '../utils/sessionCard.js';
@@ -801,7 +802,7 @@ function tooltipLabel(key) {
 function tooltipValue(key, value, formatPace) {
   if (value == null) return '--';
   if (key === 'pace_ms') return formatPace(value);
-  if (key === 'stroke_rate') return `${Number(value).toFixed(1)} s/m`;
+  if (key === 'stroke_rate') return `${Number(value).toFixed(1)} spm`;
   if (key === 'heart_rate') return `${Math.round(value)} bpm`;
   return value;
 }
@@ -905,13 +906,14 @@ function average(values) {
 
 function paceToWatts(paceMs) {
   if (!paceMs || paceMs <= 0) return null;
-  const paceSeconds = paceMs / 1000;
-  return Math.round(2.8 / Math.pow(paceSeconds / 500, 3));
+  const watts = ergPaceToWatts(paceMs / 1000);
+  return watts != null ? Math.round(watts) : null;
 }
 
 function wattsToCalHr(watts) {
   if (!watts) return null;
-  return Math.round(watts * 0.86 + 300);
+  const calHr = ergWattsToCalHr(watts);
+  return calHr != null ? Math.round(calHr) : null;
 }
 
 function getPrimaryMetric(units) {

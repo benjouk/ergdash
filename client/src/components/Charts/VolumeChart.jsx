@@ -37,7 +37,7 @@ export default function VolumeChart() {
         </div>
         <div className={styles.chartValue}>
           {(latest.distance / 1000).toFixed(1)}k
-          <span className={styles.chartValueUnit}>this week</span>
+          <span className={styles.chartValueUnit}>latest week</span>
         </div>
       </div>
       <ResponsiveContainer width="100%" height={170}>

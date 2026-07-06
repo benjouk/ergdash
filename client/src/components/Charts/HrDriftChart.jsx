@@ -48,6 +48,7 @@ export default function HrDriftChart() {
             axisLine={AXIS_LINE}
             tickLine={false}
             interval="preserveStartEnd"
+            minTickGap={24}
           />
           <YAxis
             tick={AXIS_TICK}
@@ -55,7 +56,8 @@ export default function HrDriftChart() {
             axisLine={false}
             tickLine={false}
             width={40}
-            domain={['dataMin - 2', 'dataMax + 2']}
+            allowDecimals={false}
+            domain={[min => Math.floor(min - 2), max => Math.ceil(max + 2)]}
           />
           <Tooltip
             {...TOOLTIP_PROPS}

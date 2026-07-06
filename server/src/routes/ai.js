@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { getDb } from '../db.js';
 import { buildWeeklyInsights } from '../insights.js';
+import { computeWeekStreak } from '../analytics.js';
 
 const router = Router();
 
@@ -27,22 +28,6 @@ function endurancePaceBetween(db, startMs, endMs) {
   return row?.pace ? Math.round(row.pace) : null;
 }
 
-function weekStreak(db) {
-  const weeks = db.prepare(`
-    SELECT DISTINCT strftime('%Y-%W', date) as w FROM workouts
-    WHERE type = 'rower' ORDER BY w DESC
-  `).all().map(r => r.w);
-  if (weeks.length === 0) return 0;
-  let streak = 1;
-  for (let i = 1; i < weeks.length; i++) {
-    const [y1, w1] = weeks[i - 1].split('-').map(Number);
-    const [y2, w2] = weeks[i].split('-').map(Number);
-    if ((y1 - y2) * 52 + (w1 - w2) === 1) streak++;
-    else break;
-  }
-  return streak;
-}
-
 router.get('/weekly', (req, res) => {
   const db = getDb();
   const now = Date.now();
@@ -61,7 +46,7 @@ router.get('/weekly', (req, res) => {
     weeklyMeters: thisWeek.meters,
     prevWeeklyMeters: prevWeek.meters,
     sessionsThisWeek: thisWeek.count,
-    streakWeeks: weekStreak(db),
+    streakWeeks: computeWeekStreak(db),
     fitness: latest?.fitness ?? null,
     fatigue: latest?.fatigue ?? null,
     form: latest?.form ?? null,

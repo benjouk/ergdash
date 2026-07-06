@@ -49,6 +49,7 @@ export default function FitnessChart({ compact = false }) {
                 axisLine={AXIS_LINE}
                 tickLine={false}
                 interval="preserveStartEnd"
+                minTickGap={24}
               />
               <YAxis
                 tick={AXIS_TICK}

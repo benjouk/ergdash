@@ -65,6 +65,7 @@ export default function PbTimelineChart() {
             axisLine={AXIS_LINE}
             tickLine={false}
             interval="preserveStartEnd"
+            minTickGap={24}
           />
           <YAxis
             reversed

@@ -61,7 +61,8 @@ export default function RateVsPaceScatter({ strokes, formatPace }) {
 
   return (
     <ResponsiveContainer width="100%" height={185}>
-      <ScatterChart margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+      {/* Extra right margin keeps the last x tick clear of the card's info button. */}
+      <ScatterChart margin={{ top: 8, right: 32, bottom: 0, left: 0 }}>
         <XAxis
           dataKey="stroke_rate"
           type="number"

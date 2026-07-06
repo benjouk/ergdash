@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { getDb } from '../db.js';
 import { validateDateRange, validatePaginationParams } from '../middleware/validate.js';
-import { BEST_EFFORT_DURATIONS } from '../analytics.js';
+import { BEST_EFFORT_DURATIONS, computeWeekStreak } from '../analytics.js';
 import { getZoneModel, getObservedMaxHr } from '../hrZones.js';
 import { wattsFromPace, paceFromWatts } from '../strokeMetrics.js';
 import { STANDARD_PB_DISTANCES } from '../pbDetection.js';
@@ -692,25 +692,6 @@ router.get('/polarization', (req, res) => {
 
   res.json({ weeks });
 });
-
-function computeWeekStreak(db) {
-  const weeks = db.prepare(`
-    SELECT DISTINCT strftime('%Y-%W', date) as w FROM workouts
-    WHERE type = 'rower' ORDER BY w DESC
-  `).all().map(r => r.w);
-
-  if (weeks.length === 0) return 0;
-
-  let streak = 1;
-  for (let i = 1; i < weeks.length; i++) {
-    const [y1, w1] = weeks[i - 1].split('-').map(Number);
-    const [y2, w2] = weeks[i].split('-').map(Number);
-    const weekDiff = (y1 - y2) * 52 + (w1 - w2);
-    if (weekDiff === 1) streak++;
-    else break;
-  }
-  return streak;
-}
 
 function avg(arr) {
   if (!arr || arr.length === 0) return 0;
