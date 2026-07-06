@@ -130,6 +130,13 @@ export function insertWorkout(db, workout) {
     const perfChanged = existing.distance !== workout.distance
       || existing.pace_ms !== paceMs
       || existing.time_ms !== timeMs;
+    if (perfChanged) {
+      // A corrected result invalidates the per-stroke data too. Wipe it and
+      // reset the flag so the enrichment cron (which picks has_stroke_data = 0
+      // rows) refetches, instead of recomputing analytics from stale strokes.
+      db.prepare('DELETE FROM strokes WHERE workout_id = ?').run(workout.id);
+      db.prepare('UPDATE workouts SET has_stroke_data = 0 WHERE id = ?').run(workout.id);
+    }
     const affectedDistances = perfChanged ? [existing.distance, workout.distance] : [];
     return { id: workout.id, inserted: false, affectedDistances };
   }

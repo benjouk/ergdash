@@ -86,6 +86,32 @@ describe('insertWorkout', () => {
     expect(result.affectedDistances).toEqual([2000, 2000]);
   });
 
+  it('wipes stroke data when a correction changes performance fields, so enrichment refetches', () => {
+    insertWorkout(db, c2Workout());
+    db.prepare(
+      'INSERT INTO strokes (workout_id, stroke_number, time_s, distance_m, pace_ms) VALUES (1, 0, 3.0, 12, 120000)'
+    ).run();
+    db.prepare('UPDATE workouts SET has_stroke_data = 1 WHERE id = 1').run();
+
+    insertWorkout(db, c2Workout({ time: 4700 }));
+
+    expect(db.prepare('SELECT COUNT(*) as c FROM strokes WHERE workout_id = 1').get().c).toBe(0);
+    expect(db.prepare('SELECT has_stroke_data FROM workouts WHERE id = 1').get().has_stroke_data).toBe(0);
+  });
+
+  it('keeps stroke data when only non-performance fields change', () => {
+    insertWorkout(db, c2Workout());
+    db.prepare(
+      'INSERT INTO strokes (workout_id, stroke_number, time_s, distance_m, pace_ms) VALUES (1, 0, 3.0, 12, 120000)'
+    ).run();
+    db.prepare('UPDATE workouts SET has_stroke_data = 1 WHERE id = 1').run();
+
+    insertWorkout(db, c2Workout({ comments: 'just a comment edit' }));
+
+    expect(db.prepare('SELECT COUNT(*) as c FROM strokes WHERE workout_id = 1').get().c).toBe(1);
+    expect(db.prepare('SELECT has_stroke_data FROM workouts WHERE id = 1').get().has_stroke_data).toBe(1);
+  });
+
   it('replaces intervals on update instead of accumulating duplicates', () => {
     insertWorkout(db, c2Workout({
       intervals: [{ type: 'work', distance: 500, time: 120, stroke_rate: 26 }],
