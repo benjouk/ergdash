@@ -12,7 +12,7 @@ import {
   computeZoneTimesForWorkout,
   computeBestEffortsForWorkout,
 } from './analytics.js';
-import { detectNewPbs } from './pbDetection.js';
+import { detectNewPbs, reconcilePbDistances } from './pbDetection.js';
 
 let syncInProgress = false;
 
@@ -77,11 +77,13 @@ function writeIntervals(db, workoutId, intervals) {
   });
 }
 
-// Returns { id, inserted } — inserted is true only for brand-new workouts,
-// so callers (e.g. PB detection) don't treat updates as new results.
+// Returns { id, inserted, affectedDistances } — inserted is true only for
+// brand-new workouts, so callers (e.g. PB detection) don't treat updates as
+// new results. affectedDistances lists distances whose PB history may need
+// reconciling because this update changed a C2-owned performance field.
 export function insertWorkout(db, workout) {
   const rawJson = JSON.stringify(workout);
-  const existing = db.prepare('SELECT raw_json FROM workouts WHERE id = ?').get(workout.id);
+  const existing = db.prepare('SELECT raw_json, distance, pace_ms, time_ms FROM workouts WHERE id = ?').get(workout.id);
   if (existing && existing.raw_json === rawJson) {
     return null;
   }
@@ -124,7 +126,12 @@ export function insertWorkout(db, workout) {
       WHERE id = ?
     `).run(...fields, workout.id);
     writeIntervals(db, workout.id, workout.intervals);
-    return { id: workout.id, inserted: false };
+
+    const perfChanged = existing.distance !== workout.distance
+      || existing.pace_ms !== paceMs
+      || existing.time_ms !== timeMs;
+    const affectedDistances = perfChanged ? [existing.distance, workout.distance] : [];
+    return { id: workout.id, inserted: false, affectedDistances };
   }
 
   db.prepare(`
@@ -162,6 +169,7 @@ export async function runFullSync() {
     let totalSynced = 0;
     const insertedWorkoutIds = [];
     const updatedWorkoutIds = [];
+    const affectedPbDistances = [];
 
     while (true) {
       const data = await fetchC2Api(`/api/users/me/results?page=${page}&per_page=250&type=rower`, token);
@@ -173,8 +181,12 @@ export async function runFullSync() {
         for (const workout of results) {
           const result = insertWorkout(db, workout);
           if (!result) continue;
-          if (result.inserted) insertedWorkoutIds.push(result.id);
-          else updatedWorkoutIds.push(result.id);
+          if (result.inserted) {
+            insertedWorkoutIds.push(result.id);
+          } else {
+            updatedWorkoutIds.push(result.id);
+            if (result.affectedDistances) affectedPbDistances.push(...result.affectedDistances);
+          }
         }
       })();
 
@@ -190,7 +202,7 @@ export async function runFullSync() {
     }
 
     console.log(`Full sync complete: ${totalSynced} workouts synced`);
-    runPostSyncAnalytics(insertedWorkoutIds, updatedWorkoutIds);
+    runPostSyncAnalytics(insertedWorkoutIds, updatedWorkoutIds, affectedPbDistances);
     setSyncState('last_sync_completed', new Date().toISOString());
     setSyncState('sync_status', 'idle');
   } catch (err) {
@@ -213,6 +225,7 @@ export async function runIncrementalSync() {
     const lastSync = getSyncStateValue('last_sync_completed');
     const insertedWorkoutIds = [];
     const updatedWorkoutIds = [];
+    const affectedPbDistances = [];
     setSyncState('sync_status', 'syncing');
 
     // Concept2 filters `from` by workout date, not upload/update time, so a
@@ -239,8 +252,12 @@ export async function runIncrementalSync() {
         for (const workout of results) {
           const result = insertWorkout(db, workout);
           if (!result) continue;
-          if (result.inserted) insertedWorkoutIds.push(result.id);
-          else updatedWorkoutIds.push(result.id);
+          if (result.inserted) {
+            insertedWorkoutIds.push(result.id);
+          } else {
+            updatedWorkoutIds.push(result.id);
+            if (result.affectedDistances) affectedPbDistances.push(...result.affectedDistances);
+          }
         }
       })();
       totalFetched += results.length;
@@ -255,7 +272,7 @@ export async function runIncrementalSync() {
 
     if (totalFetched > 0) {
       console.log(`Incremental sync: ${totalFetched} workouts scanned, ${insertedWorkoutIds.length} new, ${updatedWorkoutIds.length} updated`);
-      runPostSyncAnalytics(insertedWorkoutIds, updatedWorkoutIds);
+      runPostSyncAnalytics(insertedWorkoutIds, updatedWorkoutIds, affectedPbDistances);
     }
 
     setSyncState('last_sync_completed', new Date().toISOString());
@@ -268,7 +285,7 @@ export async function runIncrementalSync() {
   }
 }
 
-function runPostSyncAnalytics(insertedWorkoutIds = [], updatedWorkoutIds = []) {
+function runPostSyncAnalytics(insertedWorkoutIds = [], updatedWorkoutIds = [], affectedPbDistances = []) {
   try {
     tagAllWorkouts();
     computeAllMetrics();
@@ -280,6 +297,12 @@ function runPostSyncAnalytics(insertedWorkoutIds = [], updatedWorkoutIds = []) {
     // workouts (which already have stale rows) need an explicit recompute.
     for (const id of updatedWorkoutIds) {
       recomputeWorkoutAnalytics(id);
+    }
+    // A correction to an existing workout's distance/pace/time can invalidate
+    // or restore PBs at that distance, so rebuild pb_history for it rather
+    // than relying on detectNewPbs (which only looks at new workouts).
+    if (affectedPbDistances.length > 0) {
+      reconcilePbDistances(affectedPbDistances);
     }
     const newPbs = detectNewPbs(insertedWorkoutIds);
     if (newPbs.length > 0) {

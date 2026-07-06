@@ -108,6 +108,35 @@ export function detectNewPbs(workoutIds) {
   return events;
 }
 
+// Rebuilds pb_history from scratch for the given distances. Use this when an
+// existing workout's C2-owned performance fields (distance/pace/time) change
+// via sync, since a correction can invalidate or restore PBs at that
+// distance in ways detectNewPbs (which only looks at newly inserted rows)
+// can't detect.
+export function reconcilePbDistances(distances) {
+  const targets = [...new Set((distances || []).filter(d => STANDARD_DISTANCE_SET.has(d)))];
+  if (targets.length === 0) return [];
+
+  const db = getDb();
+  const placeholders = targets.map(() => '?').join(',');
+
+  const workouts = db.prepare(`
+    SELECT id, date, distance, pace_ms, time_ms
+    FROM workouts
+    WHERE type = 'rower' AND distance IN (${placeholders}) AND pace_ms > 0
+    ORDER BY date ASC, id ASC
+  `).all(...targets);
+
+  const events = computePbProgression(workouts);
+
+  db.transaction(() => {
+    db.prepare(`DELETE FROM pb_history WHERE distance IN (${placeholders})`).run(...targets);
+    insertPbEvents(db, events);
+  })();
+
+  return events;
+}
+
 function insertPbEvents(db, events) {
   if (events.length === 0) return;
 
