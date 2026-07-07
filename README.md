@@ -12,12 +12,13 @@ A self-hosted dashboard for Concept2 RowErg users. Connects to the Concept2 Logb
 
 ## Features
 
-- **Dashboard:** Season metres, weekly volume chart, pace trend, personal bests, calendar heatmap, weekly time-in-zone, fitness sparkline
-- **Session Detail:** Canvas pace ribbon heatmap, stroke-level charts, interval rep chart with HR recovery, rate-vs-pace scatter, HR zone bar, computed metrics (fade index, consistency, effort, distance per stroke, watts/beat, HR drift, rate discipline)
-- **Workouts:** Filterable/sortable table with CSV export
+- **Dashboard:** Weekly coach summary, season metres and streak stats, volume vs goal, weekly volume chart, personal bests with new-PB notifications, calendar heatmap
+- **Session Detail:** Per-stroke pace and rate/HR charts, interval rep chart with HR recovery, rate-vs-pace scatter, HR zone bar, splits table, side-by-side session comparison, downloadable session card, computed metrics (fade index, consistency, effort, distance per stroke, watts/beat, HR drift, rate discipline)
+- **Workouts:** Filterable/sortable table with CSV/JSON export
 - **Goals & Targets:** Weekly/monthly/season/annual volume goals overlaid on the dashboard, plus performance targets per benchmark distance compared against current PBs and trend-based race predictions, with an optional race-day countdown
 - **Plan:** Month calendar to schedule future sessions (type, target distance/duration, pace, rate, notes); synced workouts auto-match same-day plans with manual link/unlink, missed days are flagged, and a Progress chart tracks plan adherence over time
-- **Progress:** Fitness (CTL/ATL/TSB), pace/volume trends, power-duration curve with 90-day ghost, time-in-zone and polarization stacks, efficiency (watts/beat), distance per stroke, HR drift, cumulative metres race line, drag factor timeline, fade fingerprint
+- **Progress:** Fitness (CTL/ATL/TSB), pace trend, power-duration curve with 90-day ghost, time-in-zone and polarization stacks, efficiency (watts/beat), distance per stroke, stroke quality, HR drift, cumulative metres race line, drag factor timeline, PB progression, fade fingerprint — all in an editable layout
+- **Tools:** Pace / watts / cal-per-hour converter and a race plan builder with even, negative, and aggressive pacing strategies
 - **HR Zones:** Five configurable zones in Settings (% of max HR), estimated from observed data until set
 - **Feed:** Always-visible sidebar of recent sessions with sparklines
 - **Ticker:** Sticky header with key stats, pace trace, and navigation
@@ -92,7 +93,7 @@ client/          React 18 + Vite 5 + React Router 6
 server/          Express 4 + better-sqlite3
   src/
     routes/      auth, workouts, stats, sync, settings, goals, plans,
-                 admin (backup/export/reset), health, ai (stub)
+                 admin (backup/export/reset), health, insights
     middleware/  error handler
     db.js        DB init, migrations, WAL mode
     auth.js      OAuth2 (Authorization Code + Refresh)
@@ -123,7 +124,6 @@ server/          Express 4 + better-sqlite3
 | `DATA_DIR` | `/data` (Docker) / `server/data` (local) | SQLite database directory |
 | `SYNC_INTERVAL_MINUTES` | `15` | Auto-sync interval |
 | `SESSION_SECRET` | - | Session signing secret (required in production, min 16 chars; generate with `openssl rand -base64 32`) |
-| `CLAUDE_API_KEY` | - | Optional; reserved for the AI insights integration (`/api/ai` is currently a stub) |
 | `COOKIE_SECURE` | auto | Force the session cookie's `Secure` flag on/off; auto-detects from `C2_REDIRECT_URI` |
 | `CORS_ORIGIN` | disabled | Allow cross-origin API access from this origin. Not needed for normal setups; the frontend is served same-origin |
 
