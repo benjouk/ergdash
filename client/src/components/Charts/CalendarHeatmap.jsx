@@ -28,6 +28,7 @@ function gridStart(today, weekStart) {
 
 export default function CalendarHeatmap() {
   const [days, setDays] = useState(null);
+  const [plans, setPlans] = useState([]);
   const { weekStart } = usePrefs();
 
   useEffect(() => {
@@ -36,11 +37,24 @@ export default function CalendarHeatmap() {
     api.getCalendar({ from })
       .then(d => setDays(d.days || []))
       .catch(() => setDays([]));
+    api.getPlans({ from })
+      .then(d => setPlans(d.plans || []))
+      .catch(() => setPlans([]));
   }, [weekStart]);
 
   const grid = useMemo(() => {
     if (!days) return null;
     const byDate = new Map(days.map(d => [d.date, d]));
+    // Per-day plan outcome for the adherence ring: a missed plan trumps a
+    // completed one so slipped days stay visible.
+    const planByDate = new Map();
+    for (const p of plans) {
+      if (p.adherence !== 'completed' && p.adherence !== 'missed') continue;
+      const current = planByDate.get(p.date);
+      if (current !== 'missed') {
+        planByDate.set(p.date, p.adherence === 'missed' ? 'missed' : 'completed');
+      }
+    }
     const today = new Date();
     const start = gridStart(today, weekStart);
     const max = Math.max(0, ...days.map(d => d.meters));
@@ -64,6 +78,7 @@ export default function CalendarHeatmap() {
           meters: entry?.meters || 0,
           sessions: entry?.sessions || 0,
           opacity: entry?.meters ? opacity(entry.meters) : 0,
+          plan: planByDate.get(date) || null,
         });
         if (d === 0 && cursor.getMonth() !== lastMonth) {
           lastMonth = cursor.getMonth();
@@ -77,7 +92,7 @@ export default function CalendarHeatmap() {
     }
     const total = days.reduce((s, d) => s + d.meters, 0);
     return { cells, monthLabels, total };
-  }, [days, weekStart]);
+  }, [days, plans, weekStart]);
 
   const scrollRef = useCallback((node) => {
     if (node) node.scrollLeft = node.scrollWidth;
@@ -137,18 +152,21 @@ export default function CalendarHeatmap() {
               rx={2}
               fill={cell.meters ? 'var(--chart-1)' : 'var(--rule)'}
               fillOpacity={cell.meters ? cell.opacity : 0.5}
+              stroke={cell.plan === 'missed' ? 'var(--negative)' : cell.plan === 'completed' ? 'var(--positive)' : 'none'}
+              strokeWidth={cell.plan ? 1.5 : 0}
             >
               <title>
-                {cell.meters
+                {(cell.meters
                   ? `${cell.date}: ${cell.meters.toLocaleString()}m (${cell.sessions} session${cell.sessions === 1 ? '' : 's'})`
-                  : `${cell.date}: rest`}
+                  : `${cell.date}: rest`)
+                  + (cell.plan ? ` · plan ${cell.plan}` : '')}
               </title>
             </rect>
           ))}
         </svg>
       </div>
     
-      <ChartInfo>A year of training at a glance: each cell is one day, shaded by metres rowed. Darker cells were bigger days.</ChartInfo>
+      <ChartInfo>A year of training at a glance: each cell is one day, shaded by metres rowed. Darker cells were bigger days. Ringed cells had a planned session — green when completed as planned, red when missed.</ChartInfo>
     </div>
   );
 }

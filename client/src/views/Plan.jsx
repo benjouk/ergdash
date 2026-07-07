@@ -57,6 +57,7 @@ export default function Plan() {
   const [selectedDate, setSelectedDate] = useState(today);
   const [editingId, setEditingId] = useState(null); // plan id, 'new', or null
   const [form, setForm] = useState(EMPTY_FORM);
+  const [linking, setLinking] = useState(null); // { planId, candidates } | null
 
   const grid = useMemo(() => monthGrid(year, month, weekStart), [year, month, weekStart]);
 
@@ -141,6 +142,33 @@ export default function Plan() {
     api.updatePlan(plan.id, { status })
       .then(() => load())
       .catch(err => toast.error(err.message || 'Could not update plan'));
+  };
+
+  const unlink = (plan) => {
+    api.unmatchPlan(plan.id)
+      .then(() => { toast.success('Session unlinked'); load(); })
+      .catch(err => toast.error(err.message || 'Could not unlink session'));
+  };
+
+  const startLinking = (plan) => {
+    const nextDay = new Date(Date.parse(plan.date) + 86400000).toISOString().slice(0, 10);
+    api.getWorkouts({ from: plan.date, to: nextDay, limit: 20 })
+      .then(d => {
+        const linkedIds = new Set((plans || []).map(p => p.completed_workout_id).filter(Boolean));
+        const candidates = (d.data || []).filter(w => !linkedIds.has(w.id));
+        if (candidates.length === 0) {
+          toast.error('No unlinked sessions on this day');
+          return;
+        }
+        setLinking({ planId: plan.id, candidates });
+      })
+      .catch(err => toast.error(err.message || 'Could not load sessions'));
+  };
+
+  const linkWorkout = (planId, workoutId) => {
+    api.matchPlan(planId, workoutId)
+      .then(() => { toast.success('Session linked'); setLinking(null); load(); })
+      .catch(err => toast.error(err.message || 'Could not link session'));
   };
 
   return (
@@ -283,6 +311,16 @@ export default function Plan() {
             )}
             <div className={styles.planRowActions}>
               <button type="button" className={styles.smallButton} onClick={() => startEdit(plan)}>Edit</button>
+              {plan.workout && (
+                <button type="button" className={styles.smallButton} onClick={() => unlink(plan)}>
+                  Unlink
+                </button>
+              )}
+              {plan.status === 'planned' && dayActual && (
+                <button type="button" className={styles.smallButton} onClick={() => startLinking(plan)}>
+                  Link session
+                </button>
+              )}
               {plan.status === 'planned' && (
                 <button type="button" className={styles.smallButton} onClick={() => setStatus(plan, 'skipped')}>
                   Skip
@@ -294,6 +332,26 @@ export default function Plan() {
                 </button>
               )}
             </div>
+            {linking?.planId === plan.id && (
+              <div className={styles.linkPicker}>
+                <span className={styles.fieldLabel}>Link which session?</span>
+                <div className={styles.linkOptions}>
+                  {linking.candidates.map(w => (
+                    <button
+                      key={w.id}
+                      type="button"
+                      className={styles.smallButton}
+                      onClick={() => linkWorkout(plan.id, w.id)}
+                    >
+                      {formatDistance(w.distance)}{w.pace_ms ? ` @ ${formatPace(w.pace_ms)}` : ''}
+                    </button>
+                  ))}
+                  <button type="button" className={styles.smallButton} onClick={() => setLinking(null)}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         ))}
 

@@ -311,11 +311,15 @@ function seedPlannedWorkouts(db) {
       }
     }
 
-    // Plans on rest days stay 'planned' and read as missed once the day passes.
-    for (const daysAgo of [3, 11, 19]) {
+    // Plans on rest days stay 'planned' and read as missed once the day
+    // passes; scan for actual rest days so a few always exist.
+    let missedAdded = 0;
+    for (let daysAgo = 2; daysAgo <= 27 && missedAdded < 3; daysAgo++) {
       const day = new Date(Date.now() - daysAgo * 86400000).toISOString().slice(0, 10);
       if (!byDay.has(day)) {
         insertPlan.run(day, 'steady', 8000, null, null, null, null, null, null, 'planned');
+        missedAdded++;
+        daysAgo += 6;
       }
     }
 

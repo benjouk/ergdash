@@ -94,6 +94,12 @@ export const api = {
     body: JSON.stringify(data),
   }),
   deletePlan: (id) => request(`/api/plans/${id}`, { method: 'DELETE' }),
+  matchPlan: (id, workoutId) => request(`/api/plans/${id}/match`, {
+    method: 'POST',
+    body: JSON.stringify({ workout_id: workoutId }),
+  }),
+  unmatchPlan: (id) => request(`/api/plans/${id}/match`, { method: 'DELETE' }),
+  getPlanAdherence: (params = {}) => request(`/api/plans/adherence?${new URLSearchParams(params)}`),
 
   getWeeklyInsight: () => request('/api/ai/weekly'),
 
