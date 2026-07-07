@@ -101,7 +101,7 @@ export const api = {
   unmatchPlan: (id) => request(`/api/plans/${id}/match`, { method: 'DELETE' }),
   getPlanAdherence: (params = {}) => request(`/api/plans/adherence?${new URLSearchParams(params)}`),
 
-  getWeeklyInsight: () => request('/api/ai/weekly'),
+  getWeeklyInsight: () => request('/api/insights/weekly'),
 
   triggerSync: () => request('/api/sync', { method: 'POST' }),
   getSyncStatus: () => request('/api/sync/status'),

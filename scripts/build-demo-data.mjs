@@ -139,7 +139,7 @@ async function main() {
     await capture('/auth/status');
     await capture('/api/settings');
     await capture('/api/sync/status');
-    await capture('/api/ai/weekly');
+    await capture('/api/insights/weekly');
     await capture('/api/stats/cumulative');
     await capture('/api/stats/power-curve');
     await capture('/api/stats/pb-history');

@@ -25,7 +25,7 @@ import authRouter from './src/routes/auth.js';
 import workoutsRouter from './src/routes/workouts.js';
 import statsRouter from './src/routes/stats.js';
 import syncRouter from './src/routes/sync.js';
-import aiRouter from './src/routes/ai.js';
+import insightsRouter from './src/routes/insights.js';
 import settingsRouter from './src/routes/settings.js';
 import adminRouter from './src/routes/admin.js';
 import goalsRouter from './src/routes/goals.js';
@@ -68,7 +68,7 @@ function requireAuth(req, res, next) {
 app.use('/api/workouts', requireAuth, workoutsRouter);
 app.use('/api/stats', requireAuth, statsRouter);
 app.use('/api/sync', requireAuth, syncRouter);
-app.use('/api/ai', requireAuth, aiRouter);
+app.use('/api/insights', requireAuth, insightsRouter);
 app.use('/api/settings', requireAuth, settingsRouter);
 app.use('/api/admin', requireAuth, adminRouter);
 app.use('/api/goals', requireAuth, goalsRouter);

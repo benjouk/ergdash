@@ -177,10 +177,6 @@ router.get('/:id', (req, res) => {
     'SELECT rep_index, hr_end, hr_next_start, drop_bpm, rest_s FROM interval_recoveries WHERE workout_id = ? ORDER BY rep_index'
   ).all(id);
 
-  const aiNotes = db.prepare(
-    "SELECT * FROM ai_insights WHERE workout_id = ? AND type = 'session_note' ORDER BY created_at DESC LIMIT 1"
-  ).get(id);
-
   const formatted = formatWorkout(workout);
 
   res.json({
@@ -191,7 +187,6 @@ router.get('/:id', (req, res) => {
     recoveries,
     zone_times: zoneTimes,
     pace_profile: getPaceProfile(db, id),
-    ai_note: aiNotes?.content || null,
     insight: buildWorkoutInsight(formatted, getTagBaseline(db, workout), { intervals, recoveries }),
   });
 });
