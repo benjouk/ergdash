@@ -318,3 +318,25 @@
   border: 1px dashed var(--rule);
   border-radius: var(--radius-sm);
 }
+
+/* Goals & targets */
+.metersInput {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--ink);
+  background: var(--surface-alt);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  width: 120px;
+  appearance: textfield;
+  -moz-appearance: textfield;
+  transition: border-color 150ms ease;
+}
+
+.metersInput:focus {
+  outline: none;
+  border-color: var(--accent);
+}

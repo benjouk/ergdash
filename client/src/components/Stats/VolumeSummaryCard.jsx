@@ -35,7 +35,46 @@ function deltaLabel(current, previous) {
   return { text: `${pct > 0 ? '+' : ''}${pct}% vs prior`, positive: pct > 0 };
 }
 
-export default function VolumeSummaryCard({ summary }) {
+const PERIOD_LABELS = {
+  weekly: 'This week',
+  monthly: 'This month',
+  season: 'Season',
+  year: 'This year',
+};
+
+function GoalBars({ goals }) {
+  const { formatDistance } = useUnits();
+  const volumeGoals = (goals || []).filter(g => g.kind === 'volume' && g.active && g.progress);
+  if (volumeGoals.length === 0) return null;
+
+  return (
+    <div className={styles.goalBars}>
+      {volumeGoals.map(goal => {
+        const p = goal.progress;
+        const pct = Math.min(100, p.percent);
+        return (
+          <div className={styles.goalBar} key={goal.id}>
+            <div className={styles.goalBarMeta}>
+              <span className={styles.goalBarPeriod}>{PERIOD_LABELS[goal.period] || goal.period}</span>
+              <span>
+                {formatDistance(p.meters)} of {formatDistance(p.target_meters)}
+                {p.on_pace ? '' : ' · behind pace'}
+              </span>
+            </div>
+            <div className={styles.goalBarTrack}>
+              <div
+                className={`${styles.goalBarFill} ${p.on_pace ? '' : styles.goalBarBehind}`}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+export default function VolumeSummaryCard({ summary, goals }) {
   const { formatDistance } = useUnits();
   if (!summary) return null;
 
@@ -55,7 +94,8 @@ export default function VolumeSummaryCard({ summary }) {
         <MiniStat label="Last 30 Days" value={formatDistance(summary.monthly_meters)} delta={monthDelta} />
       </div>
       <AreaSparkline data={summary.volume_sparkline} />
-      <ChartInfo>Distance totals for rolling 7- and 30-day windows, with the change versus the windows before them. The shaded area sketches recent weekly volume.</ChartInfo>
+      <GoalBars goals={goals} />
+      <ChartInfo>Distance totals for rolling 7- and 30-day windows, with the change versus the windows before them. The shaded area sketches recent weekly volume. Progress bars track any volume goals set in Settings against their calendar window.</ChartInfo>
     </div>
   );
 }

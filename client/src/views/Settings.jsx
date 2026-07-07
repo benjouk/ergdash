@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
-import { Download, FileJson, LogOut, RotateCcw, Trash2, Upload } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Download, FileJson, LogOut, Plus, RotateCcw, Trash2, Upload } from 'lucide-react';
 import { api } from '../api.js';
+import { parseTimeInput, formatDuration } from '../utils/ergMath.js';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { useUnits } from '../context/UnitsContext.jsx';
 import { useSync } from '../context/SyncContext.jsx';
@@ -128,6 +129,194 @@ function HrZonesSection() {
               </div>
             </div>
           ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const VOLUME_PERIODS = [
+  ['weekly', 'Weekly Metres', 'Target metres per week'],
+  ['monthly', 'Monthly Metres', 'Target metres per calendar month'],
+  ['season', 'Season Metres', 'Target metres since May 1'],
+  ['year', 'Annual Metres', 'Target metres this calendar year'],
+];
+
+const TARGET_DISTANCES = [
+  [500, '500m'], [1000, '1k'], [2000, '2k'], [5000, '5k'],
+  [6000, '6k'], [10000, '10k'], [21097, 'Half Marathon'], [42195, 'Marathon'],
+];
+
+function GoalsSection() {
+  const [goals, setGoals] = useState(null);
+  const [volumeInputs, setVolumeInputs] = useState({});
+  const [newTarget, setNewTarget] = useState({ distance: '2000', time: '', raceDate: '', label: '' });
+  const toast = useToast();
+
+  const load = useCallback(() => {
+    return api.getGoals().then(d => {
+      const list = d.goals || [];
+      setGoals(list);
+      const inputs = {};
+      for (const g of list) {
+        if (g.kind === 'volume' && g.active) inputs[g.period] = String(g.target_meters);
+      }
+      setVolumeInputs(inputs);
+    }).catch(() => setGoals([]));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const run = (promise, message = 'Goal saved') => promise
+    .then(() => { toast.success(message); return load(); })
+    .catch(err => toast.error(err.message || 'Could not save goal'));
+
+  const saveVolume = (period) => {
+    const existing = goals?.find(g => g.kind === 'volume' && g.period === period && g.active);
+    const meters = Math.round(Number(volumeInputs[period]));
+    const hasValue = Number.isFinite(meters) && meters > 0;
+
+    if (existing && !hasValue && volumeInputs[period] !== undefined) {
+      run(api.deleteGoal(existing.id), 'Goal removed');
+    } else if (existing && hasValue && meters !== existing.target_meters) {
+      run(api.updateGoal(existing.id, { target_meters: meters }));
+    } else if (!existing && hasValue) {
+      run(api.createGoal({ kind: 'volume', period, target_meters: meters }));
+    }
+  };
+
+  const addTarget = () => {
+    const seconds = parseTimeInput(newTarget.time);
+    if (!seconds) {
+      toast.error('Enter a target time like 7:20 or 19:45.5');
+      return;
+    }
+    const payload = {
+      kind: 'performance',
+      distance: Number(newTarget.distance),
+      target_time_ms: Math.round(seconds * 1000),
+    };
+    if (newTarget.raceDate) payload.race_date = newTarget.raceDate;
+    if (newTarget.label.trim()) payload.label = newTarget.label.trim();
+    run(api.createGoal(payload), 'Target added')
+      .then(() => setNewTarget({ distance: '2000', time: '', raceDate: '', label: '' }));
+  };
+
+  const patchTarget = (goal, field, value) => {
+    run(api.updateGoal(goal.id, { [field]: value }));
+  };
+
+  const performanceGoals = (goals || []).filter(g => g.kind === 'performance' && g.active);
+
+  return (
+    <div className={styles.section}>
+      <h3 className={styles.sectionTitle}>Goals & Targets</h3>
+
+      {VOLUME_PERIODS.map(([period, label, subtext]) => (
+        <div className={styles.row} key={period}>
+          <div>
+            <div className={styles.label}>{label}</div>
+            <div className={styles.subtext}>{subtext} — leave empty for none</div>
+          </div>
+          <input
+            type="number"
+            min="0"
+            step="1000"
+            className={styles.metersInput}
+            value={volumeInputs[period] ?? ''}
+            placeholder="metres"
+            aria-label={`${label} goal in metres`}
+            onChange={e => setVolumeInputs({ ...volumeInputs, [period]: e.target.value })}
+            onBlur={() => saveVolume(period)}
+          />
+        </div>
+      ))}
+
+      {performanceGoals.map(goal => (
+        <div className={styles.row} key={`${goal.id}:${goal.updated_at || ''}`}>
+          <div>
+            <div className={styles.label}>
+              {TARGET_DISTANCES.find(([d]) => d === goal.distance)?.[1] || `${goal.distance}m`} Target
+              {goal.label ? ` · ${goal.label}` : ''}
+            </div>
+            <div className={styles.subtext}>
+              {goal.achieved_at ? 'Achieved — congratulations' : 'Goal time for this distance'}
+            </div>
+          </div>
+          <div className={styles.inlineControls}>
+            <input
+              className={styles.confirmInput}
+              defaultValue={formatDuration(goal.target_time_ms / 1000)}
+              aria-label="Target time"
+              onBlur={e => {
+                const seconds = parseTimeInput(e.target.value);
+                const ms = seconds ? Math.round(seconds * 1000) : null;
+                if (ms && ms !== goal.target_time_ms) patchTarget(goal, 'target_time_ms', ms);
+              }}
+            />
+            <input
+              type="date"
+              className={styles.confirmInput}
+              defaultValue={goal.race_date || ''}
+              aria-label="Race date"
+              onBlur={e => {
+                const value = e.target.value || null;
+                if (value !== goal.race_date) patchTarget(goal, 'race_date', value);
+              }}
+            />
+            <button
+              type="button"
+              className={styles.button}
+              aria-label="Remove target"
+              onClick={() => run(api.deleteGoal(goal.id), 'Target removed')}
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
+        </div>
+      ))}
+
+      <div className={styles.row}>
+        <div>
+          <div className={styles.label}>Add Performance Target</div>
+          <div className={styles.subtext}>Goal time for a benchmark distance, with an optional race date</div>
+        </div>
+        <div className={styles.inlineControls}>
+          <select
+            className={styles.select}
+            style={{ minWidth: 110 }}
+            value={newTarget.distance}
+            aria-label="Target distance"
+            onChange={e => setNewTarget({ ...newTarget, distance: e.target.value })}
+          >
+            {TARGET_DISTANCES.map(([value, label]) => (
+              <option key={value} value={value}>{label}</option>
+            ))}
+          </select>
+          <input
+            className={styles.confirmInput}
+            value={newTarget.time}
+            placeholder="7:20"
+            aria-label="Target time"
+            onChange={e => setNewTarget({ ...newTarget, time: e.target.value })}
+          />
+          <input
+            type="date"
+            className={styles.confirmInput}
+            value={newTarget.raceDate}
+            aria-label="Race date (optional)"
+            onChange={e => setNewTarget({ ...newTarget, raceDate: e.target.value })}
+          />
+          <input
+            className={styles.confirmInput}
+            value={newTarget.label}
+            placeholder="Label (optional)"
+            aria-label="Target label (optional)"
+            onChange={e => setNewTarget({ ...newTarget, label: e.target.value })}
+          />
+          <button type="button" className={styles.button} onClick={addTarget}>
+            <Plus size={14} /> Add
+          </button>
         </div>
       </div>
     </div>
@@ -381,6 +570,8 @@ export default function Settings() {
           </div>
         </div>
       </div>
+
+      <GoalsSection />
 
       <HrZonesSection />
 

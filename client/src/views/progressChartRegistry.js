@@ -11,6 +11,7 @@ import StrokeQualityCard from '../components/Charts/StrokeQualityCard.jsx';
 import DragFactorChart from '../components/Charts/DragFactorChart.jsx';
 import FadeFingerprint from '../components/Charts/FadeFingerprint.jsx';
 import PbTimelineChart from '../components/Charts/PbTimelineChart.jsx';
+import PlanAdherenceChart from '../components/Charts/PlanAdherenceChart.jsx';
 
 export const CHART_REGISTRY = [
   { id: 'fitness', title: 'Fitness / Fatigue / Form', component: FitnessChart, width: 'full' },
@@ -27,6 +28,7 @@ export const CHART_REGISTRY = [
   { id: 'hr-drift', title: 'HR Drift', component: HrDriftChart, width: 'half' },
   { id: 'stroke-quality', title: 'Stroke Quality', component: StrokeQualityCard, width: 'half' },
   { id: 'pb_timeline', title: 'PB Progression', component: PbTimelineChart, width: 'half' },
+  { id: 'plan_adherence', title: 'Plan Adherence', component: PlanAdherenceChart, width: 'half' },
   { id: 'fade', title: 'Fade Fingerprint', component: FadeFingerprint, width: 'full' },
 ];
 

@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { api } from '../../api.js';
 import { useTimeRange } from '../../context/TimeRangeContext.jsx';
@@ -10,6 +11,15 @@ import styles from './Charts.module.css';
 
 export default function VolumeChart() {
   const { from, to } = useTimeRange();
+  const [weeklyGoal, setWeeklyGoal] = useState(null);
+
+  useEffect(() => {
+    api.getGoals().then(d => {
+      const goal = (d.goals || []).find(g =>
+        g.kind === 'volume' && g.period === 'weekly' && g.active);
+      setWeeklyGoal(goal ? goal.target_meters : null);
+    }).catch(() => {});
+  }, []);
   const { data = [], loading, error, retry } = useChartData(() => {
     // Weekly buckets are produced by /api/stats/trends, so the client-side
     // week_start preference is not applied here yet.
@@ -62,12 +72,20 @@ export default function VolumeChart() {
             labelFormatter={w => `Week ${w.split('-W')[1] || w}`}
           />
           <ReferenceLine y={avg} {...REF_LINE} />
+          {weeklyGoal > 0 && (
+            <ReferenceLine
+              y={weeklyGoal}
+              stroke={SERIES.tertiary}
+              strokeDasharray="4 3"
+              label={{ value: 'goal', position: 'insideTopRight', fontSize: 10, fill: SERIES.tertiary }}
+            />
+          )}
           <Bar dataKey="steady_m" stackId="a" fill={SERIES.primary} radius={[0, 0, 0, 0]} />
           <Bar dataKey="interval_m" stackId="a" fill={SERIES.secondary} radius={[6, 6, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
-    
-      <ChartInfo>Total metres rowed each week. The dashed line marks the average across the weeks shown.</ChartInfo>
+
+      <ChartInfo>Total metres rowed each week. The dashed line marks the average across the weeks shown; the gold line marks your weekly volume goal when one is set.</ChartInfo>
     </div>
   );
 }

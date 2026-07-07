@@ -9,6 +9,7 @@ import Dashboard from './views/Dashboard.jsx';
 import Session from './views/Session.jsx';
 import Progress from './views/Progress.jsx';
 import Workouts from './views/Workouts.jsx';
+import Plan from './views/Plan.jsx';
 import Tools from './views/Tools.jsx';
 import Settings from './views/Settings.jsx';
 import Connect from './views/Connect.jsx';
@@ -18,6 +19,7 @@ const PAGE_TITLES = {
   '/': 'Dashboard',
   '/progress': 'Progress',
   '/workouts': 'Workouts',
+  '/plan': 'Plan',
   '/tools': 'Tools',
   '/settings': 'Settings',
 };
@@ -62,6 +64,7 @@ export default function App() {
             <Route path="/session/:id" element={<Session />} />
             <Route path="/progress" element={<Progress />} />
             <Route path="/workouts" element={<Workouts />} />
+            <Route path="/plan" element={<Plan />} />
             <Route path="/tools" element={<Tools />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="*" element={<Navigate to="/" replace />} />

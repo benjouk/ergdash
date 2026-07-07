@@ -13,6 +13,7 @@ import {
   computeBestEffortsForWorkout,
 } from './analytics.js';
 import { detectNewPbs, reconcilePbDistances } from './pbDetection.js';
+import { matchNewWorkouts } from './planMatching.js';
 
 let syncInProgress = false;
 
@@ -314,6 +315,10 @@ function runPostSyncAnalytics(insertedWorkoutIds = [], updatedWorkoutIds = [], a
     const newPbs = detectNewPbs(insertedWorkoutIds);
     if (newPbs.length > 0) {
       console.log(`Detected ${newPbs.length} new PB${newPbs.length === 1 ? '' : 's'}`);
+    }
+    const matchedPlans = matchNewWorkouts(insertedWorkoutIds);
+    if (matchedPlans > 0) {
+      console.log(`Auto-matched ${matchedPlans} planned workout${matchedPlans === 1 ? '' : 's'}`);
     }
     console.log('Post-sync analytics complete');
   } catch (err) {

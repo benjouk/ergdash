@@ -71,6 +71,36 @@ export const api = {
   getZones: (params = {}) => request(`/api/stats/zones?${new URLSearchParams(params)}`),
   getPolarization: (params = {}) => request(`/api/stats/polarization?${new URLSearchParams(params)}`),
 
+  getPredictions: () => request('/api/stats/predictions'),
+
+  getGoals: () => request('/api/goals'),
+  createGoal: (data) => request('/api/goals', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+  updateGoal: (id, data) => request(`/api/goals/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  }),
+  deleteGoal: (id) => request(`/api/goals/${id}`, { method: 'DELETE' }),
+
+  getPlans: (params = {}) => request(`/api/plans?${new URLSearchParams(params)}`),
+  createPlan: (data) => request('/api/plans', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+  updatePlan: (id, data) => request(`/api/plans/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  }),
+  deletePlan: (id) => request(`/api/plans/${id}`, { method: 'DELETE' }),
+  matchPlan: (id, workoutId) => request(`/api/plans/${id}/match`, {
+    method: 'POST',
+    body: JSON.stringify({ workout_id: workoutId }),
+  }),
+  unmatchPlan: (id) => request(`/api/plans/${id}/match`, { method: 'DELETE' }),
+  getPlanAdherence: (params = {}) => request(`/api/plans/adherence?${new URLSearchParams(params)}`),
+
   getWeeklyInsight: () => request('/api/ai/weekly'),
 
   triggerSync: () => request('/api/sync', { method: 'POST' }),

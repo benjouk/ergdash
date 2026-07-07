@@ -312,6 +312,17 @@ router.get('/personal-bests', (req, res) => {
   res.json({ personal_bests: pbs, time_bests: timePbs });
 });
 
+router.get('/predictions', (req, res) => {
+  const db = getDb();
+  const rows = db.prepare(`
+    SELECT distance, predicted_time, confidence, window_start, window_end, computed_at
+    FROM predictions
+    WHERE predicted_time IS NOT NULL
+    ORDER BY distance
+  `).all();
+  res.json({ predictions: rows });
+});
+
 router.get('/pb-history', (req, res) => {
   const db = getDb();
   const { since } = req.query;
@@ -445,8 +456,10 @@ router.get('/cumulative', (req, res) => {
     });
   };
 
-  const goalRow = db.prepare("SELECT value FROM settings WHERE key = 'annual_goal_m'").get();
-  const goalM = goalRow ? Number(goalRow.value) : null;
+  const goalRow = db.prepare(
+    "SELECT target_meters FROM goals WHERE kind = 'volume' AND period = 'year' AND active = 1"
+  ).get();
+  const goalM = goalRow ? Number(goalRow.target_meters) : null;
 
   res.json({
     year: currentYear,

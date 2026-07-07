@@ -317,3 +317,160 @@
     min-width: 0;
   }
 }
+
+/* Targets card */
+.targetList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.targetRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--rule);
+}
+
+.targetRow:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.targetName {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.targetDistance {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--accent-deep);
+  background: var(--accent-bg);
+  border-radius: var(--radius-sm);
+  padding: 1px var(--space-2);
+}
+
+.targetLabel {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.targetChip {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  color: var(--ink-3);
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  padding: 1px var(--space-2);
+}
+
+.targetChipAccent {
+  color: var(--accent-deep);
+  border-color: var(--accent);
+}
+
+.targetChipPositive {
+  color: var(--positive);
+  border-color: var(--positive);
+}
+
+.targetStats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.targetStat {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-alt);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  text-align: left;
+}
+
+.targetStatButton {
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.targetStatButton:hover {
+  border-color: var(--accent);
+}
+
+.targetStatLabel {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+}
+
+.targetStatValue {
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.targetStatSub {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--ink-3);
+}
+
+/* Volume goal progress bars */
+.goalBars {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.goalBar {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.goalBarMeta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 0.68rem;
+  font-family: var(--font-mono);
+  color: var(--ink-3);
+}
+
+.goalBarPeriod {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.62rem;
+}
+
+.goalBarTrack {
+  height: 5px;
+  border-radius: 999px;
+  background: var(--surface-alt);
+  overflow: hidden;
+}
+
+.goalBarFill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width 300ms ease;
+}
+
+.goalBarBehind {
+  background: var(--accent-3);
+}
