@@ -1,4 +1,5 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './context/AuthContext.jsx';
 import { usePrefs } from './context/PrefsContext.jsx';
 import Ticker from './components/Ticker/Ticker.jsx';
@@ -13,9 +14,26 @@ import Settings from './views/Settings.jsx';
 import Connect from './views/Connect.jsx';
 import styles from './App.module.css';
 
+const PAGE_TITLES = {
+  '/': 'Dashboard',
+  '/progress': 'Progress',
+  '/workouts': 'Workouts',
+  '/tools': 'Tools',
+  '/settings': 'Settings',
+};
+
+function usePageTitle(isAuthenticated) {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    const page = pathname.startsWith('/session/') ? 'Session' : PAGE_TITLES[pathname];
+    document.title = isAuthenticated && page ? `${page} · ErgDash` : 'ErgDash';
+  }, [pathname, isAuthenticated]);
+}
+
 export default function App() {
   const { isAuthenticated, isLoading } = useAuth();
   const { defaultLanding } = usePrefs();
+  usePageTitle(isAuthenticated);
 
   if (isLoading) {
     return (

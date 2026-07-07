@@ -61,11 +61,9 @@
 .statSub {
   font-family: var(--font-mono);
   font-size: 0.68rem;
+  line-height: 1.4;
   color: var(--ink-3);
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .statDelta {
