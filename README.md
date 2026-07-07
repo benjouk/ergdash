@@ -1,6 +1,28 @@
 # ErgDash
 
-A self-hosted dashboard for Concept2 RowErg users. Connects to the Concept2 Logbook API to sync your workout history and display training analytics: volume trends, pace tracking, personal bests, and fitness modelling.
+The charts your Concept2 Logbook doesn't give you.
+
+[![CI](https://github.com/benjouk/ergdash/actions/workflows/ci.yml/badge.svg)](https://github.com/benjouk/ergdash/actions/workflows/ci.yml)
+[![ghcr.io](https://img.shields.io/badge/ghcr.io-benjouk%2Fergdash-2496ed?logo=docker&logoColor=white)](https://github.com/benjouk/ergdash/pkgs/container/ergdash)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
+A self-hosted dashboard for Concept2 RowErg users. Connects to the Concept2 Logbook API to sync your workout history and display training analytics: volume trends, pace tracking, personal bests, and fitness modelling. Try the [live demo](https://ergdash.com/demo/), loaded with a season of sample data.
+
+![ErgDash dashboard](.github/screenshot.png)
+
+## Features
+
+- **Dashboard:** Season metres, weekly volume chart, pace trend, personal bests, calendar heatmap, weekly time-in-zone, fitness sparkline
+- **Session Detail:** Canvas pace ribbon heatmap, stroke-level charts, interval rep chart with HR recovery, rate-vs-pace scatter, HR zone bar, computed metrics (fade index, consistency, effort, distance per stroke, watts/beat, HR drift, rate discipline)
+- **Workouts:** Filterable/sortable table with CSV export
+- **Goals & Targets:** Weekly/monthly/season/annual volume goals overlaid on the dashboard, plus performance targets per benchmark distance compared against current PBs and trend-based race predictions, with an optional race-day countdown
+- **Plan:** Month calendar to schedule future sessions (type, target distance/duration, pace, rate, notes); synced workouts auto-match same-day plans with manual link/unlink, missed days are flagged, and a Progress chart tracks plan adherence over time
+- **Progress:** Fitness (CTL/ATL/TSB), pace/volume trends, power-duration curve with 90-day ghost, time-in-zone and polarization stacks, efficiency (watts/beat), distance per stroke, HR drift, cumulative metres race line, drag factor timeline, fade fingerprint
+- **HR Zones:** Five configurable zones in Settings (% of max HR), estimated from observed data until set
+- **Feed:** Always-visible sidebar of recent sessions with sparklines
+- **Ticker:** Sticky header with key stats, pace trace, and navigation
+- **Light/Dark theme:** System-aware with manual override
+- **Units:** Toggle between /500m pace, watts, and cal/hr
 
 ## Setup
 
@@ -34,6 +56,10 @@ The app is at `http://localhost:3100`. From a repo checkout, the included [docke
 ```bash
 docker compose pull && docker compose up -d   # or build from source: docker compose up -d --build
 ```
+
+### Updating and backups
+
+Update by pulling the new image and recreating the container (`docker compose pull && docker compose up -d`). All state lives in the SQLite database inside the `ergdash-data` volume; Settings offers one-click backup download and restore.
 
 ## Development
 
@@ -85,20 +111,6 @@ server/          Express 4 + better-sqlite3
   migrations/    SQL schema
 ```
 
-## Features
-
-- **Dashboard:** Season metres, weekly volume chart, pace trend, personal bests, calendar heatmap, weekly time-in-zone, fitness sparkline
-- **Session Detail:** Canvas pace ribbon heatmap, stroke-level charts, interval rep chart with HR recovery, rate-vs-pace scatter, HR zone bar, computed metrics (fade index, consistency, effort, distance per stroke, watts/beat, HR drift, rate discipline)
-- **Workouts:** Filterable/sortable table with CSV export
-- **Goals & Targets:** Weekly/monthly/season/annual volume goals overlaid on the dashboard, plus performance targets per benchmark distance compared against current PBs and trend-based race predictions, with an optional race-day countdown
-- **Plan:** Month calendar to schedule future sessions (type, target distance/duration, pace, rate, notes); synced workouts auto-match same-day plans with manual link/unlink, missed days are flagged, and a Progress chart tracks plan adherence over time
-- **Progress:** Fitness (CTL/ATL/TSB), pace/volume trends, power-duration curve with 90-day ghost, time-in-zone and polarization stacks, efficiency (watts/beat), distance per stroke, HR drift, cumulative metres race line, drag factor timeline, fade fingerprint
-- **HR Zones:** Five configurable zones in Settings (% of max HR), estimated from observed data until set
-- **Feed:** Always-visible sidebar of recent sessions with sparklines
-- **Ticker:** Sticky header with key stats, pace trace, and navigation
-- **Light/Dark theme:** System-aware with manual override
-- **Units:** Toggle between /500m pace, watts, and cal/hr
-
 ## Environment Variables
 
 | Variable | Default | Description |
@@ -134,6 +146,10 @@ cookies, a JSON-only body parser, and CORS being disabled by default. See
 
 **Fonts:** Outfit (display/body), Archivo (hero numerals), Fira Code (monospace); self-hosted, variable woff2
 
+## Contributing
+
+Issues and PRs are welcome. Both packages have Vitest suites (`npm test` in `server/` and `client/`); CI runs the tests, a client build, and dependency audits on every PR.
+
 ## License
 
-MIT
+[MIT](LICENSE)
