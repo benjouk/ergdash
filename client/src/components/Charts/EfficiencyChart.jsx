@@ -55,6 +55,7 @@ export default function EfficiencyChart() {
             axisLine={AXIS_LINE}
             tickLine={false}
             interval="preserveStartEnd"
+            minTickGap={24}
           />
           <YAxis
             tick={AXIS_TICK}

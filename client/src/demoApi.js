@@ -165,9 +165,13 @@ async function handleGet(route, params) {
   }
 
   if (route === '/api/stats/pb-history' && params.since) {
-    // Demo PB history is a single seeded batch; treat any "since" as
-    // already-seen so the banner shows once per fixture then dismisses.
-    return { pb_history: [] };
+    // Apply "since" client-side: the PB banner passes pb_last_seen_at (a
+    // timestamp after the seeded batch, so it filters to nothing once
+    // dismissed) while the PB Progression chart passes the time-range start
+    // and needs the events inside that window.
+    const fixture = await lookupFixture(route, {});
+    const rows = fixture.pb_history || [];
+    return { pb_history: rows.filter(r => r.achieved_at > params.since) };
   }
 
   return lookupFixture(route, params);

@@ -33,13 +33,14 @@ import {
 } from 'lucide-react';
 import { api } from '../api.js';
 import { AXIS_TICK } from '../styles/chartTheme.js';
+import { paceToWatts as ergPaceToWatts, wattsToCalHr as ergWattsToCalHr } from '../utils/ergMath.js';
 import { useUnits } from '../context/UnitsContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { renderSessionCard } from '../utils/sessionCard.js';
-import Sparkline from '../components/Feed/Sparkline.jsx';
 import PBBadges from '../components/PBBadge.jsx';
 import ComparisonOverlay from '../components/Charts/ComparisonOverlay.jsx';
 import IntervalRepChart from '../components/Session/IntervalRepChart.jsx';
+import PaceProfileChart from '../components/Session/PaceProfileChart.jsx';
 import ChartInfo from '../components/Charts/ChartInfo.jsx';
 import RateVsPaceScatter from '../components/Charts/RateVsPaceScatter.jsx';
 import { useIsMobile, niceTicksFromZero } from '../components/Charts/useChartData.js';
@@ -304,7 +305,14 @@ export default function Session() {
   const hasStrokeRate = strokeData.some(d => d.stroke_rate > 0);
   const hasHeartRate = strokeData.some(d => d.heart_rate > 0);
   const hasAnalysis = strokeData.length > 1;
-  const hasPaceProfile = !hasAnalysis && workout.pace_profile?.length >= 2;
+  const hasRepChart = (workout.intervals?.filter(i => i.type !== 'rest').length ?? 0) >= 2;
+  // The reps chart already tells the per-rep pace story, so the profile card
+  // only earns its place when there is neither stroke data nor a rep chart.
+  const hasPaceProfile = !hasAnalysis && !hasRepChart && workout.pace_profile?.length >= 2;
+  // A single Z-bar derived from average HR is meaningless for intervals (the
+  // whole session lands in one zone); per-rep HR on the reps chart says more.
+  const zonesFromAvgOnly = workout.zone_times?.length > 0
+    && workout.zone_times.every(z => z.source === 'avg_hr');
   const comments = workout.comments?.trim();
   const savedNotes = workout.notes || '';
   const notesChanged = notesDraft !== savedNotes;
@@ -492,7 +500,7 @@ export default function Session() {
         </ul>
       )}
 
-      {workout.zone_times?.length > 0 && (
+      {workout.zone_times?.length > 0 && !(isInterval && zonesFromAvgOnly) && (
         <div className={`${styles.card} ${styles.cardVisible}`}>
           <div className={styles.cardHeader}>
             <div className={styles.cardTitle}>HR Zones</div>
@@ -513,24 +521,21 @@ export default function Session() {
           <div className={styles.chartStack}>
             <div className={styles.chartBlock}>
               <div className={styles.chartLabel}>
-                Pace profile
+                Pace profile <span className={styles.chartUnit}>/500m</span>
               </div>
-              <div className={styles.sparklineBox}>
-                <Sparkline
-                  data={workout.pace_profile}
-                  color={isInterval ? 'var(--accent-2)' : 'var(--accent)'}
-                  width={600}
-                  height={80}
-                  strokeWidth={2}
-                />
-              </div>
+              <PaceProfileChart
+                profile={workout.pace_profile}
+                avgPaceMs={workout.pace_ms}
+                formatPace={formatPace}
+                accent={isInterval ? 'var(--accent-2)' : 'var(--accent)'}
+              />
             </div>
           </div>
-          <ChartInfo>The shape of your pace through this session, drawn from summary data — stroke-level detail is not available for this workout.</ChartInfo>
+          <ChartInfo>The shape of your pace through this session, drawn from summary data — stroke-level detail is not available for this workout. The dashed line marks the session average; higher is faster.</ChartInfo>
         </div>
       )}
 
-      {!hasAnalysis && !hasPaceProfile && (
+      {!hasAnalysis && !hasPaceProfile && !hasRepChart && (
         <div className={styles.card}>
           <div className={styles.emptyState}>
             {enriching ? (
@@ -627,7 +632,7 @@ export default function Session() {
         </div>
       )}
 
-      {workout.intervals?.filter(i => i.type !== 'rest').length >= 2 && (
+      {hasRepChart && (
         <div className={styles.card}>
           <div className={styles.cardHeader}>
             <div className={styles.cardTitle}>Interval Reps</div>
@@ -684,6 +689,8 @@ export default function Session() {
                       <td className={`${styles.paceCell} ${row.best ? styles.bestSplit : ''}`}>
                         {barWidth > 0 && <div className={styles.paceBar} style={{ width: `${barWidth}%` }} />}
                         {formatPace(row.pace_ms)}
+                        {row.best && <span className={styles.splitMarkerBest} title="Fastest split" aria-label="Fastest split">▲</span>}
+                        {row.worst && <span className={styles.splitMarkerWorst} title="Slowest split" aria-label="Slowest split">▼</span>}
                       </td>
                       <td>{row.stroke_rate ? row.stroke_rate.toFixed(1) : '--'}</td>
                       <td>{row.heart_rate ? Math.round(row.heart_rate) : '--'}</td>
@@ -801,7 +808,7 @@ function tooltipLabel(key) {
 function tooltipValue(key, value, formatPace) {
   if (value == null) return '--';
   if (key === 'pace_ms') return formatPace(value);
-  if (key === 'stroke_rate') return `${Number(value).toFixed(1)} s/m`;
+  if (key === 'stroke_rate') return `${Number(value).toFixed(1)} spm`;
   if (key === 'heart_rate') return `${Math.round(value)} bpm`;
   return value;
 }
@@ -851,6 +858,7 @@ function buildSplitRows(workout) {
       return {
         key: `interval-${interval.id || index}`,
         label: `${index + 1}`,
+        rest: !isWork,
         time_ms: interval.time_ms,
         pace_ms: interval.pace_ms,
         stroke_rate: interval.stroke_rate,
@@ -860,7 +868,7 @@ function buildSplitRows(workout) {
         best: false,
       };
     });
-    return markBest(rows);
+    return markBestWorst(rows);
   }
 
   const strokes = (workout.strokes || []).filter(s => s?.pace_ms > 0 && s?.distance_m >= 0);
@@ -873,7 +881,12 @@ function buildSplitRows(workout) {
   for (let index = 0; index < splitCount; index += 1) {
     const start = index * splitSize;
     const end = Math.min((index + 1) * splitSize, workout.distance);
-    const bucket = strokes.filter(stroke => stroke.distance_m >= start && stroke.distance_m <= end);
+    const isLast = index === splitCount - 1;
+    // Half-open buckets so a stroke on the boundary isn't counted twice;
+    // the final bucket closes to include the finish-line stroke.
+    const bucket = strokes.filter(stroke =>
+      stroke.distance_m >= start && (isLast ? stroke.distance_m <= end : stroke.distance_m < end)
+    );
     if (bucket.length === 0) continue;
 
     const distance = end - start;
@@ -889,12 +902,24 @@ function buildSplitRows(workout) {
     });
   }
 
-  return markBest(rows);
+  return markBestWorst(rows);
 }
 
-function markBest(rows) {
-  const bestPace = Math.min(...rows.map(row => row.pace_ms).filter(Boolean));
-  return rows.map(row => ({ ...row, best: row.pace_ms === bestPace }));
+// Flags the fastest and slowest splits. Rest intervals never qualify, and
+// the slowest marker only appears when there are enough splits for
+// "slowest" to mean something and it isn't also the fastest.
+function markBestWorst(rows) {
+  const paces = rows.filter(row => !row.rest && row.pace_ms > 0).map(row => row.pace_ms);
+  if (paces.length === 0) return rows;
+
+  const bestPace = Math.min(...paces);
+  const worstPace = paces.length >= 3 && Math.max(...paces) !== bestPace ? Math.max(...paces) : null;
+
+  return rows.map(row => ({
+    ...row,
+    best: !row.rest && row.pace_ms === bestPace,
+    worst: !row.rest && worstPace != null && row.pace_ms === worstPace,
+  }));
 }
 
 function average(values) {
@@ -905,13 +930,14 @@ function average(values) {
 
 function paceToWatts(paceMs) {
   if (!paceMs || paceMs <= 0) return null;
-  const paceSeconds = paceMs / 1000;
-  return Math.round(2.8 / Math.pow(paceSeconds / 500, 3));
+  const watts = ergPaceToWatts(paceMs / 1000);
+  return watts != null ? Math.round(watts) : null;
 }
 
 function wattsToCalHr(watts) {
   if (!watts) return null;
-  return Math.round(watts * 0.86 + 300);
+  const calHr = ergWattsToCalHr(watts);
+  return calHr != null ? Math.round(calHr) : null;
 }
 
 function getPrimaryMetric(units) {

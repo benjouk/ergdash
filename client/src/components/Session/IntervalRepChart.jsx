@@ -60,7 +60,7 @@ export default function IntervalRepChart({ intervals, formatPace }) {
           tick={AXIS_TICK}
           axisLine={false}
           tickLine={false}
-          width={44}
+          width={56}
           domain={[0, 'dataMax + 0.5']}
           tickFormatter={v => (v > 0 ? formatPace(Math.round((500 / v) * 1000)) : '')}
         />

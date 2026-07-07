@@ -1,7 +1,7 @@
 function defaultLayoutFor(registry) {
   return {
     version: 1,
-    charts: registry.map(({ id }) => ({ id, hidden: false })),
+    charts: registry.map(({ id, defaultHidden }) => ({ id, hidden: Boolean(defaultHidden) })),
   };
 }
 
@@ -36,9 +36,12 @@ export function mergeLayout(savedJsonString, registry) {
     savedCharts.push({ id: chart.id, hidden: Boolean(chart.hidden) });
   });
 
+  // Charts the saved layout doesn't know about come in at their registry
+  // default, so a chart shipped hidden-by-default stays hidden until the
+  // user opts in — while explicit saved choices always win.
   const missingCharts = registry
     .filter(({ id }) => !seen.has(id))
-    .map(({ id }) => ({ id, hidden: false }));
+    .map(({ id, defaultHidden }) => ({ id, hidden: Boolean(defaultHidden) }));
 
   return {
     version: 1,

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { Calculator, Sun, Moon, CalendarRange, ChevronDown } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext.jsx';
 import { useSync } from '../../context/SyncContext.jsx';
@@ -18,6 +18,14 @@ export default function Ticker() {
   const [paceTrend, setPaceTrend] = useState(null);
   const [rangeMenuOpen, setRangeMenuOpen] = useState(false);
   const rangeMenuRef = useRef(null);
+  const location = useLocation();
+  // A single session is a fixed slice of time — the global range selector has
+  // nothing to scope there, so it greys out rather than pretending to apply.
+  const onSessionPage = location.pathname.startsWith('/session/');
+
+  useEffect(() => {
+    if (onSessionPage) setRangeMenuOpen(false);
+  }, [onSessionPage]);
 
   useEffect(() => {
     const params = {};
@@ -90,6 +98,8 @@ export default function Ticker() {
           className={styles.rangeButton}
           aria-haspopup="listbox"
           aria-expanded={rangeMenuOpen}
+          disabled={onSessionPage}
+          title={onSessionPage ? 'Time range doesn’t apply to a single session' : undefined}
         >
           <CalendarRange size={13} />
           <span>{PRESETS[rangeKey]}</span>

@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { api } from '../api.js';
+import { paceToWatts, wattsToCalHr } from '../utils/ergMath.js';
 
 const UnitsContext = createContext();
 
@@ -25,15 +26,12 @@ export function UnitsProvider({ children }) {
     if (!paceMs || paceMs <= 0) return '--';
 
     if (units === 'watts') {
-      const paceSeconds = paceMs / 1000;
-      const watts = Math.round(2.80 / Math.pow(paceSeconds / 500, 3));
+      const watts = Math.round(paceToWatts(paceMs / 1000));
       return `${watts}W`;
     }
 
     if (units === 'calhr') {
-      const paceSeconds = paceMs / 1000;
-      const watts = 2.80 / Math.pow(paceSeconds / 500, 3);
-      const calhr = Math.round(watts * 0.86 + 300);
+      const calhr = Math.round(wattsToCalHr(paceToWatts(paceMs / 1000)));
       return `${calhr} Cal/hr`;
     }
 

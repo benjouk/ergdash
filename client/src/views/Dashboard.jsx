@@ -8,11 +8,8 @@ import StatsRow from '../components/Stats/StatsRow.jsx';
 import VolumeSummaryCard from '../components/Stats/VolumeSummaryCard.jsx';
 import SplitDonut from '../components/Stats/SplitDonut.jsx';
 import VolumeChart from '../components/Charts/VolumeChart.jsx';
-import PaceChart from '../components/Charts/PaceChart.jsx';
 import PBStrip from '../components/Stats/PBStrip.jsx';
-import FitnessChart from '../components/Charts/FitnessChart.jsx';
 import CalendarHeatmap from '../components/Charts/CalendarHeatmap.jsx';
-import ZoneStackChart from '../components/Charts/ZoneStackChart.jsx';
 import FeedPanel from '../components/Feed/FeedPanel.jsx';
 import styles from './Dashboard.module.css';
 
@@ -97,10 +94,9 @@ export default function Dashboard() {
         <FeedPanel layout="row" />
       </section>
 
-      <div className={styles.chartsGrid}>
-        <VolumeChart />
-        <PaceChart />
-      </div>
+      {/* Pace, zones, and fitness trends live on the Progress page; the
+          dashboard stays focused on volume, PBs, and the calendar. */}
+      <VolumeChart />
 
       <div>
         <h3 className={styles.sectionHeader}>Personal Bests</h3>
@@ -108,10 +104,6 @@ export default function Dashboard() {
       </div>
 
       <CalendarHeatmap />
-
-      <ZoneStackChart compact />
-
-      <FitnessChart compact />
     </div>
   );
 }

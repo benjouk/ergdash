@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { getDb } from '../db.js';
 import { validateDateRange, validatePaginationParams } from '../middleware/validate.js';
-import { BEST_EFFORT_DURATIONS } from '../analytics.js';
+import { BEST_EFFORT_DURATIONS, computeWeekStreak } from '../analytics.js';
 import { getZoneModel, getObservedMaxHr } from '../hrZones.js';
 import { wattsFromPace, paceFromWatts } from '../strokeMetrics.js';
 import { STANDARD_PB_DISTANCES } from '../pbDetection.js';
@@ -20,12 +20,14 @@ router.get('/summary', (req, res) => {
   if (from) { dateFilter += ' AND date >= ?'; dateParams.push(from); }
   if (to) { dateFilter += ' AND date < ?'; dateParams.push(to); }
 
+  // Lifetime and season figures are presented as absolute ("all time",
+  // "lifetime", "Season Metres"), so the range selector must not shrink them.
   const totals = db.prepare(`
     SELECT COUNT(*) as total_workouts,
            COALESCE(SUM(distance), 0) as total_meters,
            COALESCE(SUM(time_ms), 0) as total_time_ms
-    FROM workouts WHERE type = 'rower'${dateFilter}
-  `).get(...dateParams);
+    FROM workouts WHERE type = 'rower'
+  `).get();
 
   const now = new Date();
   const seasonStart = now.getMonth() >= 4
@@ -35,8 +37,8 @@ router.get('/summary', (req, res) => {
   const season = db.prepare(`
     SELECT COALESCE(SUM(distance), 0) as season_meters,
            COUNT(*) as season_workouts
-    FROM workouts WHERE type = 'rower' AND date >= ?${dateFilter}
-  `).get(seasonStart, ...dateParams);
+    FROM workouts WHERE type = 'rower' AND date >= ?
+  `).get(seasonStart);
 
   const avgPaceRow = db.prepare(`
     SELECT AVG(pace_ms) as avg_pace FROM workouts
@@ -182,13 +184,12 @@ router.get('/trends', (req, res) => {
 
   if (metric === 'dps') {
     const rows = db.prepare(`
-      SELECT strftime('%Y-%m', w.date) as month,
-             AVG(cm.distance_per_stroke) as dps,
-             COUNT(*) as sessions
+      SELECT w.date, cm.distance_per_stroke as dps, w.distance,
+             CASE WHEN w.inferred_tag = 'interval' THEN 'interval' ELSE 'endurance' END as inferred_tag
       FROM workouts w
       JOIN computed_metrics cm ON w.id = cm.workout_id
       WHERE w.type = 'rower' AND cm.distance_per_stroke IS NOT NULL AND w.date >= ?${toFilter}
-      GROUP BY month ORDER BY month
+      ORDER BY w.date
     `).all(from, ...toParam);
     return res.json({ dps_trend: rows });
   }
@@ -692,25 +693,6 @@ router.get('/polarization', (req, res) => {
 
   res.json({ weeks });
 });
-
-function computeWeekStreak(db) {
-  const weeks = db.prepare(`
-    SELECT DISTINCT strftime('%Y-%W', date) as w FROM workouts
-    WHERE type = 'rower' ORDER BY w DESC
-  `).all().map(r => r.w);
-
-  if (weeks.length === 0) return 0;
-
-  let streak = 1;
-  for (let i = 1; i < weeks.length; i++) {
-    const [y1, w1] = weeks[i - 1].split('-').map(Number);
-    const [y2, w2] = weeks[i].split('-').map(Number);
-    const weekDiff = (y1 - y2) * 52 + (w1 - w2);
-    if (weekDiff === 1) streak++;
-    else break;
-  }
-  return streak;
-}
 
 function avg(arr) {
   if (!arr || arr.length === 0) return 0;

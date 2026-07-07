@@ -429,6 +429,21 @@
   font-weight: 700;
 }
 
+.splitMarkerBest,
+.splitMarkerWorst {
+  margin-left: 6px;
+  font-size: 0.6rem;
+  vertical-align: 1px;
+}
+
+.splitMarkerBest {
+  color: var(--positive);
+}
+
+.splitMarkerWorst {
+  color: var(--negative);
+}
+
 .splitsTable tr {
   transition: background 150ms ease;
 }

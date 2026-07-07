@@ -104,3 +104,63 @@ describe('buildWorkoutInsight', () => {
     expect(buildWorkoutInsight({ inferred_tag: 'endurance', pace_ms: 120000, metrics: {} }, {})).toEqual([]);
   });
 });
+
+describe('buildWorkoutInsight — interval sets', () => {
+  const workout = { inferred_tag: 'interval', pace_ms: 109000, metrics: {} };
+  const rep = (paceMs, strokeRate = 30) => ({ type: 'work', pace_ms: paceMs, stroke_rate: strokeRate });
+
+  it('calls a tight set even and names the fastest rep', () => {
+    const out = byId(buildWorkoutInsight(workout, {}, {
+      intervals: [rep(110000), rep(109200), rep(108800), rep(109500)],
+    }));
+    expect(out.reps.kind).toBe('positive');
+    expect(out.reps.text).toContain('even set');
+    expect(out.reps.text).toContain('rep 3 fastest at 1:48.8');
+  });
+
+  it('praises a fastest final rep', () => {
+    const out = byId(buildWorkoutInsight(workout, {}, {
+      intervals: [rep(112000), rep(111000), rep(110000), rep(108000)],
+    }));
+    expect(out.reps.kind).toBe('positive');
+    expect(out.reps.text).toContain('Finished strongest');
+    expect(out.reps.text).toContain('rep 4');
+  });
+
+  it('flags a wide pace spread as drift', () => {
+    const out = byId(buildWorkoutInsight(workout, {}, {
+      intervals: [rep(107000), rep(110000), rep(112500), rep(111000)],
+    }));
+    expect(out.reps.kind).toBe('watch');
+    expect(out.reps.text).toContain('5.5 s/500m');
+  });
+
+  it('flags a stroke-rate spike against the set average', () => {
+    const out = byId(buildWorkoutInsight(workout, {}, {
+      intervals: [rep(110000, 28.5), rep(109000, 28.3), rep(111000, 33.7), rep(110500, 28.4)],
+    }));
+    expect(out.rate_spike.kind).toBe('watch');
+    expect(out.rate_spike.text).toContain('33.7 spm on rep 3');
+  });
+
+  it('reads HR recoveries between reps', () => {
+    const good = byId(buildWorkoutInsight(workout, {}, {
+      intervals: [rep(110000), rep(109000)],
+      recoveries: [{ drop_bpm: 14 }, { drop_bpm: 12 }],
+    }));
+    expect(good.recovery.kind).toBe('positive');
+
+    const poor = byId(buildWorkoutInsight(workout, {}, {
+      intervals: [rep(110000), rep(109000)],
+      recoveries: [{ drop_bpm: 2 }, { drop_bpm: 1 }],
+    }));
+    expect(poor.recovery.kind).toBe('watch');
+  });
+
+  it('ignores rest rows and skips sets with fewer than two work reps', () => {
+    const out = buildWorkoutInsight(workout, {}, {
+      intervals: [rep(110000), { type: 'rest', pace_ms: 0 }],
+    });
+    expect(out).toEqual([]);
+  });
+});

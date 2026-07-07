@@ -32,6 +32,33 @@ describe('mergeLayout', () => {
     expect(ids(mergeLayout('{bad json', registry))).toEqual(ids(mergeLayout(null, registry)));
   });
 
+  it('respects defaultHidden for fresh layouts and unseen charts, but not saved choices', () => {
+    const withDefault = [
+      { id: 'fitness', width: 'full' },
+      { id: 'volume', width: 'half', defaultHidden: true },
+      { id: 'pace', width: 'half' },
+    ];
+
+    // Fresh layout: the chart starts hidden.
+    expect(mergeLayout(null, withDefault).charts).toEqual([
+      { id: 'fitness', hidden: false },
+      { id: 'volume', hidden: true },
+      { id: 'pace', hidden: false },
+    ]);
+
+    // Saved layout that never saw the chart: it merges in hidden.
+    const merged = mergeLayout(JSON.stringify({
+      charts: [{ id: 'fitness', hidden: false }],
+    }), withDefault);
+    expect(merged.charts.find(chart => chart.id === 'volume').hidden).toBe(true);
+
+    // An explicit saved choice always wins over the default.
+    const explicit = mergeLayout(JSON.stringify({
+      charts: [{ id: 'volume', hidden: false }],
+    }), withDefault);
+    expect(explicit.charts.find(chart => chart.id === 'volume').hidden).toBe(false);
+  });
+
   it('drops unknown and duplicate ids', () => {
     const layout = mergeLayout(JSON.stringify({
       version: 1,

@@ -77,7 +77,7 @@ function generateEndurance(id, date, factor, isDouble = false) {
   const hrAvg = randInt(145, 165);
 
   return {
-    id, date: formatDate(date), distance, timeMs, paceMs, strokeRate, strokeCount,
+    id, date: sessionDate(date, isDouble), distance, timeMs, paceMs, strokeRate, strokeCount,
     hrAvg, hrMax: hrAvg + randInt(10, 20), dragFactor: randInt(115, 130),
     calories: Math.round(distance / 25 + randBetween(-10, 10)),
     type: 'endurance', workoutType: 'FixedDistanceSplits',
@@ -110,16 +110,62 @@ function generateInterval(id, date, factor) {
 
   const avgPace = Math.round(intervals.reduce((s, i) => s + i.paceMs, 0) / numIntervals);
   const hrAvg = randInt(165, 178);
+  const strokes = generateIntervalStrokeData(intervals, restTimeMs);
 
   return {
-    id, date: formatDate(date), distance, timeMs: totalTime, paceMs: avgPace,
+    id, date: sessionDate(date), distance, timeMs: totalTime, paceMs: avgPace,
     strokeRate: Math.round(randBetween(29, 33) * 10) / 10,
-    strokeCount: Math.round(totalTime / 60000 * 31),
+    // Strokes only happen during work reps; counting the rests inflated the
+    // stroke count and dragged distance-per-stroke down to implausible values.
+    strokeCount: strokes.length,
     hrAvg, hrMax: hrAvg + randInt(10, 18), dragFactor: randInt(118, 128),
     calories: Math.round(distance / 22 + randBetween(-5, 5)),
     type: 'interval', workoutType: 'FixedDistanceSplits',
-    intervals, strokes: null,
+    intervals, strokes,
   };
+}
+
+// Stroke stream for an interval set: work reps only (as Concept2 records it),
+// with the stroke clock spanning the rest gaps and distance accumulating
+// across reps. HR climbs through each rep and restarts lower after the rest,
+// so between-rep recoveries fall out of the data naturally.
+function generateIntervalStrokeData(intervals, restTimeMs) {
+  const strokes = [];
+  let strokeNumber = 0;
+  let elapsedS = 0;
+  let baseDistance = 0;
+
+  intervals.forEach((interval, index) => {
+    const repStrokes = Math.max(10, Math.round((interval.timeMs / 60000) * interval.strokeRate));
+    const metersPerStroke = interval.distance / repStrokes;
+    const hrStart = interval.hrAvg - randInt(18, 26);
+    const hrPeak = interval.hrAvg + randInt(4, 8);
+
+    for (let s = 0; s < repStrokes; s++) {
+      const progress = s / repStrokes;
+      const pace = Math.round(interval.paceMs + randBetween(-1500, 1500));
+      const paceSeconds = pace / 1000;
+      const watts = paceSeconds > 0 ? Math.round(2.80 / Math.pow(paceSeconds / 500, 3)) : 0;
+      const hr = Math.round(hrStart + (hrPeak - hrStart) * Math.min(1, progress * 1.6) + randBetween(-2, 2));
+
+      strokes.push({
+        number: strokeNumber++,
+        timeS: Math.round(elapsedS * 100) / 100,
+        distanceM: Math.round((baseDistance + s * metersPerStroke) * 10) / 10,
+        paceMs: pace,
+        watts,
+        strokeRate: Math.round((interval.strokeRate + randBetween(-1.2, 1.2)) * 10) / 10,
+        heartRate: Math.max(100, Math.min(200, hr)),
+      });
+
+      elapsedS += (metersPerStroke / 500) * paceSeconds;
+    }
+
+    baseDistance += interval.distance;
+    if (index < intervals.length - 1) elapsedS += restTimeMs / 1000;
+  });
+
+  return strokes;
 }
 
 function generateTest(id, date, factor) {
@@ -131,7 +177,7 @@ function generateTest(id, date, factor) {
   const hrAvg = randInt(172, 188);
 
   return {
-    id, date: formatDate(date), distance, timeMs, paceMs,
+    id, date: sessionDate(date), distance, timeMs, paceMs,
     strokeRate: Math.round(strokeRate * 10) / 10,
     strokeCount: Math.round(timeMs / 60000 * strokeRate),
     hrAvg, hrMax: hrAvg + randInt(5, 12), dragFactor: randInt(120, 130),
@@ -146,7 +192,11 @@ function generateStrokeData(distance, avgPaceMs, avgRate, avgHr) {
   const totalStrokes = Math.round((distance / 500) * (avgPaceMs / 1000) / 60 * avgRate * 60);
   const count = Math.min(totalStrokes, 600);
   const metersPerStroke = distance / count;
+  // How tightly this session held its rating; varies workout to workout so
+  // rate-discipline scores spread out instead of pinning at 100.
+  const rateJitter = randBetween(1, 3.5);
 
+  let elapsedS = 0;
   for (let i = 0; i < count; i++) {
     const progress = i / count;
     let paceFactor;
@@ -160,15 +210,21 @@ function generateStrokeData(distance, avgPaceMs, avgRate, avgHr) {
     const watts = paceSeconds > 0 ? Math.round(2.80 / Math.pow(paceSeconds / 500, 3)) : 0;
     const hr = Math.round(avgHr * (0.85 + progress * 0.15) + randBetween(-3, 3));
 
+    // Accumulate each stroke's own duration. Scaling cumulative distance by
+    // the current stroke's jittered pace makes timestamps non-monotonic,
+    // which inflates every dt-based metric (time in zone, HR drift, best
+    // efforts) since negative deltas clamp to zero but spikes count in full.
     strokes.push({
       number: i,
-      timeS: Math.round((i * metersPerStroke / 500) * paceSeconds * 100) / 100,
+      timeS: Math.round(elapsedS * 100) / 100,
       distanceM: Math.round(i * metersPerStroke * 10) / 10,
       paceMs: pace,
       watts,
-      strokeRate: Math.round((avgRate + randBetween(-1.5, 1.5)) * 10) / 10,
+      strokeRate: Math.round((avgRate + randBetween(-rateJitter, rateJitter)) * 10) / 10,
       heartRate: Math.max(100, Math.min(200, hr)),
     });
+
+    elapsedS += (metersPerStroke / 500) * paceSeconds;
   }
 
   return strokes;
@@ -176,6 +232,16 @@ function generateStrokeData(distance, avgPaceMs, avgRate, avgHr) {
 
 function formatDate(date) {
   return date.toISOString().slice(0, 19) + 'Z';
+}
+
+// Sessions land at a plausible morning or evening clock time instead of
+// inheriting whatever time the seed script happened to run at.
+function sessionDate(date, isDouble = false) {
+  const d = new Date(date);
+  const evening = isDouble || rand() < 0.4;
+  const hour = evening ? 17 + randInt(0, 2) : 6 + randInt(0, 2);
+  d.setHours(hour, randInt(0, 59), 0, 0);
+  return formatDate(d);
 }
 
 export function seedDatabase() {

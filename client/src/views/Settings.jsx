@@ -134,6 +134,15 @@ function HrZonesSection() {
   );
 }
 
+function formatSyncTime(isoString) {
+  if (!isoString) return 'Never';
+  const date = new Date(isoString);
+  if (Number.isNaN(date.getTime())) return 'Never';
+  return date.toLocaleString(undefined, {
+    day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+  });
+}
+
 function Segmented({ options, value, onChange, ariaLabel }) {
   return (
     <div className={styles.segmented} role="group" aria-label={ariaLabel}>
@@ -398,7 +407,7 @@ export default function Settings() {
           <div>
             <div className={styles.label}>Status</div>
             <div className={styles.subtext}>
-              {syncStatus?.status === 'syncing' ? 'Syncing...' : `Last sync: ${syncStatus?.last_completed || 'Never'}`}
+              {syncStatus?.status === 'syncing' ? 'Syncing...' : `Last sync: ${formatSyncTime(syncStatus?.last_completed)}`}
             </div>
           </div>
           {!isDemo && <button onClick={triggerSync} className={styles.button}>Sync Now</button>}
@@ -409,7 +418,7 @@ export default function Settings() {
             <div className={styles.subtext}>Enrichment progress</div>
           </div>
           <span className={styles.mono}>
-            {syncStatus?.enrichment_progress || '—'}
+            {syncStatus?.enrichment_progress != null ? `${syncStatus.enrichment_progress}%` : '—'}
           </span>
         </div>
       </div>

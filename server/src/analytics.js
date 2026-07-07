@@ -369,6 +369,35 @@ function estimateTrainingLoad(workout) {
   return durationHours * Math.pow(intensityFactor, 2) * 100;
 }
 
+// Consecutive weeks (ending at the most recent active week) with at least one
+// row. Weeks are keyed by their Monday date so the count survives year
+// boundaries, which strftime('%W') arithmetic does not.
+export function computeWeekStreak(db) {
+  const days = db.prepare(`
+    SELECT DISTINCT date(date) as d FROM workouts WHERE type = 'rower'
+  `).all();
+  if (days.length === 0) return 0;
+
+  const mondays = new Set();
+  for (const { d } of days) {
+    const dt = new Date(`${d}T00:00:00Z`);
+    if (Number.isNaN(dt.getTime())) continue;
+    dt.setUTCDate(dt.getUTCDate() - ((dt.getUTCDay() + 6) % 7));
+    mondays.add(dt.toISOString().slice(0, 10));
+  }
+  if (mondays.size === 0) return 0;
+
+  const sorted = [...mondays].sort((a, b) => b.localeCompare(a));
+  let streak = 1;
+  const cursor = new Date(`${sorted[0]}T00:00:00Z`);
+  for (let i = 1; i < sorted.length; i++) {
+    cursor.setUTCDate(cursor.getUTCDate() - 7);
+    if (sorted[i] !== cursor.toISOString().slice(0, 10)) break;
+    streak++;
+  }
+  return streak;
+}
+
 export function inferWorkoutTag(workout) {
   const db = getDb();
   const intervalCount = db.prepare(

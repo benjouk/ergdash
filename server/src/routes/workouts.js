@@ -192,7 +192,7 @@ router.get('/:id', (req, res) => {
     zone_times: zoneTimes,
     pace_profile: getPaceProfile(db, id),
     ai_note: aiNotes?.content || null,
-    insight: buildWorkoutInsight(formatted, getTagBaseline(db, workout)),
+    insight: buildWorkoutInsight(formatted, getTagBaseline(db, workout), { intervals, recoveries }),
   });
 });
 
