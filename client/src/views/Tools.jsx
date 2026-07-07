@@ -137,9 +137,9 @@ export default function Tools() {
           </div>
 
           <div className={styles.resultBand}>
-            <span>{formatPaceSeconds(paceSeconds)}</span>
-            <span>{Math.round(watts)} W</span>
-            <span>{Math.round(calHr)} Cal/hr</span>
+            <span>{formatPaceSeconds(paceSeconds) || '—'}</span>
+            <span>{watts ? `${Math.round(watts)} W` : '—'}</span>
+            <span>{watts && calHr ? `${Math.round(calHr)} Cal/hr` : '—'}</span>
           </div>
         </section>
 

@@ -146,6 +146,9 @@ export default function Workouts() {
 
       const data = await api.getWorkouts(params);
       const rows = data.data || [];
+      // An empty page means the server has nothing more regardless of what
+      // meta.total claims — bail rather than loop forever.
+      if (rows.length === 0) break;
       allRows = allRows.concat(rows);
       expectedTotal = data.meta?.total ?? allRows.length;
       nextOffset += pageSize;

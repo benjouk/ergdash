@@ -20,12 +20,14 @@ router.get('/summary', (req, res) => {
   if (from) { dateFilter += ' AND date >= ?'; dateParams.push(from); }
   if (to) { dateFilter += ' AND date < ?'; dateParams.push(to); }
 
+  // Lifetime and season figures are presented as absolute ("all time",
+  // "lifetime", "Season Metres"), so the range selector must not shrink them.
   const totals = db.prepare(`
     SELECT COUNT(*) as total_workouts,
            COALESCE(SUM(distance), 0) as total_meters,
            COALESCE(SUM(time_ms), 0) as total_time_ms
-    FROM workouts WHERE type = 'rower'${dateFilter}
-  `).get(...dateParams);
+    FROM workouts WHERE type = 'rower'
+  `).get();
 
   const now = new Date();
   const seasonStart = now.getMonth() >= 4
@@ -35,8 +37,8 @@ router.get('/summary', (req, res) => {
   const season = db.prepare(`
     SELECT COALESCE(SUM(distance), 0) as season_meters,
            COUNT(*) as season_workouts
-    FROM workouts WHERE type = 'rower' AND date >= ?${dateFilter}
-  `).get(seasonStart, ...dateParams);
+    FROM workouts WHERE type = 'rower' AND date >= ?
+  `).get(seasonStart);
 
   const avgPaceRow = db.prepare(`
     SELECT AVG(pace_ms) as avg_pace FROM workouts

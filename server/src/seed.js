@@ -150,6 +150,7 @@ function generateStrokeData(distance, avgPaceMs, avgRate, avgHr) {
   // rate-discipline scores spread out instead of pinning at 100.
   const rateJitter = randBetween(1, 3.5);
 
+  let elapsedS = 0;
   for (let i = 0; i < count; i++) {
     const progress = i / count;
     let paceFactor;
@@ -163,15 +164,21 @@ function generateStrokeData(distance, avgPaceMs, avgRate, avgHr) {
     const watts = paceSeconds > 0 ? Math.round(2.80 / Math.pow(paceSeconds / 500, 3)) : 0;
     const hr = Math.round(avgHr * (0.85 + progress * 0.15) + randBetween(-3, 3));
 
+    // Accumulate each stroke's own duration. Scaling cumulative distance by
+    // the current stroke's jittered pace makes timestamps non-monotonic,
+    // which inflates every dt-based metric (time in zone, HR drift, best
+    // efforts) since negative deltas clamp to zero but spikes count in full.
     strokes.push({
       number: i,
-      timeS: Math.round((i * metersPerStroke / 500) * paceSeconds * 100) / 100,
+      timeS: Math.round(elapsedS * 100) / 100,
       distanceM: Math.round(i * metersPerStroke * 10) / 10,
       paceMs: pace,
       watts,
       strokeRate: Math.round((avgRate + randBetween(-rateJitter, rateJitter)) * 10) / 10,
       heartRate: Math.max(100, Math.min(200, hr)),
     });
+
+    elapsedS += (metersPerStroke / 500) * paceSeconds;
   }
 
   return strokes;

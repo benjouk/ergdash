@@ -874,7 +874,12 @@ function buildSplitRows(workout) {
   for (let index = 0; index < splitCount; index += 1) {
     const start = index * splitSize;
     const end = Math.min((index + 1) * splitSize, workout.distance);
-    const bucket = strokes.filter(stroke => stroke.distance_m >= start && stroke.distance_m <= end);
+    const isLast = index === splitCount - 1;
+    // Half-open buckets so a stroke on the boundary isn't counted twice;
+    // the final bucket closes to include the finish-line stroke.
+    const bucket = strokes.filter(stroke =>
+      stroke.distance_m >= start && (isLast ? stroke.distance_m <= end : stroke.distance_m < end)
+    );
     if (bucket.length === 0) continue;
 
     const distance = end - start;
