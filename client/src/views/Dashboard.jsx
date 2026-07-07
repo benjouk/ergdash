@@ -7,6 +7,7 @@ import CoachCard from '../components/Stats/CoachCard.jsx';
 import StatsRow from '../components/Stats/StatsRow.jsx';
 import VolumeSummaryCard from '../components/Stats/VolumeSummaryCard.jsx';
 import SplitDonut from '../components/Stats/SplitDonut.jsx';
+import TargetsCard from '../components/Stats/TargetsCard.jsx';
 import VolumeChart from '../components/Charts/VolumeChart.jsx';
 import PBStrip from '../components/Stats/PBStrip.jsx';
 import CalendarHeatmap from '../components/Charts/CalendarHeatmap.jsx';
@@ -15,6 +16,7 @@ import styles from './Dashboard.module.css';
 
 export default function Dashboard() {
   const [summary, setSummary] = useState(null);
+  const [goals, setGoals] = useState(null);
   const [pbEvents, setPbEvents] = useState([]);
   const [pbBannerHidden, setPbBannerHidden] = useState(false);
   const { from, to } = useTimeRange();
@@ -26,6 +28,10 @@ export default function Dashboard() {
     if (to) params.to = to;
     api.getSummary(params).then(setSummary).catch(() => {});
   }, [from, to]);
+
+  useEffect(() => {
+    api.getGoals().then(d => setGoals(d.goals || [])).catch(() => setGoals([]));
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -82,12 +88,14 @@ export default function Dashboard() {
 
       <CoachCard />
 
-      <StatsRow summary={summary} />
+      <StatsRow summary={summary} goals={goals} />
 
       <div className={styles.chartsGrid}>
-        <VolumeSummaryCard summary={summary} />
+        <VolumeSummaryCard summary={summary} goals={goals} />
         <SplitDonut summary={summary} />
       </div>
+
+      <TargetsCard goals={goals} />
 
       <section className={styles.mobileFeed} aria-label="Recent Sessions">
         <h3 className={styles.sectionHeader}>Recent Sessions</h3>

@@ -13,7 +13,7 @@ function formatRelative(dateStr) {
   return `${Math.floor(diffDays)}d ago`;
 }
 
-export default function StatsRow({ summary: summaryProp, showMeters = true }) {
+export default function StatsRow({ summary: summaryProp, goals, showMeters = true }) {
   const [fetched, setFetched] = useState(null);
   const { formatPace, formatDistance, formatDistanceFull } = useUnits();
   const { from, to } = useTimeRange();
@@ -36,8 +36,12 @@ export default function StatsRow({ summary: summaryProp, showMeters = true }) {
   const inSeason = summary.season_meters > 0;
   const metersLabel = inSeason ? 'Season Metres' : 'Total Metres';
   const metersValue = inSeason ? summary.season_meters : summary.total_meters;
+  const seasonGoal = (goals || []).find(g =>
+    g.kind === 'volume' && g.period === 'season' && g.active && g.progress);
   const metersSub = inSeason
-    ? `${summary.season_workouts} sessions · ${formatDistance(summary.total_meters)} lifetime`
+    ? seasonGoal
+      ? `${Math.round(seasonGoal.progress.percent)}% of ${formatDistance(seasonGoal.target_meters)} goal · ${summary.season_workouts} sessions`
+      : `${summary.season_workouts} sessions · ${formatDistance(summary.total_meters)} lifetime`
     : `${summary.total_workouts} sessions`;
 
   const lastRow = formatRelative(summary.last_workout_date);

@@ -28,6 +28,7 @@ import syncRouter from './src/routes/sync.js';
 import aiRouter from './src/routes/ai.js';
 import settingsRouter from './src/routes/settings.js';
 import adminRouter from './src/routes/admin.js';
+import goalsRouter from './src/routes/goals.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = parseInt(process.env.PORT || '3000', 10);
@@ -69,6 +70,7 @@ app.use('/api/sync', requireAuth, syncRouter);
 app.use('/api/ai', requireAuth, aiRouter);
 app.use('/api/settings', requireAuth, settingsRouter);
 app.use('/api/admin', requireAuth, adminRouter);
+app.use('/api/goals', requireAuth, goalsRouter);
 
 const distPath = join(__dirname, 'dist');
 app.use(express.static(distPath));

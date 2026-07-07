@@ -71,6 +71,19 @@ export const api = {
   getZones: (params = {}) => request(`/api/stats/zones?${new URLSearchParams(params)}`),
   getPolarization: (params = {}) => request(`/api/stats/polarization?${new URLSearchParams(params)}`),
 
+  getPredictions: () => request('/api/stats/predictions'),
+
+  getGoals: () => request('/api/goals'),
+  createGoal: (data) => request('/api/goals', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+  updateGoal: (id, data) => request(`/api/goals/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  }),
+  deleteGoal: (id) => request(`/api/goals/${id}`, { method: 'DELETE' }),
+
   getWeeklyInsight: () => request('/api/ai/weekly'),
 
   triggerSync: () => request('/api/sync', { method: 'POST' }),

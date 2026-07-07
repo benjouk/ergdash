@@ -244,11 +244,39 @@ function sessionDate(date, isDouble = false) {
   return formatDate(d);
 }
 
+// Sample goals so dev mode exercises the goal overlays: a weekly and a
+// season volume target plus a 2k performance target pegged just under the
+// seeded best, with a race six weeks out.
+function seedGoals(db) {
+  const count = db.prepare('SELECT COUNT(*) as c FROM goals').get().c;
+  if (count > 0) return;
+
+  const insertGoal = db.prepare(`
+    INSERT INTO goals (kind, period, target_meters, distance, target_time_ms, race_date, label)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  insertGoal.run('volume', 'weekly', 60000, null, null, null, null);
+  insertGoal.run('volume', 'season', 1500000, null, null, null, null);
+
+  const best2k = db.prepare(`
+    SELECT MIN(time_ms) as t FROM workouts
+    WHERE type = 'rower' AND distance = 2000 AND pace_ms > 0
+  `).get().t;
+  if (best2k) {
+    const raceDate = new Date(Date.now() + 42 * 86400000).toISOString().slice(0, 10);
+    insertGoal.run('performance', null, null, 2000, best2k - 15000, raceDate, 'Race day 2k');
+  }
+
+  console.log('Seeded sample goals');
+}
+
 export function seedDatabase() {
   const db = getDb();
   const count = db.prepare('SELECT COUNT(*) as c FROM workouts').get().c;
   if (count > 0) {
     console.log(`Database already has ${count} workouts, skipping seed`);
+    seedGoals(db);
     return;
   }
 
@@ -324,6 +352,8 @@ export function seedDatabase() {
     }
   }
   console.log('Computed workout metrics');
+
+  seedGoals(db);
 }
 
 if (process.argv[1] && process.argv[1].endsWith('seed.js')) {

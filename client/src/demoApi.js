@@ -158,6 +158,16 @@ async function handleGet(route, params) {
     return { workouts: [a, b] };
   }
 
+  // Goals have no captured fixtures; the demo starts with none and edits are
+  // not supported (writes fall through to the demo-mode error below).
+  if (route === '/api/goals') {
+    return { goals: [] };
+  }
+
+  if (route === '/api/stats/predictions') {
+    return { predictions: [] };
+  }
+
   if (route === '/api/stats/calendar' && params.from) {
     const fixture = await lookupFixture(route, {});
     const cutoff = params.from;

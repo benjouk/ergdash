@@ -22,7 +22,7 @@ router.patch('/', (req, res) => {
 
   const allowedKeys = [
     'theme', 'units', 'sync_interval', 'time_range',
-    'annual_goal_m', 'rate_band_tolerance', 'max_hr', 'hr_zones',
+    'rate_band_tolerance', 'max_hr', 'hr_zones',
     'progress_layout', 'default_landing', 'feed_limit', 'week_start',
     'date_format', 'pb_last_seen_at',
   ];
