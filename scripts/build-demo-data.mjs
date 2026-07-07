@@ -143,6 +143,10 @@ async function main() {
     await capture('/api/stats/cumulative');
     await capture('/api/stats/power-curve');
     await capture('/api/stats/pb-history');
+    await capture('/api/stats/predictions');
+    await capture('/api/goals');
+    await capture('/api/plans');
+    await capture('/api/plans/adherence', { weeks: 12 });
 
     const calendarFrom = new Date(Date.now() - 400 * 86400000).toISOString().slice(0, 10);
     await capture('/api/stats/calendar', { from: calendarFrom });

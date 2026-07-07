@@ -91,6 +91,10 @@ function writeOverlay(key, value) {
 
 const SETTINGS_OVERLAY_KEY = 'ergdash-demo-settings';
 const WORKOUT_OVERLAY_KEY = 'ergdash-demo-workout-overlay';
+const PLAN_OVERLAY_KEY = 'ergdash-demo-plan-overlay';
+
+// Demo-created plan ids start well above anything the seed can produce.
+const DEMO_PLAN_ID_FLOOR = 900000;
 
 function getSettingsOverlay() {
   return readOverlay(SETTINGS_OVERLAY_KEY, {});
@@ -111,6 +115,44 @@ function setWorkoutOverlay(id, patch) {
 function applyWorkoutOverlay(workout) {
   const overlay = getWorkoutOverlay(workout.id);
   return Object.keys(overlay).length ? { ...workout, ...overlay } : workout;
+}
+
+// --- planned-workout overlay (visitor-side plan edits) ---
+
+function getPlanOverlay() {
+  return readOverlay(PLAN_OVERLAY_KEY, { created: [], patched: {}, deleted: [] });
+}
+
+// Adherence is re-derived at read time (rather than trusted from the
+// fixture) so plans don't read as "planned" forever as the deployed demo
+// ages past their dates.
+function derivePlanAdherence(plan) {
+  if (plan.status === 'completed') return 'completed';
+  if (plan.status === 'skipped') return 'skipped';
+  return plan.date < new Date().toISOString().slice(0, 10) ? 'missed' : 'planned';
+}
+
+async function loadDemoPlans() {
+  const fixture = await lookupFixture('/api/plans', {});
+  const overlay = getPlanOverlay();
+  const deleted = new Set(overlay.deleted);
+  return [...(fixture.plans || []), ...overlay.created]
+    .map(p => ({ ...p, ...(overlay.patched[p.id] || {}) }))
+    .filter(p => !deleted.has(p.id))
+    .map(p => ({ ...p, adherence: derivePlanAdherence(p) }))
+    .sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id);
+}
+
+async function findDemoPlan(id) {
+  const plan = (await loadDemoPlans()).find(p => p.id === id);
+  if (!plan) throw new Error('Plan not found');
+  return plan;
+}
+
+function patchDemoPlan(id, fields) {
+  const overlay = getPlanOverlay();
+  overlay.patched[id] = { ...overlay.patched[id], ...fields };
+  writeOverlay(PLAN_OVERLAY_KEY, overlay);
 }
 
 // --- request handling ---
@@ -158,28 +200,21 @@ async function handleGet(route, params) {
     return { workouts: [a, b] };
   }
 
-  // Goals have no captured fixtures; the demo starts with none and edits are
-  // not supported (writes fall through to the demo-mode error below).
-  if (route === '/api/goals') {
-    return { goals: [] };
-  }
-
-  if (route === '/api/stats/predictions') {
-    return { predictions: [] };
-  }
-
+  // Goals/predictions/adherence are served straight from their fixtures by
+  // the default lookup below; plans get overlay merging + range filtering.
   if (route === '/api/plans') {
-    return { plans: [] };
+    let plans = await loadDemoPlans();
+    if (params.from) plans = plans.filter(p => p.date >= params.from.slice(0, 10));
+    if (params.to) plans = plans.filter(p => p.date < params.to.slice(0, 10));
+    return { plans };
   }
 
-  if (route === '/api/plans/adherence') {
-    return { weeks: [] };
-  }
-
-  if (route === '/api/stats/calendar' && params.from) {
+  if (route === '/api/stats/calendar' && (params.from || params.to)) {
     const fixture = await lookupFixture(route, {});
-    const cutoff = params.from;
-    return { days: fixture.days.filter(d => d.date >= cutoff) };
+    let days = fixture.days;
+    if (params.from) days = days.filter(d => d.date >= params.from);
+    if (params.to) days = days.filter(d => d.date < params.to);
+    return { days };
   }
 
   if (route === '/api/stats/pb-history' && params.since) {
@@ -254,6 +289,29 @@ function filterWorkouts(rows, params) {
 }
 
 async function handlePatch(route, body) {
+  const planMatch = route.match(/^\/api\/plans\/(\d+)$/);
+  if (planMatch) {
+    const id = Number(planMatch[1]);
+    const plan = await findDemoPlan(id);
+    const fields = { ...body };
+    // Mirror the server: reverting a completed plan, or moving it to a
+    // date its workout wasn't rowed on, drops the workout link.
+    const dateMoved = fields.date && fields.date !== plan.date
+      && plan.workout && String(plan.workout.date).slice(0, 10) !== fields.date;
+    if ((fields.status && plan.status === 'completed') || dateMoved) {
+      fields.completed_workout_id = null;
+      fields.match_type = null;
+      fields.workout = null;
+      if (dateMoved && !fields.status) fields.status = 'planned';
+    }
+    patchDemoPlan(id, fields);
+    return findDemoPlan(id);
+  }
+
+  if (route.startsWith('/api/goals')) {
+    throw new Error('Demo mode — goals are read-only in the live demo');
+  }
+
   if (route === '/api/settings') {
     const overlay = getSettingsOverlay();
     const next = { ...overlay };
@@ -300,8 +358,96 @@ export async function demoRequest(path, options = {}) {
     if (/^\/api\/workouts\/\d+\/enrich$/.test(route)) {
       return { ok: true };
     }
+    if (route === '/api/plans') {
+      const body = options.body ? JSON.parse(options.body) : {};
+      return createDemoPlan(body);
+    }
+    const matchRoute = route.match(/^\/api\/plans\/(\d+)\/match$/);
+    if (matchRoute) {
+      const body = options.body ? JSON.parse(options.body) : {};
+      return matchDemoPlan(Number(matchRoute[1]), Number(body.workout_id));
+    }
+    if (route.startsWith('/api/goals')) {
+      throw new Error('Demo mode — goals are read-only in the live demo');
+    }
     throw new Error('Demo mode — run ErgDash self-hosted to connect your own Concept2 account');
   }
 
+  if (method === 'DELETE') {
+    const matchRoute = route.match(/^\/api\/plans\/(\d+)\/match$/);
+    if (matchRoute) {
+      const id = Number(matchRoute[1]);
+      await findDemoPlan(id);
+      patchDemoPlan(id, {
+        completed_workout_id: null, match_type: null, workout: null, status: 'planned',
+      });
+      return findDemoPlan(id);
+    }
+    const planRoute = route.match(/^\/api\/plans\/(\d+)$/);
+    if (planRoute) {
+      const id = Number(planRoute[1]);
+      await findDemoPlan(id);
+      const overlay = getPlanOverlay();
+      overlay.deleted.push(id);
+      writeOverlay(PLAN_OVERLAY_KEY, overlay);
+      return { ok: true };
+    }
+    if (route.startsWith('/api/goals')) {
+      throw new Error('Demo mode — goals are read-only in the live demo');
+    }
+  }
+
   throw new Error(`Demo mode — unsupported request: ${method} ${path}`);
+}
+
+async function createDemoPlan(body) {
+  if (typeof body.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(body.date)) {
+    throw new Error('date must be an ISO 8601 date (YYYY-MM-DD)');
+  }
+  if (body.target_distance == null && body.target_duration_ms == null) {
+    throw new Error('Provide target_distance or target_duration_ms');
+  }
+
+  const overlay = getPlanOverlay();
+  const maxId = Math.max(DEMO_PLAN_ID_FLOOR - 1, ...overlay.created.map(p => p.id));
+  const plan = {
+    id: maxId + 1,
+    date: body.date,
+    type: body.type || 'steady',
+    target_distance: body.target_distance ?? null,
+    target_duration_ms: body.target_duration_ms ?? null,
+    target_pace_ms: body.target_pace_ms ?? null,
+    target_rate: body.target_rate ?? null,
+    notes: body.notes ?? null,
+    completed_workout_id: null,
+    match_type: null,
+    status: 'planned',
+    workout: null,
+  };
+  overlay.created.push(plan);
+  writeOverlay(PLAN_OVERLAY_KEY, overlay);
+  return { ...plan, adherence: derivePlanAdherence(plan) };
+}
+
+async function matchDemoPlan(planId, workoutId) {
+  const plan = await findDemoPlan(planId);
+  const all = await loadFixture((await loadManifest())['/api/workouts']);
+  const workout = (all.data || []).find(w => w.id === workoutId);
+  if (!workout) throw new Error('Workout not found');
+  if (String(workout.date).slice(0, 10) !== plan.date) {
+    throw new Error(`Workout is not on the plan date (${plan.date})`);
+  }
+  patchDemoPlan(planId, {
+    completed_workout_id: workout.id,
+    match_type: 'manual',
+    status: 'completed',
+    workout: {
+      id: workout.id,
+      date: workout.date,
+      distance: workout.distance,
+      time_ms: workout.time_ms,
+      pace_ms: workout.pace_ms,
+    },
+  });
+  return findDemoPlan(planId);
 }
