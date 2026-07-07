@@ -21,15 +21,32 @@ If you ever move ErgDash to a new host or domain, you'll need to update the redi
 
 ## Quick Start (Docker)
 
+Multi-arch images (`linux/amd64` and `linux/arm64` — Intel/AMD servers, Apple Silicon, Raspberry Pi 4/5) are published to GitHub Container Registry as [`ghcr.io/benjouk/ergdash`](https://github.com/benjouk/ergdash/pkgs/container/ergdash).
+
 ```bash
 cp .env.example .env
 # Fill in C2_CLIENT_ID and C2_CLIENT_SECRET — see "Connecting to Concept2" above
 # Generate a SESSION_SECRET (required — the server refuses to start without one):
 #   openssl rand -base64 32
+docker compose pull   # use the prebuilt image (or: docker compose build)
 docker compose up -d
 ```
 
 The app will be available at `http://localhost:3100`.
+
+Without compose, the prebuilt image can be run directly:
+
+```bash
+docker run -d --name ergdash \
+  -p 3100:3000 \
+  -v ergdash-data:/data \
+  -e C2_CLIENT_ID=... \
+  -e C2_CLIENT_SECRET=... \
+  -e SESSION_SECRET="$(openssl rand -base64 32)" \
+  ghcr.io/benjouk/ergdash:latest
+```
+
+Images are built by the [Publish Docker image](.github/workflows/docker-publish.yml) workflow on every push to `main` (tagged `latest` + short commit SHA) and on version tags (`v1.2.3` → `1.2.3`, `1.2`).
 
 ## Quick Start (Development)
 
@@ -57,15 +74,15 @@ Single-container stack: Express serves both the API and the built React frontend
 ```
 client/          React 18 + Vite 5 + React Router 6
   src/
-    components/  Ticker, Feed, Charts, Stats
+    components/  Ticker, Feed, Charts, Stats, Session, BottomNav, Skeleton, Toast
     views/       Dashboard, Session, Progress, Workouts, Plan, Tools, Settings, Connect
-    context/     Theme, Auth, Sync, Units providers
+    context/     Theme, Auth, Sync, Units, Prefs, TimeRange, Toast providers
     styles/      Design tokens (light/dark), global reset
 
 server/          Express 4 + better-sqlite3
   src/
     routes/      auth, workouts, stats, sync, settings, goals, plans,
-                 health, ai (stub)
+                 admin (backup/export/reset), health, ai (stub)
     middleware/  error handler
     db.js        DB init, migrations, WAL mode
     auth.js      OAuth2 (Authorization Code + Refresh)
@@ -75,6 +92,8 @@ server/          Express 4 + better-sqlite3
     strokeMetrics.js Pure per-stroke maths (DPS, watts/beat, HR drift,
                  rate discipline, HR recovery, zone time, best efforts)
     hrZones.js   HR zone model (settings + observed-max fallback)
+    pbDetection.js PB progression detection and history backfill
+    insights.js  Rules-based training insights (pure, no DB)
     goalProgress.js Pure goal-window and progress/gap maths
     planMatching.js Same-day heuristic linking synced workouts to plans
     seed.js      Mock data generator (workouts, goals, planned sessions)
@@ -103,10 +122,12 @@ server/          Express 4 + better-sqlite3
 | `C2_CLIENT_ID` | — | Concept2 OAuth client ID |
 | `C2_CLIENT_SECRET` | — | Concept2 OAuth client secret |
 | `C2_REDIRECT_URI` | `http://localhost:3100/auth/callback` | OAuth redirect URI |
+| `C2_API_BASE` | `https://log.concept2.com` | Concept2 API base URL (only change for testing against a mock) |
 | `PORT` | `3000` | Server listen port |
-| `DATA_DIR` | `/data` | SQLite database directory |
+| `DATA_DIR` | `/data` (Docker) / `server/data` (local) | SQLite database directory |
 | `SYNC_INTERVAL_MINUTES` | `15` | Auto-sync interval |
-| `SESSION_SECRET` | — | Session signing secret (required in production; generate with `openssl rand -base64 32`) |
+| `SESSION_SECRET` | — | Session signing secret (required in production, min 16 chars; generate with `openssl rand -base64 32`) |
+| `CLAUDE_API_KEY` | — | Optional; reserved for the AI insights integration (`/api/ai` is currently a stub) |
 | `COOKIE_SECURE` | auto | Force the session cookie's `Secure` flag on/off; auto-detects from `C2_REDIRECT_URI` |
 | `CORS_ORIGIN` | disabled | Allow cross-origin API access from this origin. Not needed for normal setups — the frontend is served same-origin |
 
@@ -127,7 +148,7 @@ cookies, a JSON-only body parser, and CORS being disabled by default. See
 
 **Server:** Express, better-sqlite3, node-cron
 
-**Fonts:** Outfit (display), Fira Code (monospace) — self-hosted, variable woff2
+**Fonts:** Outfit (display/body), Archivo (hero numerals), Fira Code (monospace) — self-hosted, variable woff2
 
 ## License
 

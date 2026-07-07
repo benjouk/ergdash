@@ -8,6 +8,10 @@ RUN npm run build
 FROM node:22-alpine
 WORKDIR /app
 
+LABEL org.opencontainers.image.source="https://github.com/benjouk/ergdash" \
+      org.opencontainers.image.description="Self-hosted dashboard for Concept2 RowErg training analytics" \
+      org.opencontainers.image.licenses="MIT"
+
 RUN apk add --no-cache python3 make g++
 COPY server/package.json server/package-lock.json ./
 RUN npm ci --omit=dev && apk del python3 make g++
