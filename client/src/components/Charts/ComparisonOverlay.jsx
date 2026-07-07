@@ -30,12 +30,17 @@ export default function ComparisonOverlay({ workout1, workout2, onBack }) {
 
   const stats1 = getComparisonStats(workout1);
   const stats2 = getComparisonStats(workout2);
+  // Deltas describe the session being viewed (workout1) relative to the
+  // comparison, so a negative pace delta means "this session was faster".
   const deltas = computeDeltas(stats1, stats2);
+
+  const dateLabel1 = formatDate(new Date(workout1.date));
+  const dateLabel2 = formatDate(new Date(workout2.date));
 
   // Calculate dynamic Y-axis padding based on pace range to scale for fast/slow rowers
   const yAxisPadding = useMemo(() => {
     const maxPace = Math.max(workout1?.pace_ms || 0, workout2?.pace_ms || 0);
-    return Math.max(1000, Math.round(maxPace * 0.1));
+    return Math.max(1500, Math.round(maxPace * 0.03));
   }, [workout1?.pace_ms, workout2?.pace_ms]);
 
   const distanceTicks = useMemo(
@@ -59,26 +64,36 @@ export default function ComparisonOverlay({ workout1, workout2, onBack }) {
       {/* Dual Header with Stats */}
       <div className={styles.dualHeader}>
         <div className={styles.sessionColumn}>
-          <div className={styles.columnTitle}>{formatDate(new Date(workout1.date))}</div>
-          <div className={styles.columnMeta}>{formatTime(workout1.time_ms)}</div>
+          <div className={styles.columnTitle}>
+            {dateLabel1}
+            <span className={styles.columnChip}>This session</span>
+          </div>
+          <div className={styles.columnMeta}>{formatTime(workout1.time_ms)} · {formatNumber(workout1.distance)}m</div>
           <div className={styles.statsGrid}>
             {[
-              { label: 'Pace', value: formatPace(workout1.pace_ms), delta: deltas.pace },
-              { label: 'Rate', value: formatRate(workout1.stroke_rate), unit: 'spm', delta: deltas.rate },
-              { label: 'HR', value: formatNumber(workout1.heart_rate_avg), unit: 'bpm', delta: deltas.heartRate },
+              { label: 'Pace', value: formatPace(workout1.pace_ms), delta: deltas.pace, deltaClass: deltaClassFor(deltas.pace, styles) },
+              { label: 'Rate', value: formatRate(workout1.stroke_rate), unit: 'spm', delta: deltas.rate, deltaClass: '' },
+              { label: 'HR', value: formatNumber(workout1.heart_rate_avg), unit: 'bpm', delta: deltas.heartRate, deltaClass: deltaClassFor(deltas.heartRate, styles) },
             ].map(stat => (
               <div key={stat.label} className={styles.statCell}>
                 <div className={styles.statLabel}>{stat.label}</div>
                 <div className={styles.statValue}>{stat.value}{stat.unit && <span className={styles.statUnit}>{stat.unit}</span>}</div>
-                {stat.delta && <div className={`${styles.statDelta} ${stat.delta > 0 ? styles.deltaPositive : styles.deltaNegative}`}>{stat.delta > 0 ? '+' : ''}{stat.delta}</div>}
+                {stat.delta != null && (
+                  <div
+                    className={`${styles.statDelta} ${stat.deltaClass}`}
+                    title={`vs ${dateLabel2}`}
+                  >
+                    {stat.delta > 0 ? '+' : ''}{stat.delta}
+                  </div>
+                )}
               </div>
             ))}
           </div>
         </div>
 
         <div className={styles.sessionColumn}>
-          <div className={styles.columnTitle}>{formatDate(new Date(workout2.date))}</div>
-          <div className={styles.columnMeta}>{formatTime(workout2.time_ms)}</div>
+          <div className={styles.columnTitle}>{dateLabel2}</div>
+          <div className={styles.columnMeta}>{formatTime(workout2.time_ms)} · {formatNumber(workout2.distance)}m</div>
           <div className={styles.statsGrid}>
             {[
               { label: 'Pace', value: formatPace(workout2.pace_ms) },
@@ -104,16 +119,6 @@ export default function ComparisonOverlay({ workout1, workout2, onBack }) {
                 data={comparisonData}
                 margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
               >
-                <defs>
-                  <linearGradient id="diff-green" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="var(--positive)" stopOpacity={0.2} />
-                    <stop offset="100%" stopColor="var(--positive)" stopOpacity={0.05} />
-                  </linearGradient>
-                  <linearGradient id="diff-red" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="var(--negative)" stopOpacity={0.2} />
-                    <stop offset="100%" stopColor="var(--negative)" stopOpacity={0.05} />
-                  </linearGradient>
-                </defs>
                 <CartesianGrid stroke="var(--rule)" strokeDasharray="5 7" />
                 <XAxis
                   dataKey="distance"
@@ -135,49 +140,65 @@ export default function ComparisonOverlay({ workout1, workout2, onBack }) {
                   width={58}
                   domain={[`dataMin - ${yAxisPadding}`, `dataMax + ${yAxisPadding}`]}
                 />
-                <Tooltip content={<ComparisonTooltip formatPace={formatPace} />} />
+                <Tooltip content={<ComparisonTooltip formatPace={formatPace} label1={dateLabel1} label2={dateLabel2} />} />
 
-                {/* Session 1 line */}
+                {/* Difference bands between the lines: green where this
+                    session was faster than the comparison, red where slower */}
+                <Area
+                  type="monotone"
+                  dataKey="band_faster"
+                  fill="var(--positive)"
+                  fillOpacity={0.14}
+                  stroke="none"
+                  activeDot={false}
+                  isAnimationActive={false}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="band_slower"
+                  fill="var(--negative)"
+                  fillOpacity={0.14}
+                  stroke="none"
+                  activeDot={false}
+                  isAnimationActive={false}
+                />
+
                 <Line
                   type="monotone"
                   dataKey="pace_ms_1"
                   stroke="var(--accent-2)"
                   strokeWidth={2}
                   dot={false}
-                  name="Session 1"
+                  name={dateLabel1}
                 />
-
-                {/* Session 2 line */}
                 <Line
                   type="monotone"
                   dataKey="pace_ms_2"
                   stroke="var(--accent)"
                   strokeWidth={2}
                   dot={false}
-                  name="Session 2"
+                  name={dateLabel2}
                 />
-
-                {/* Difference ribbon */}
-                {comparisonData.some(d => d.diff_faster_than_1) && (
-                  <Area
-                    type="monotone"
-                    dataKey="pace_ms_2"
-                    fill="url(#diff-green)"
-                    stroke="none"
-                    isAnimationActive={false}
-                  />
-                )}
-                {comparisonData.some(d => d.diff_slower_than_1) && (
-                  <Area
-                    type="monotone"
-                    dataKey="pace_ms_2"
-                    fill="url(#diff-red)"
-                    stroke="none"
-                    isAnimationActive={false}
-                  />
-                )}
               </ComposedChart>
             </ResponsiveContainer>
+          </div>
+          <div className={styles.legend}>
+            <div className={styles.legendItem}>
+              <div className={styles.legendBox} style={{ backgroundColor: 'var(--accent-2)' }} />
+              <span>{dateLabel1} (this session)</span>
+            </div>
+            <div className={styles.legendItem}>
+              <div className={styles.legendBox} style={{ backgroundColor: 'var(--accent)' }} />
+              <span>{dateLabel2}</span>
+            </div>
+            <div className={styles.legendItem}>
+              <div className={styles.legendBox} style={{ backgroundColor: 'var(--positive)' }} />
+              <span>This session faster</span>
+            </div>
+            <div className={styles.legendItem}>
+              <div className={styles.legendBox} style={{ backgroundColor: 'var(--negative)' }} />
+              <span>This session slower</span>
+            </div>
           </div>
         </div>
       )}
@@ -193,8 +214,8 @@ export default function ComparisonOverlay({ workout1, workout2, onBack }) {
               <thead>
                 <tr>
                   <th>Split</th>
-                  <th colSpan="3">Session 1</th>
-                  <th colSpan="3">Session 2</th>
+                  <th colSpan="3" className={styles.sessionHeader1}>{dateLabel1}</th>
+                  <th colSpan="3" className={styles.sessionHeader2}>{dateLabel2}</th>
                 </tr>
                 <tr>
                   <th></th>
@@ -228,35 +249,21 @@ export default function ComparisonOverlay({ workout1, workout2, onBack }) {
         </div>
       )}
 
-      {/* Legend */}
-      <div className={styles.legend}>
-        <div className={styles.legendItem}>
-          <div className={styles.legendBox} style={{ backgroundColor: 'var(--accent-2)' }} />
-          <span>{formatDate(new Date(workout1.date))}</span>
-        </div>
-        <div className={styles.legendItem}>
-          <div className={styles.legendBox} style={{ backgroundColor: 'var(--accent)' }} />
-          <span>{formatDate(new Date(workout2.date))}</span>
-        </div>
-        <div className={styles.legendItem}>
-          <div className={styles.legendBox} style={{ backgroundColor: 'var(--positive)' }} />
-          <span>Faster</span>
-        </div>
-        <div className={styles.legendItem}>
-          <div className={styles.legendBox} style={{ backgroundColor: 'var(--negative)' }} />
-          <span>Slower</span>
-        </div>
-      </div>
     </div>
   );
 }
 
-function ComparisonTooltip({ active, payload, label, formatPace }) {
+function ComparisonTooltip({ active, payload, label, formatPace, label1, label2 }) {
   if (!active || !payload?.length) return null;
 
   const uniquePayload = Array.from(
     new Map(payload.map(item => [item.dataKey, item])).values()
-  );
+  ).filter(item => item.dataKey === 'pace_ms_1' || item.dataKey === 'pace_ms_2');
+  if (uniquePayload.length === 0) return null;
+
+  const pace1 = uniquePayload.find(item => item.dataKey === 'pace_ms_1')?.value;
+  const pace2 = uniquePayload.find(item => item.dataKey === 'pace_ms_2')?.value;
+  const deltaSecs = pace1 != null && pace2 != null ? (pace1 - pace2) / 1000 : null;
 
   return (
     <div style={{
@@ -273,10 +280,25 @@ function ComparisonTooltip({ active, payload, label, formatPace }) {
       </div>
       {uniquePayload.map(item => (
         <div key={item.dataKey} style={{ display: 'flex', gap: 10, justifyContent: 'space-between', color: item.color }}>
-          <span>{item.dataKey === 'pace_ms_1' ? 'Session 1' : 'Session 2'}</span>
+          <span>{item.dataKey === 'pace_ms_1' ? label1 : label2}</span>
           <strong>{formatPace(item.value)}</strong>
         </div>
       ))}
+      {deltaSecs != null && Math.abs(deltaSecs) >= 0.05 && (
+        <div style={{
+          display: 'flex',
+          gap: 10,
+          justifyContent: 'space-between',
+          marginTop: 4,
+          paddingTop: 4,
+          borderTop: '1px solid var(--rule)',
+          color: deltaSecs < 0 ? 'var(--positive)' : 'var(--negative)',
+          fontFamily: 'var(--font-mono)',
+        }}>
+          <span>Δ</span>
+          <strong>{deltaSecs > 0 ? '+' : ''}{deltaSecs.toFixed(1)}s</strong>
+        </div>
+      )}
     </div>
   );
 }
@@ -303,28 +325,51 @@ function formatStrokePoint(stroke) {
   };
 }
 
+// Resample both sessions onto a shared distance grid, averaging the strokes
+// that fall in each bucket. Per-stroke pace is far too noisy to overlay
+// directly — two raw traces cross constantly and the difference bands
+// shatter into slivers. Bucket averaging keeps the pacing story readable
+// while empty buckets (rest periods) still render as gaps.
 function buildComparisonSeries(data1, data2, distance1, distance2) {
   if (!data1.length || !data2.length) return [];
 
   const maxDistance = Math.max(distance1 || 0, distance2 || 0);
-  const normalized1 = data1.map(d => ({ ...d, normalized_distance: (d.distance / (distance1 || maxDistance)) * maxDistance }));
-  const normalized2 = data2.map(d => ({ ...d, normalized_distance: (d.distance / (distance2 || maxDistance)) * maxDistance }));
+  if (!maxDistance) return [];
 
-  const allDistances = [...new Set([
-    ...normalized1.map(d => d.normalized_distance),
-    ...normalized2.map(d => d.normalized_distance),
-  ])].sort((a, b) => a - b);
+  // Normalise slightly different actual distances (±100m tolerance upstream)
+  // onto the same 0..maxDistance scale before bucketing.
+  const scale1 = maxDistance / (distance1 || maxDistance);
+  const scale2 = maxDistance / (distance2 || maxDistance);
 
-  return allDistances.map(dist => {
-    const p1 = normalized1.find(d => d.normalized_distance >= dist);
-    const p2 = normalized2.find(d => d.normalized_distance >= dist);
+  const bucketSize = Math.max(10, maxDistance / 120);
+  const bucketCount = Math.ceil(maxDistance / bucketSize);
+  const buckets = Array.from({ length: bucketCount }, () => ({ sum1: 0, n1: 0, sum2: 0, n2: 0 }));
+
+  const bucketIndex = (distance, scale) =>
+    Math.min(bucketCount - 1, Math.floor((distance * scale) / bucketSize));
+  for (const d of data1) {
+    const b = buckets[bucketIndex(d.distance, scale1)];
+    b.sum1 += d.pace_ms;
+    b.n1 += 1;
+  }
+  for (const d of data2) {
+    const b = buckets[bucketIndex(d.distance, scale2)];
+    b.sum2 += d.pace_ms;
+    b.n2 += 1;
+  }
+
+  return buckets.map((b, i) => {
+    const pace1 = b.n1 ? b.sum1 / b.n1 : null;
+    const pace2 = b.n2 ? b.sum2 / b.n2 : null;
 
     return {
-      distance: Math.round(dist),
-      pace_ms_1: p1?.pace_ms || null,
-      pace_ms_2: p2?.pace_ms || null,
-      diff_faster_than_1: p1 && p2 && p2.pace_ms < p1.pace_ms,
-      diff_slower_than_1: p1 && p2 && p2.pace_ms > p1.pace_ms,
+      distance: Math.round((i + 0.5) * bucketSize),
+      pace_ms_1: pace1,
+      pace_ms_2: pace2,
+      // Range-area bands between the two lines, split by which session leads.
+      // Lower pace_ms = faster, so workout1 is ahead where pace1 < pace2.
+      band_faster: pace1 && pace2 && pace1 < pace2 ? [pace1, pace2] : null,
+      band_slower: pace1 && pace2 && pace1 > pace2 ? [pace2, pace1] : null,
     };
   });
 }
@@ -406,17 +451,21 @@ function getComparisonStats(workout) {
   };
 }
 
+// All deltas are stats1 - stats2: how the session being viewed compares
+// with the comparison session.
 function computeDeltas(stats1, stats2) {
   return {
-    pace: stats2.pace_ms && stats1.pace_ms ? formatPaceDelta(stats1.pace_ms, stats2.pace_ms) : null,
-    rate: stats2.stroke_rate && stats1.stroke_rate ? Math.round((stats2.stroke_rate - stats1.stroke_rate) * 10) / 10 : null,
-    heartRate: stats2.heart_rate_avg && stats1.heart_rate_avg ? Math.round(stats2.heart_rate_avg - stats1.heart_rate_avg) : null,
+    pace: stats2.pace_ms && stats1.pace_ms ? parseFloat(((stats1.pace_ms - stats2.pace_ms) / 1000).toFixed(1)) : null,
+    rate: stats2.stroke_rate && stats1.stroke_rate ? Math.round((stats1.stroke_rate - stats2.stroke_rate) * 10) / 10 : null,
+    heartRate: stats2.heart_rate_avg && stats1.heart_rate_avg ? Math.round(stats1.heart_rate_avg - stats2.heart_rate_avg) : null,
   };
 }
 
-function formatPaceDelta(pace1Ms, pace2Ms) {
-  const deltaSecs = (pace2Ms - pace1Ms) / 1000;
-  return parseFloat((deltaSecs).toFixed(1));
+// Pace and HR are "lower is better"; positive deltas read as red. Stroke
+// rate has no better/worse direction, so its delta stays neutral (no class).
+function deltaClassFor(delta, styles) {
+  if (delta == null || delta === 0) return '';
+  return delta > 0 ? styles.deltaPositive : styles.deltaNegative;
 }
 
 function average(values) {
@@ -426,7 +475,7 @@ function average(values) {
 }
 
 function formatDate(date) {
-  return date.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' });
+  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' });
 }
 
 function formatTime(timeMs) {
