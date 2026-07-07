@@ -138,14 +138,6 @@ metadata requires a session. CSRF is mitigated by `SameSite=Lax` HttpOnly
 cookies, a JSON-only body parser, and CORS being disabled by default. See
 [SECURITY.md](SECURITY.md) for details and vulnerability reporting.
 
-## Tech Stack
-
-**Client:** React, Vite, React Router, Recharts, D3 (scales only), Lucide icons, CSS Modules
-
-**Server:** Express, better-sqlite3, node-cron
-
-**Fonts:** Outfit (display/body), Archivo (hero numerals), Fira Code (monospace); self-hosted, variable woff2
-
 ## License
 
 [MIT](LICENSE)
