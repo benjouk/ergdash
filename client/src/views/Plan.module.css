@@ -1,0 +1,402 @@
+.plan {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.title {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0;
+}
+
+.monthNav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.monthLabel {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--ink-2);
+  min-width: 130px;
+  text-align: center;
+}
+
+.navButton,
+.todayButton,
+.addButton,
+.smallButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--ink-2);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-2);
+  cursor: pointer;
+  transition: border-color 150ms ease, color 150ms ease;
+}
+
+.navButton:hover,
+.todayButton:hover,
+.addButton:hover,
+.smallButton:hover {
+  border-color: var(--accent);
+  color: var(--ink);
+}
+
+.primaryButton {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.primaryButton:hover {
+  color: var(--on-accent);
+  filter: brightness(1.05);
+}
+
+.dangerButton {
+  color: var(--negative);
+  border-color: var(--negative);
+}
+
+.dangerButton:hover {
+  border-color: var(--negative);
+  color: var(--negative);
+}
+
+.calendarCard {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.weekdayRow,
+.weekRow {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 2px;
+}
+
+.weekdayLabel {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+  padding: var(--space-1) var(--space-2);
+}
+
+.dayCell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-height: 74px;
+  padding: var(--space-1) var(--space-2);
+  background: var(--surface-alt);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  overflow: hidden;
+  transition: border-color 120ms ease;
+}
+
+.dayCell:hover {
+  border-color: var(--accent);
+}
+
+.dayFill {
+  position: absolute;
+  inset: 0;
+  background: var(--chart-1);
+  pointer-events: none;
+}
+
+.dayOutside {
+  opacity: 0.45;
+}
+
+.dayToday .dayNumber {
+  color: var(--on-accent);
+  background: var(--accent);
+  border-radius: 999px;
+}
+
+.daySelected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.dayNumber {
+  position: relative;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+  padding: 1px 5px;
+}
+
+.dayMeters {
+  position: relative;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  color: var(--ink-3);
+  padding-left: 5px;
+}
+
+.dayChips {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  margin-top: auto;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  border-radius: 999px;
+  border: 1px solid var(--rule);
+  background: var(--surface);
+  padding: 0 var(--space-2);
+  min-height: 14px;
+}
+
+.chipText {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--ink-2);
+}
+
+.chip_planned {
+  border-color: var(--accent);
+}
+
+.chip_planned .chipText {
+  color: var(--accent-deep);
+}
+
+.chip_completed {
+  border-color: var(--positive);
+  background: var(--positive-bg, var(--surface));
+}
+
+.chip_completed .chipText {
+  color: var(--positive);
+}
+
+.chip_missed {
+  border-color: var(--negative);
+}
+
+.chip_missed .chipText {
+  color: var(--negative);
+}
+
+.chip_skipped {
+  border-style: dashed;
+}
+
+.chip_skipped .chipText {
+  color: var(--ink-3);
+  text-decoration: line-through;
+}
+
+.legend {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+  padding-top: var(--space-2);
+}
+
+.dayPanel {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.dayPanelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.dayPanelTitle {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0;
+}
+
+.dayActual {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--ink-2);
+}
+
+.dayEmpty {
+  font-size: 0.8rem;
+  color: var(--ink-3);
+}
+
+.planRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  background: var(--surface-alt);
+  border-radius: var(--radius-md);
+}
+
+.planRowMain {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.planRowTitle {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.planRowNotes {
+  font-size: 0.75rem;
+  color: var(--ink-2);
+  white-space: pre-wrap;
+}
+
+.planRowLinked {
+  font-size: 0.72rem;
+  color: var(--ink-3);
+}
+
+.sessionLink {
+  color: var(--accent-deep);
+  text-decoration: underline;
+}
+
+.planRowActions {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px dashed var(--rule);
+  border-radius: var(--radius-md);
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--space-3);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.fieldLabel {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+}
+
+.input {
+  color: var(--ink);
+  background: var(--surface-alt);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  padding: var(--space-2) var(--space-3);
+  width: 100%;
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.notesInput {
+  font-family: var(--font-body);
+  resize: vertical;
+}
+
+.formActions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+@media (max-width: 767px) {
+  .dayCell {
+    min-height: 52px;
+    padding: 2px 4px;
+  }
+
+  .dayMeters {
+    display: none;
+  }
+
+  .dayChips .chip {
+    width: 8px;
+    min-height: 8px;
+    padding: 0;
+    align-self: flex-start;
+  }
+
+  .dayChips .chipText {
+    display: none;
+  }
+}

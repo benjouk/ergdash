@@ -168,6 +168,14 @@ async function handleGet(route, params) {
     return { predictions: [] };
   }
 
+  if (route === '/api/plans') {
+    return { plans: [] };
+  }
+
+  if (route === '/api/plans/adherence') {
+    return { weeks: [] };
+  }
+
   if (route === '/api/stats/calendar' && params.from) {
     const fixture = await lookupFixture(route, {});
     const cutoff = params.from;

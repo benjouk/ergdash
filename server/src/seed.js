@@ -271,12 +271,78 @@ function seedGoals(db) {
   console.log('Seeded sample goals');
 }
 
+// A few weeks of plans around today: most past plans linked to the seeded
+// sessions they "predicted", a couple missed or skipped, and open plans for
+// the two weeks ahead — enough to exercise the Plan calendar and adherence.
+function seedPlannedWorkouts(db) {
+  const count = db.prepare('SELECT COUNT(*) as c FROM planned_workouts').get().c;
+  if (count > 0) return;
+
+  const fourWeeksAgo = new Date(Date.now() - 28 * 86400000).toISOString().slice(0, 10);
+  const recent = db.prepare(`
+    SELECT w.id, date(w.date) as day, w.distance, w.pace_ms,
+           EXISTS(SELECT 1 FROM intervals i WHERE i.workout_id = w.id) as has_intervals
+    FROM workouts w
+    WHERE w.type = 'rower' AND w.date >= ?
+    ORDER BY w.date
+  `).all(fourWeeksAgo);
+
+  const byDay = new Map();
+  for (const w of recent) {
+    if (!byDay.has(w.day)) byDay.set(w.day, w);
+  }
+
+  const insertPlan = db.prepare(`
+    INSERT INTO planned_workouts (
+      date, type, target_distance, target_duration_ms, target_pace_ms,
+      target_rate, notes, completed_workout_id, match_type, status
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  db.transaction(() => {
+    for (const [day, w] of byDay) {
+      const roll = rand();
+      if (roll < 0.15) continue; // trained without a plan that day
+      const type = w.has_intervals ? 'intervals' : 'steady';
+      if (roll < 0.9) {
+        insertPlan.run(day, type, w.distance, null, w.pace_ms, null, null, w.id, 'auto', 'completed');
+      } else {
+        insertPlan.run(day, type, w.distance, null, null, null, null, null, null, 'skipped');
+      }
+    }
+
+    // Plans on rest days stay 'planned' and read as missed once the day passes.
+    for (const daysAgo of [3, 11, 19]) {
+      const day = new Date(Date.now() - daysAgo * 86400000).toISOString().slice(0, 10);
+      if (!byDay.has(day)) {
+        insertPlan.run(day, 'steady', 8000, null, null, null, null, null, null, 'planned');
+      }
+    }
+
+    const futures = [
+      [1, 'steady', 10000, null, 122000, 22, 'UT2 steady'],
+      [2, 'intervals', 4000, null, 108000, 30, '8x500m / 1:30r'],
+      [4, 'steady', 12000, null, 124000, 20, null],
+      [6, 'test', 2000, null, 100000, 32, 'Race pace check'],
+      [9, 'steady', null, 3600000, 125000, 20, '60 min steady state'],
+      [11, 'intervals', 5000, null, 110000, 28, '5x1k / 2:00r'],
+    ];
+    for (const [daysAhead, type, dist, dur, pace, rate, notes] of futures) {
+      const day = new Date(Date.now() + daysAhead * 86400000).toISOString().slice(0, 10);
+      insertPlan.run(day, type, dist, dur, pace, rate, notes, null, null, 'planned');
+    }
+  })();
+
+  console.log('Seeded planned workouts');
+}
+
 export function seedDatabase() {
   const db = getDb();
   const count = db.prepare('SELECT COUNT(*) as c FROM workouts').get().c;
   if (count > 0) {
     console.log(`Database already has ${count} workouts, skipping seed`);
     seedGoals(db);
+    seedPlannedWorkouts(db);
     return;
   }
 
@@ -354,6 +420,7 @@ export function seedDatabase() {
   console.log('Computed workout metrics');
 
   seedGoals(db);
+  seedPlannedWorkouts(db);
 }
 
 if (process.argv[1] && process.argv[1].endsWith('seed.js')) {

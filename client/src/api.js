@@ -84,6 +84,17 @@ export const api = {
   }),
   deleteGoal: (id) => request(`/api/goals/${id}`, { method: 'DELETE' }),
 
+  getPlans: (params = {}) => request(`/api/plans?${new URLSearchParams(params)}`),
+  createPlan: (data) => request('/api/plans', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+  updatePlan: (id, data) => request(`/api/plans/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  }),
+  deletePlan: (id) => request(`/api/plans/${id}`, { method: 'DELETE' }),
+
   getWeeklyInsight: () => request('/api/ai/weekly'),
 
   triggerSync: () => request('/api/sync', { method: 'POST' }),

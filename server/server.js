@@ -29,6 +29,7 @@ import aiRouter from './src/routes/ai.js';
 import settingsRouter from './src/routes/settings.js';
 import adminRouter from './src/routes/admin.js';
 import goalsRouter from './src/routes/goals.js';
+import plansRouter from './src/routes/plans.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = parseInt(process.env.PORT || '3000', 10);
@@ -71,6 +72,7 @@ app.use('/api/ai', requireAuth, aiRouter);
 app.use('/api/settings', requireAuth, settingsRouter);
 app.use('/api/admin', requireAuth, adminRouter);
 app.use('/api/goals', requireAuth, goalsRouter);
+app.use('/api/plans', requireAuth, plansRouter);
 
 const distPath = join(__dirname, 'dist');
 app.use(express.static(distPath));

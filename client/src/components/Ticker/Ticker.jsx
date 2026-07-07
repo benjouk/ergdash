@@ -133,6 +133,9 @@ export default function Ticker() {
         <NavLink to="/workouts" className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}>
           Workouts
         </NavLink>
+        <NavLink to="/plan" className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}>
+          Plan
+        </NavLink>
         <NavLink to="/tools" className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}>
           <Calculator size={13} aria-hidden="true" />
           Tools

@@ -1,11 +1,12 @@
 import { NavLink } from 'react-router-dom';
-import { Calculator, LayoutDashboard, TrendingUp, List, Settings2 } from 'lucide-react';
+import { Calculator, CalendarDays, LayoutDashboard, TrendingUp, List, Settings2 } from 'lucide-react';
 import styles from './BottomNav.module.css';
 
 const ITEMS = [
   { to: '/', end: true, label: 'Dashboard', Icon: LayoutDashboard },
   { to: '/progress', label: 'Progress', Icon: TrendingUp },
   { to: '/workouts', label: 'Workouts', Icon: List },
+  { to: '/plan', label: 'Plan', Icon: CalendarDays },
   { to: '/tools', label: 'Tools', Icon: Calculator },
   { to: '/settings', label: 'Settings', Icon: Settings2 },
 ];
