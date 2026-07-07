@@ -4,8 +4,42 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ErgDash: a self-hosted dashboard for your Concept2 rower</title>
-  <meta name="description" content="ErgDash is a self-hosted dashboard for Concept2 rowers. It syncs your Logbook history and charts pace trends, personal bests, fitness modelling, and stroke-level detail. Open source, runs on your own machine." />
+  <meta name="description" content="ErgDash syncs your Concept2 Logbook and charts pace trends, personal bests, fitness modelling, and stroke-level detail. Open source and self-hosted." />
+  <link rel="canonical" href="https://ergdash.com/" />
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#F7F7F5" />
   <meta name="theme-color" content="#141418" />
+  <link rel="icon" type="image/svg+xml" href="/icon-192.svg" />
+  <link rel="apple-touch-icon" href="/icon-192.svg" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="ErgDash" />
+  <meta property="og:url" content="https://ergdash.com/" />
+  <meta property="og:title" content="ErgDash: a self-hosted dashboard for your Concept2 rower" />
+  <meta property="og:description" content="Syncs your Concept2 Logbook and charts pace trends, personal bests, fitness modelling, and stroke-level detail. Open source and self-hosted." />
+  <meta property="og:image" content="https://ergdash.com/og.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="ErgDash — the charts your Concept2 Logbook doesn't give you." />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="ErgDash: a self-hosted dashboard for your Concept2 rower" />
+  <meta name="twitter:description" content="Syncs your Concept2 Logbook and charts pace trends, personal bests, fitness modelling, and stroke-level detail. Open source and self-hosted." />
+  <meta name="twitter:image" content="https://ergdash.com/og.png" />
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "ErgDash",
+    "url": "https://ergdash.com/",
+    "description": "A self-hosted dashboard for Concept2 RowErg users. Syncs your Logbook history and charts pace trends, personal bests, fitness modelling, and stroke-level detail.",
+    "applicationCategory": "HealthApplication",
+    "operatingSystem": "Linux, macOS, Windows (Docker)",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "license": "https://opensource.org/license/mit/",
+    "sameAs": ["https://github.com/benjouk/ergdash"]
+  }
+  </script>
+
   <link rel="stylesheet" href="/landing.css" />
 </head>
 <body>
@@ -37,15 +71,15 @@
   <main>
     <section class="features">
       <div class="feature">
-        <h3>Syncs itself</h3>
+        <h2>Syncs itself</h2>
         <p>Connect your Logbook account once and every workout arrives on its own, down to individual strokes where Concept2 recorded them.</p>
       </div>
       <div class="feature">
-        <h3>Built around rowing</h3>
+        <h2>Built around rowing</h2>
         <p>Pace ribbons, interval splits with heart-rate recovery, power curves, and CTL/ATL/TSB fitness modelling. The analysis cycling apps have had for years, applied to the erg.</p>
       </div>
       <div class="feature">
-        <h3>Runs at home</h3>
+        <h2>Runs at home</h2>
         <p>One Docker container backed by a single SQLite file. No subscription, and no service that can shut down and take your training history with it.</p>
       </div>
     </section>
