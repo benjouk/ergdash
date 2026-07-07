@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { getDb } from '../db.js';
 import { validateDateRange } from '../middleware/validate.js';
-import { autoMatchPlan } from '../planMatching.js';
+import { autoMatchPlan, workoutDay } from '../planMatching.js';
 
 const router = Router();
 
@@ -209,6 +209,19 @@ router.patch('/:id', (req, res) => {
     fields.match_type = null;
   }
 
+  // Moving a completed plan to another day would carry its link to a date
+  // the workout wasn't rowed on; unlink instead (autoMatchPlan below then
+  // re-matches on the new date if something fits).
+  if (fields.date && fields.date !== existing.date && existing.completed_workout_id) {
+    const linked = db.prepare('SELECT date FROM workouts WHERE id = ?')
+      .get(existing.completed_workout_id);
+    if (!linked || workoutDay(linked) !== fields.date) {
+      fields.completed_workout_id = null;
+      fields.match_type = null;
+      if (!fields.status) fields.status = 'planned';
+    }
+  }
+
   const updates = Object.keys(fields).map(f => `${f} = ?`);
   updates.push("updated_at = datetime('now')");
   db.prepare(`UPDATE planned_workouts SET ${updates.join(', ')} WHERE id = ?`)
@@ -241,9 +254,19 @@ router.post('/:id/match', (req, res) => {
     return res.status(404).json({ error: 'Plan not found' });
   }
 
-  const workout = db.prepare("SELECT id FROM workouts WHERE id = ? AND type = 'rower'").get(workoutId);
+  const workout = db.prepare("SELECT id, date FROM workouts WHERE id = ? AND type = 'rower'").get(workoutId);
   if (!workout) {
     return res.status(404).json({ error: 'Workout not found' });
+  }
+
+  // Manual links follow the same rule as auto-matching: a plan can only be
+  // completed by a workout rowed on its calendar day, otherwise the
+  // calendar and adherence stats attribute meters to the wrong week.
+  if (workoutDay(workout) !== plan.date) {
+    return res.status(400).json({
+      error: 'Validation failed',
+      details: [`Workout is not on the plan date (${plan.date})`],
+    });
   }
 
   const otherPlan = db.prepare(
