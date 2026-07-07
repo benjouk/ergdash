@@ -689,6 +689,8 @@ export default function Session() {
                       <td className={`${styles.paceCell} ${row.best ? styles.bestSplit : ''}`}>
                         {barWidth > 0 && <div className={styles.paceBar} style={{ width: `${barWidth}%` }} />}
                         {formatPace(row.pace_ms)}
+                        {row.best && <span className={styles.splitMarkerBest} title="Fastest split" aria-label="Fastest split">▲</span>}
+                        {row.worst && <span className={styles.splitMarkerWorst} title="Slowest split" aria-label="Slowest split">▼</span>}
                       </td>
                       <td>{row.stroke_rate ? row.stroke_rate.toFixed(1) : '--'}</td>
                       <td>{row.heart_rate ? Math.round(row.heart_rate) : '--'}</td>
@@ -856,6 +858,7 @@ function buildSplitRows(workout) {
       return {
         key: `interval-${interval.id || index}`,
         label: `${index + 1}`,
+        rest: !isWork,
         time_ms: interval.time_ms,
         pace_ms: interval.pace_ms,
         stroke_rate: interval.stroke_rate,
@@ -865,7 +868,7 @@ function buildSplitRows(workout) {
         best: false,
       };
     });
-    return markBest(rows);
+    return markBestWorst(rows);
   }
 
   const strokes = (workout.strokes || []).filter(s => s?.pace_ms > 0 && s?.distance_m >= 0);
@@ -899,12 +902,24 @@ function buildSplitRows(workout) {
     });
   }
 
-  return markBest(rows);
+  return markBestWorst(rows);
 }
 
-function markBest(rows) {
-  const bestPace = Math.min(...rows.map(row => row.pace_ms).filter(Boolean));
-  return rows.map(row => ({ ...row, best: row.pace_ms === bestPace }));
+// Flags the fastest and slowest splits. Rest intervals never qualify, and
+// the slowest marker only appears when there are enough splits for
+// "slowest" to mean something and it isn't also the fastest.
+function markBestWorst(rows) {
+  const paces = rows.filter(row => !row.rest && row.pace_ms > 0).map(row => row.pace_ms);
+  if (paces.length === 0) return rows;
+
+  const bestPace = Math.min(...paces);
+  const worstPace = paces.length >= 3 && Math.max(...paces) !== bestPace ? Math.max(...paces) : null;
+
+  return rows.map(row => ({
+    ...row,
+    best: !row.rest && row.pace_ms === bestPace,
+    worst: !row.rest && worstPace != null && row.pace_ms === worstPace,
+  }));
 }
 
 function average(values) {

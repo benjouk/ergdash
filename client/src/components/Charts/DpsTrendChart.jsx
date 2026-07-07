@@ -1,4 +1,5 @@
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { useMemo } from 'react';
+import { ComposedChart, Line, Scatter, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { api } from '../../api.js';
 import { useTimeRange } from '../../context/TimeRangeContext.jsx';
 import { AXIS_TICK, AXIS_LINE, SERIES, TOOLTIP_PROPS } from '../../styles/chartTheme.js';
@@ -8,8 +9,16 @@ import ChartInfo from './ChartInfo.jsx';
 import { useChartData } from './useChartData.js';
 import styles from './Charts.module.css';
 
-// Monthly average distance per stroke — a stroke-length proxy that surfaces
-// long-term technique changes.
+const SMOOTH_WINDOW = 7;
+
+const TAG_COLORS = {
+  endurance: SERIES.tertiary,
+  interval: SERIES.secondary,
+};
+
+// Per-session distance per stroke — a stroke-length proxy that surfaces
+// technique changes. Interval sessions naturally sit lower (higher rating,
+// shorter strokes), so dots are coloured by session type.
 export default function DpsTrendChart() {
   const { from, to } = useTimeRange();
   const { data = [], loading, error, retry } = useChartData(() => {
@@ -19,11 +28,20 @@ export default function DpsTrendChart() {
     return api.getTrends(params).then(d => d.dps_trend || []);
   }, [from, to]);
 
+  const formatted = useMemo(() => data.map((d, i) => {
+    const window = data.slice(Math.max(0, i - SMOOTH_WINDOW + 1), i + 1);
+    return {
+      ...d,
+      trend: window.reduce((s, p) => s + p.dps, 0) / window.length,
+      dateShort: new Date(d.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
+    };
+  }), [data]);
+
   if (loading) return <ChartSkeleton />;
   if (error) return <ChartEmpty title="Distance Per Stroke" message="Couldn't load chart data." error onRetry={retry} />;
-  if (data.length < 2) return <ChartEmpty title="Distance Per Stroke" />;
+  if (formatted.length < 3) return <ChartEmpty title="Distance Per Stroke" />;
 
-  const latest = data[data.length - 1];
+  const latest = formatted[formatted.length - 1];
 
   return (
     <div className={styles.chartCard}>
@@ -32,42 +50,52 @@ export default function DpsTrendChart() {
           Distance Per Stroke
         </div>
         <div className={styles.chartValue}>
-          {latest.dps.toFixed(2)}
+          {latest.trend.toFixed(2)}
           <span className={styles.chartValueUnit}>m/stroke</span>
         </div>
       </div>
       <ResponsiveContainer width="100%" height={170}>
-        <BarChart data={data} barCategoryGap="25%">
+        <ComposedChart data={formatted}>
           <XAxis
-            dataKey="month"
+            dataKey="dateShort"
             tick={AXIS_TICK}
-            tickFormatter={m => {
-              const [y, mo] = m.split('-');
-              return new Date(Number(y), Number(mo) - 1).toLocaleDateString('en-GB', { month: 'short' });
-            }}
             axisLine={AXIS_LINE}
             tickLine={false}
+            interval="preserveStartEnd"
+            minTickGap={24}
           />
           <YAxis
             tick={AXIS_TICK}
             tickFormatter={v => v.toFixed(1)}
             axisLine={false}
             tickLine={false}
-            width={38}
+            width={40}
             domain={['dataMin - 0.5', 'dataMax + 0.5']}
           />
           <Tooltip
             {...TOOLTIP_PROPS}
-            formatter={(v, name, item) => [
-              `${Number(v).toFixed(2)} m/stroke (${item?.payload?.sessions} sessions)`,
-              'Avg DPS',
+            formatter={(v, name) => [
+              `${Number(v).toFixed(2)} m/stroke`,
+              name === 'trend' ? `${SMOOTH_WINDOW}-session avg` : 'Session',
             ]}
           />
-          <Bar dataKey="dps" fill={SERIES.tertiary} radius={[6, 6, 0, 0]} />
-        </BarChart>
+          <Scatter dataKey="dps" name="dps">
+            {formatted.map((d, i) => (
+              <Cell key={i} fill={TAG_COLORS[d.inferred_tag] || SERIES.tertiary} fillOpacity={0.45} />
+            ))}
+          </Scatter>
+          <Line
+            type="monotone"
+            dataKey="trend"
+            stroke={SERIES.tertiary}
+            strokeWidth={2}
+            dot={false}
+            activeDot={{ r: 4 }}
+          />
+        </ComposedChart>
       </ResponsiveContainer>
-    
-      <ChartInfo>Average metres travelled per stroke, by month. Longer strokes at the same effort usually reflect improving technique.</ChartInfo>
+
+      <ChartInfo>Metres travelled per stroke for each session (dots, coloured by session type) with a {SMOOTH_WINDOW}-session average. Longer strokes at the same effort usually reflect improving technique; interval work naturally sits lower.</ChartInfo>
     </div>
   );
 }

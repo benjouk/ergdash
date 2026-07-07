@@ -97,9 +97,14 @@
   transition: background 150ms ease, border-color 150ms ease;
 }
 
-.rangeButton:hover {
+.rangeButton:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.14);
   border-color: rgba(255, 255, 255, 0.2);
+}
+
+.rangeButton:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 .rangeChevron {

@@ -184,13 +184,12 @@ router.get('/trends', (req, res) => {
 
   if (metric === 'dps') {
     const rows = db.prepare(`
-      SELECT strftime('%Y-%m', w.date) as month,
-             AVG(cm.distance_per_stroke) as dps,
-             COUNT(*) as sessions
+      SELECT w.date, cm.distance_per_stroke as dps, w.distance,
+             CASE WHEN w.inferred_tag = 'interval' THEN 'interval' ELSE 'endurance' END as inferred_tag
       FROM workouts w
       JOIN computed_metrics cm ON w.id = cm.workout_id
       WHERE w.type = 'rower' AND cm.distance_per_stroke IS NOT NULL AND w.date >= ?${toFilter}
-      GROUP BY month ORDER BY month
+      ORDER BY w.date
     `).all(from, ...toParam);
     return res.json({ dps_trend: rows });
   }
