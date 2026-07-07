@@ -2,70 +2,44 @@
 
 A self-hosted dashboard for Concept2 RowErg users. Connects to the Concept2 Logbook API to sync your workout history and display training analytics — volume trends, pace tracking, personal bests, and fitness modelling.
 
-## Connecting to Concept2
+## Setup
 
-ErgDash talks to your Concept2 Logbook account via OAuth2, which means it needs its own API credentials before it can ask Concept2 for permission to read your workouts. This is a one-time, few-minute setup:
+1. Register an OAuth app at [log.concept2.com/developers](https://log.concept2.com/developers). Set the redirect URI to `http://localhost:3100/auth/callback`, or your real host/port — it must match `C2_REDIRECT_URI` exactly.
+2. `cp .env.example .env` and fill in `C2_CLIENT_ID`, `C2_CLIENT_SECRET`, and `SESSION_SECRET` (`openssl rand -base64 32`).
 
-1. Log in to your account at [log.concept2.com](https://log.concept2.com), then go to [log.concept2.com/developers](https://log.concept2.com/developers).
-2. Register a new application (sometimes labelled "API application" or "OAuth client"). The name is just a label for your own reference — e.g. `ErgDash` or `ErgDash (home server)`.
-3. Set the **redirect URI**. This must match `C2_REDIRECT_URI` *exactly* — same protocol, host, port, and path — or the OAuth login will fail:
-   - Docker (default setup): `http://localhost:3100/auth/callback`
-   - Local development: `http://localhost:3000/auth/callback`
-   - Anything else (custom domain, reverse proxy, different port): use that URL instead, and set `C2_REDIRECT_URI` in `.env` to match.
-4. Save the application. Concept2 will give you a **Client ID** and **Client Secret**.
-5. Copy those two values into `.env` as `C2_CLIENT_ID` and `C2_CLIENT_SECRET`.
+## Run (Docker)
 
-Your Concept2 username and password are never seen by ErgDash — they're entered directly on Concept2's login page during the OAuth flow. The Client ID/Secret above just identify the *app* to Concept2, similar to how any third-party integration (e.g. a Strava or Google sign-in) needs to be registered before it can request access.
-
-If you ever move ErgDash to a new host or domain, you'll need to update the redirect URI on both sides (Concept2's developer page and `C2_REDIRECT_URI` in `.env`).
-
-## Quick Start (Docker)
-
-Multi-arch images (`linux/amd64` and `linux/arm64` — Intel/AMD servers, Apple Silicon, Raspberry Pi 4/5) are published to GitHub Container Registry as [`ghcr.io/benjouk/ergdash`](https://github.com/benjouk/ergdash/pkgs/container/ergdash).
+Multi-arch images (`linux/amd64`, `linux/arm64`) are published to [`ghcr.io/benjouk/ergdash`](https://github.com/benjouk/ergdash/pkgs/container/ergdash). `latest` tracks `main`; releases are tagged `1.2.3` / `1.2`.
 
 ```bash
-cp .env.example .env
-# Fill in C2_CLIENT_ID and C2_CLIENT_SECRET — see "Connecting to Concept2" above
-# Generate a SESSION_SECRET (required — the server refuses to start without one):
-#   openssl rand -base64 32
-docker compose pull   # use the prebuilt image (or: docker compose build)
-docker compose up -d
+docker compose pull && docker compose up -d   # or build from source: docker compose up -d --build
 ```
 
-The app will be available at `http://localhost:3100`.
-
-Without compose, the prebuilt image can be run directly:
+The app is at `http://localhost:3100`. Without compose:
 
 ```bash
 docker run -d --name ergdash \
   -p 3100:3000 \
   -v ergdash-data:/data \
-  -e C2_CLIENT_ID=... \
-  -e C2_CLIENT_SECRET=... \
-  -e SESSION_SECRET="$(openssl rand -base64 32)" \
+  --env-file .env \
   ghcr.io/benjouk/ergdash:latest
 ```
 
-Images are built by the [Publish Docker image](.github/workflows/docker-publish.yml) workflow on every push to `main` (tagged `latest` + short commit SHA) and on version tags (`v1.2.3` → `1.2.3`, `1.2`).
+## Development
 
-## Quick Start (Development)
-
-Requires Node.js 22+.
+Requires Node.js 22+. No C2 credentials needed — the dev server seeds mock data and the login screen has a "Skip Auth" link.
 
 ```bash
 # Server
-cd server
-npm install
-npm run seed   # populate DB with mock data (no C2 credentials needed)
-npm run dev    # starts on :3000 with --watch
+cd server && npm install
+npm run dev    # :3000, --watch
 
 # Client (separate terminal)
-cd client
-npm install
-npm run dev    # starts Vite on :5173, proxies API to :3000
+cd client && npm install
+npm run dev    # Vite on :5173, proxies API to :3000
 ```
 
-Open `http://localhost:5173`. In dev mode a "Skip Auth" link appears on the login screen.
+Open `http://localhost:5173`.
 
 ## Architecture
 
