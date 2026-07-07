@@ -146,10 +146,6 @@ cookies, a JSON-only body parser, and CORS being disabled by default. See
 
 **Fonts:** Outfit (display/body), Archivo (hero numerals), Fira Code (monospace); self-hosted, variable woff2
 
-## Contributing
-
-Issues and PRs are welcome. Both packages have Vitest suites (`npm test` in `server/` and `client/`); CI runs the tests, a client build, and dependency audits on every PR.
-
 ## License
 
 [MIT](LICENSE)
