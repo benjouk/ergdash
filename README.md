@@ -58,13 +58,14 @@ Single-container stack: Express serves both the API and the built React frontend
 client/          React 18 + Vite 5 + React Router 6
   src/
     components/  Ticker, Feed, Charts, Stats
-    views/       Dashboard, Session, Progress, Workouts, Settings, Connect
+    views/       Dashboard, Session, Progress, Workouts, Plan, Tools, Settings, Connect
     context/     Theme, Auth, Sync, Units providers
     styles/      Design tokens (light/dark), global reset
 
 server/          Express 4 + better-sqlite3
   src/
-    routes/      auth, workouts, stats, sync, settings, health, ai (stub)
+    routes/      auth, workouts, stats, sync, settings, goals, plans,
+                 health, ai (stub)
     middleware/  error handler
     db.js        DB init, migrations, WAL mode
     auth.js      OAuth2 (Authorization Code + Refresh)
@@ -74,7 +75,9 @@ server/          Express 4 + better-sqlite3
     strokeMetrics.js Pure per-stroke maths (DPS, watts/beat, HR drift,
                  rate discipline, HR recovery, zone time, best efforts)
     hrZones.js   HR zone model (settings + observed-max fallback)
-    seed.js      Mock data generator (154 workouts)
+    goalProgress.js Pure goal-window and progress/gap maths
+    planMatching.js Same-day heuristic linking synced workouts to plans
+    seed.js      Mock data generator (workouts, goals, planned sessions)
   test/          Vitest unit tests for the pure metric functions
   migrations/    SQL schema
 ```
@@ -84,6 +87,8 @@ server/          Express 4 + better-sqlite3
 - **Dashboard** — Season metres, weekly volume chart, pace trend, personal bests, calendar heatmap, weekly time-in-zone, fitness sparkline
 - **Session Detail** — Canvas pace ribbon heatmap, stroke-level charts, interval rep chart with HR recovery, rate-vs-pace scatter, HR zone bar, computed metrics (fade index, consistency, effort, distance per stroke, watts/beat, HR drift, rate discipline)
 - **Workouts** — Filterable/sortable table with CSV export
+- **Goals & Targets** — Weekly/monthly/season/annual volume goals overlaid on the dashboard, plus performance targets per benchmark distance compared against current PBs and trend-based race predictions, with an optional race-day countdown
+- **Plan** — Month calendar to schedule future sessions (type, target distance/duration, pace, rate, notes); synced workouts auto-match same-day plans with manual link/unlink, missed days are flagged, and a Progress chart tracks plan adherence over time
 - **Progress** — Fitness (CTL/ATL/TSB), pace/volume trends, power-duration curve with 90-day ghost, time-in-zone and polarization stacks, efficiency (watts/beat), distance per stroke, HR drift, cumulative metres race line, drag factor timeline, fade fingerprint
 - **HR Zones** — Five configurable zones in Settings (% of max HR), estimated from observed data until set
 - **Feed** — Always-visible sidebar of recent sessions with sparklines
