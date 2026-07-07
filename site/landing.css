@@ -185,7 +185,7 @@ main {
   box-shadow: 0 8px 24px rgba(16, 16, 20, 0.08);
 }
 
-.feature h3 {
+.feature h2 {
   margin: 0 0 0.5rem;
   color: var(--accent-deep);
   font-size: 0.95rem;

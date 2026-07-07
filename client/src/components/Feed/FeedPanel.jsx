@@ -110,7 +110,11 @@ export default function FeedPanel({ layout = 'column' }) {
           </div>
         </>
       )}
-      <div className={styles.feedHeader}>Recent Sessions</div>
+      {/* In row layout the parent section renders its own "Recent Sessions"
+          heading, so only repeat it when a Pinned group needs separating. */}
+      {(!isRow || pinnedWorkouts.length > 0) && (
+        <div className={styles.feedHeader}>Recent Sessions</div>
+      )}
       {loading && !loaded ? (
         <div className={`${styles.itemList} ${isRow ? styles.itemListRow : ''}`}>
           {Array.from({ length: isRow ? 4 : 6 }).map((_, index) => (
