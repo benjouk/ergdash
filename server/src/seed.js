@@ -110,16 +110,62 @@ function generateInterval(id, date, factor) {
 
   const avgPace = Math.round(intervals.reduce((s, i) => s + i.paceMs, 0) / numIntervals);
   const hrAvg = randInt(165, 178);
+  const strokes = generateIntervalStrokeData(intervals, restTimeMs);
 
   return {
     id, date: sessionDate(date), distance, timeMs: totalTime, paceMs: avgPace,
     strokeRate: Math.round(randBetween(29, 33) * 10) / 10,
-    strokeCount: Math.round(totalTime / 60000 * 31),
+    // Strokes only happen during work reps; counting the rests inflated the
+    // stroke count and dragged distance-per-stroke down to implausible values.
+    strokeCount: strokes.length,
     hrAvg, hrMax: hrAvg + randInt(10, 18), dragFactor: randInt(118, 128),
     calories: Math.round(distance / 22 + randBetween(-5, 5)),
     type: 'interval', workoutType: 'FixedDistanceSplits',
-    intervals, strokes: null,
+    intervals, strokes,
   };
+}
+
+// Stroke stream for an interval set: work reps only (as Concept2 records it),
+// with the stroke clock spanning the rest gaps and distance accumulating
+// across reps. HR climbs through each rep and restarts lower after the rest,
+// so between-rep recoveries fall out of the data naturally.
+function generateIntervalStrokeData(intervals, restTimeMs) {
+  const strokes = [];
+  let strokeNumber = 0;
+  let elapsedS = 0;
+  let baseDistance = 0;
+
+  intervals.forEach((interval, index) => {
+    const repStrokes = Math.max(10, Math.round((interval.timeMs / 60000) * interval.strokeRate));
+    const metersPerStroke = interval.distance / repStrokes;
+    const hrStart = interval.hrAvg - randInt(18, 26);
+    const hrPeak = interval.hrAvg + randInt(4, 8);
+
+    for (let s = 0; s < repStrokes; s++) {
+      const progress = s / repStrokes;
+      const pace = Math.round(interval.paceMs + randBetween(-1500, 1500));
+      const paceSeconds = pace / 1000;
+      const watts = paceSeconds > 0 ? Math.round(2.80 / Math.pow(paceSeconds / 500, 3)) : 0;
+      const hr = Math.round(hrStart + (hrPeak - hrStart) * Math.min(1, progress * 1.6) + randBetween(-2, 2));
+
+      strokes.push({
+        number: strokeNumber++,
+        timeS: Math.round(elapsedS * 100) / 100,
+        distanceM: Math.round((baseDistance + s * metersPerStroke) * 10) / 10,
+        paceMs: pace,
+        watts,
+        strokeRate: Math.round((interval.strokeRate + randBetween(-1.2, 1.2)) * 10) / 10,
+        heartRate: Math.max(100, Math.min(200, hr)),
+      });
+
+      elapsedS += (metersPerStroke / 500) * paceSeconds;
+    }
+
+    baseDistance += interval.distance;
+    if (index < intervals.length - 1) elapsedS += restTimeMs / 1000;
+  });
+
+  return strokes;
 }
 
 function generateTest(id, date, factor) {

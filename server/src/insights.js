@@ -15,6 +15,11 @@ const WORKOUT_PACE_S = 1.5; // session vs personal median, s/500m
 const WORKOUT_HR_BPM = 4; // session HR vs median at similar effort
 const HR_DRIFT_LOW = 5; // % — tight aerobic control
 const HR_DRIFT_HIGH = 10; // % — faded in the back half
+const REP_SPREAD_TIGHT_S = 1.5; // s/500m fastest-to-slowest rep → even set
+const REP_SPREAD_WIDE_S = 4.0; // s/500m spread → pacing drifted
+const REP_RATE_SPIKE_SPM = 2.5; // spm above the set average → spike
+const RECOVERY_GOOD_BPM = 10; // avg HR drop between reps → recovering well
+const RECOVERY_POOR_BPM = 3; // avg HR drop between reps → rests too short
 
 // --- Formatting helpers (self-contained; server pace_ms is per-500m) ---------
 function km(meters) {
@@ -33,6 +38,14 @@ function signed(value, digits = 1) {
 // s/500m gap between two pace_ms values, always positive, 1dp.
 function paceGapSeconds(aMs, bMs) {
   return Math.abs(aMs - bMs) / 1000;
+}
+
+// pace_ms (per 500m) → "1:46.6"
+function fmtPace(paceMs) {
+  const totalSeconds = paceMs / 1000;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds - minutes * 60;
+  return `${minutes}:${seconds.toFixed(1).padStart(4, '0')}`;
 }
 
 function insight(id, kind, text) {
@@ -123,8 +136,10 @@ export function buildWeeklyInsights(input = {}) {
 // `workout` is the formatted workout (pace_ms, heart_rate_avg, inferred_tag,
 // metrics{ hr_drift_pct, ... }); `baseline` holds the rower's medians for the
 // same tag so the session can be read relative to what's normal for them.
+// `session` optionally carries the interval rows and HR recoveries so interval
+// sets get rep-level insights.
 // -----------------------------------------------------------------------------
-export function buildWorkoutInsight(workout = {}, baseline = {}) {
+export function buildWorkoutInsight(workout = {}, baseline = {}, session = {}) {
   const out = [];
   const tag = workout.inferred_tag === 'interval' ? 'interval' : 'endurance';
   const { medianPaceMs = null, medianHr = null } = baseline;
@@ -162,5 +177,66 @@ export function buildWorkoutInsight(workout = {}, baseline = {}) {
     }
   }
 
+  if (tag === 'interval') {
+    out.push(...buildIntervalInsights(session));
+  }
+
   return out;
+}
+
+// Rep-level reads for an interval set: pacing evenness, rate spikes, and how
+// well HR recovered in the rests. Rep numbers count work reps only, matching
+// the reps chart.
+function buildIntervalInsights(session = {}) {
+  const out = [];
+  const workReps = (session.intervals || [])
+    .filter(row => row.type !== 'rest' && row.pace_ms > 0);
+  if (workReps.length < 2) return out;
+
+  // 1. Pacing across the set: spread between fastest and slowest rep.
+  const paces = workReps.map(rep => rep.pace_ms);
+  const fastest = Math.min(...paces);
+  const fastestRep = paces.indexOf(fastest) + 1;
+  const spreadS = (Math.max(...paces) - fastest) / 1000;
+  const fastestText = `rep ${fastestRep} fastest at ${fmtPace(fastest)}`;
+
+  if (spreadS <= REP_SPREAD_TIGHT_S) {
+    out.push(insight('reps', 'positive', `${workReps.length} reps within ${spreadS.toFixed(1)} s/500m — even set, ${fastestText}.`));
+  } else if (fastestRep === workReps.length) {
+    out.push(insight('reps', 'positive', `Finished strongest — ${fastestText}.`));
+  } else if (spreadS >= REP_SPREAD_WIDE_S) {
+    out.push(insight('reps', 'watch', `${spreadS.toFixed(1)} s/500m between fastest and slowest rep — pacing drifted (${fastestText}).`));
+  } else {
+    out.push(insight('reps', 'neutral', `${capitalize(fastestText)}.`));
+  }
+
+  // 2. Stroke-rate spike relative to the set average.
+  const rates = workReps.map(rep => rep.stroke_rate).filter(rate => rate > 0);
+  if (rates.length === workReps.length) {
+    const avgRate = rates.reduce((sum, rate) => sum + rate, 0) / rates.length;
+    const maxRate = Math.max(...rates);
+    if (maxRate - avgRate >= REP_RATE_SPIKE_SPM) {
+      const spikeRep = rates.indexOf(maxRate) + 1;
+      out.push(insight('rate_spike', 'watch', `Rate spiked to ${maxRate.toFixed(1)} spm on rep ${spikeRep} (set average ${avgRate.toFixed(1)}).`));
+    }
+  }
+
+  // 3. HR recovery between reps.
+  const drops = (session.recoveries || [])
+    .map(r => r.drop_bpm)
+    .filter(drop => drop != null);
+  if (drops.length >= 2) {
+    const avgDrop = drops.reduce((sum, drop) => sum + drop, 0) / drops.length;
+    if (avgDrop >= RECOVERY_GOOD_BPM) {
+      out.push(insight('recovery', 'positive', `HR dropped ~${Math.round(avgDrop)} bpm between reps — recovering well in the rests.`));
+    } else if (avgDrop <= RECOVERY_POOR_BPM) {
+      out.push(insight('recovery', 'watch', `HR recovered only ~${Math.round(avgDrop)} bpm between reps — the rests are short for this effort.`));
+    }
+  }
+
+  return out;
+}
+
+function capitalize(text) {
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
