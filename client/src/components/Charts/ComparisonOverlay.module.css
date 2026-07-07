@@ -66,11 +66,26 @@
 }
 
 .columnTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   color: var(--ink);
   font-family: var(--font-display);
   font-size: 1rem;
   font-weight: 600;
   letter-spacing: -0.01em;
+}
+
+.columnChip {
+  font-size: 0.62rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-3);
+  background: var(--surface-alt);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  padding: 1px 6px;
 }
 
 .columnMeta {
@@ -247,6 +262,17 @@
   border-right: none;
 }
 
+/* Tie the split columns to their chart lines */
+.sessionHeader1 {
+  color: var(--accent-2);
+  text-align: center !important;
+}
+
+.sessionHeader2 {
+  color: var(--accent);
+  text-align: center !important;
+}
+
 .splitLabel {
   text-align: left;
   color: var(--ink-2);
@@ -265,16 +291,14 @@
   font-weight: 700;
 }
 
-/* Legend */
+/* Legend (sits inside the chart card, under the plot) */
 .legend {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-6);
-  padding: var(--space-4);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-md);
-  background: var(--surface);
+  gap: var(--space-3) var(--space-5);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--rule);
   flex-wrap: wrap;
 }
 
