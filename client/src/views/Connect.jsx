@@ -5,9 +5,9 @@ import { useAuth } from '../context/AuthContext.jsx';
 import styles from './Connect.module.css';
 
 const FEATURES = [
-  { title: 'Track', desc: 'Every session, pace, and stroke', accent: '#C3D500' },
-  { title: 'Analyse', desc: 'Trends, comparisons, personal bests', accent: '#38B6FF' },
-  { title: 'Improve', desc: 'Coaching insights and fitness tracking', accent: '#FFB000' },
+  { title: 'Track', desc: 'Every session, down to the stroke', accent: '#C3D500' },
+  { title: 'Analyse', desc: 'Pace trends, comparisons, personal bests', accent: '#38B6FF' },
+  { title: 'Improve', desc: 'Fitness modelling and training trends', accent: '#FFB000' },
 ];
 
 export default function Connect() {
@@ -45,8 +45,8 @@ export default function Connect() {
         </div>
 
         <p className={styles.tagline}>
-          Your personal rowing dashboard. Connect your Concept2 Logbook to track progress,
-          analyse sessions, and monitor training trends.
+          Connect your Concept2 Logbook to sync your workout history and chart
+          pace trends, personal bests, and session detail.
         </p>
 
         {syncing ? (
