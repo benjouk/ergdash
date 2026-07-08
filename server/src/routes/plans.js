@@ -132,12 +132,17 @@ function validatePlanBody(body, { partial = false } = {}) {
     }
   }
 
-  const hasIntervalWork = fields.interval_distance != null || fields.interval_duration_ms != null;
-  if (fields.interval_reps != null && !hasIntervalWork) {
-    errors.push('interval_reps requires interval_distance or interval_duration_ms');
-  }
-  if (fields.interval_reps == null && (hasIntervalWork || fields.interval_rest_ms != null) && !partial) {
-    errors.push('interval fields require interval_reps');
+  // Cross-field interval checks only make sense against the full shape; a
+  // partial payload is checked after merging with the existing row (see
+  // mergeIntervalPatch), so e.g. patching just interval_reps stays valid.
+  if (!partial) {
+    const hasIntervalWork = fields.interval_distance != null || fields.interval_duration_ms != null;
+    if (fields.interval_reps != null && !hasIntervalWork) {
+      errors.push('interval_reps requires interval_distance or interval_duration_ms');
+    }
+    if (fields.interval_reps == null && (hasIntervalWork || fields.interval_rest_ms != null)) {
+      errors.push('interval fields require interval_reps');
+    }
   }
 
   if (has('notes')) {
@@ -175,6 +180,36 @@ export function deriveIntervalTotals(fields) {
     fields.target_duration_ms = fields.interval_reps * fields.interval_duration_ms;
   }
   return fields;
+}
+
+// Patch-side counterpart of deriveIntervalTotals: validates the interval
+// shape a partial update leaves behind (existing row + patch) and, unless
+// the patch sets totals explicitly, recomputes the derived totals so
+// matching and adherence never see stale numbers. Mutates fields; returns
+// validation errors.
+export function mergeIntervalPatch(existing, fields) {
+  const intervalKeys = ['interval_reps', 'interval_distance', 'interval_duration_ms', 'interval_rest_ms'];
+  if (!intervalKeys.some(key => key in fields)) return [];
+
+  const merged = { ...existing, ...fields };
+  const hasIntervalWork = merged.interval_distance != null || merged.interval_duration_ms != null;
+  if (merged.interval_reps != null && !hasIntervalWork) {
+    return ['interval_reps requires interval_distance or interval_duration_ms'];
+  }
+  if (merged.interval_reps == null && (hasIntervalWork || merged.interval_rest_ms != null)) {
+    return ['interval fields require interval_reps'];
+  }
+
+  if (merged.interval_reps != null
+      && fields.target_distance === undefined && fields.target_duration_ms === undefined) {
+    fields.target_distance = merged.interval_distance
+      ? merged.interval_reps * merged.interval_distance
+      : null;
+    fields.target_duration_ms = merged.interval_duration_ms
+      ? merged.interval_reps * merged.interval_duration_ms
+      : null;
+  }
+  return [];
 }
 
 export const MAX_REPEAT_WEEKS = 25;
@@ -257,6 +292,9 @@ router.patch('/:id', (req, res) => {
   }
 
   const { errors, fields } = validatePlanBody(req.body || {}, { partial: true });
+  if (errors.length === 0) {
+    errors.push(...mergeIntervalPatch(existing, fields));
+  }
   if (errors.length > 0) {
     return res.status(400).json({ error: 'Validation failed', details: errors });
   }
