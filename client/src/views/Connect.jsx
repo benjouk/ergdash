@@ -7,7 +7,7 @@ import styles from './Connect.module.css';
 const FEATURES = [
   { title: 'Track', desc: 'Every session, pace, and stroke', accent: '#C3D500' },
   { title: 'Analyse', desc: 'Trends, comparisons, personal bests', accent: '#38B6FF' },
-  { title: 'Improve', desc: 'AI coaching insights and fitness tracking', accent: '#FFB000' },
+  { title: 'Improve', desc: 'Coaching insights and fitness tracking', accent: '#FFB000' },
 ];
 
 export default function Connect() {

@@ -58,17 +58,4 @@ router.get('/weekly', (req, res) => {
   res.json({ insights });
 });
 
-router.post('/query', (req, res) => {
-  res.status(501).json({ error: 'AI features not yet implemented' });
-});
-
-router.get('/status', (req, res) => {
-  res.json({
-    // The rules-based weekly coach and per-workout insights are always on.
-    available: true,
-    // Free-text querying would need an LLM; report whether one is configured.
-    query_available: !!process.env.CLAUDE_API_KEY,
-  });
-});
-
 export default router;

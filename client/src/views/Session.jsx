@@ -510,12 +510,6 @@ export default function Session() {
         </div>
       )}
 
-      {workout.ai_note && (
-        <div className={styles.aiNote}>
-          {workout.ai_note}
-        </div>
-      )}
-
       {hasPaceProfile && (
         <div className={styles.card}>
           <div className={styles.chartStack}>

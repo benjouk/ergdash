@@ -12,7 +12,6 @@ services:
       - C2_CLIENT_SECRET=${C2_CLIENT_SECRET}
       - C2_REDIRECT_URI=${C2_REDIRECT_URI:-http://localhost:3100/auth/callback}
       - SYNC_INTERVAL_MINUTES=${SYNC_INTERVAL_MINUTES:-15}
-      - CLAUDE_API_KEY=${CLAUDE_API_KEY:-}
       - SESSION_SECRET=${SESSION_SECRET}
       - COOKIE_SECURE=${COOKIE_SECURE:-}
       - NODE_ENV=${NODE_ENV:-production}
