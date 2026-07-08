@@ -409,24 +409,33 @@ async function createDemoPlan(body) {
   }
 
   const overlay = getPlanOverlay();
-  const maxId = Math.max(DEMO_PLAN_ID_FLOOR - 1, ...overlay.created.map(p => p.id));
-  const plan = {
-    id: maxId + 1,
-    date: body.date,
-    type: body.type || 'steady',
-    target_distance: body.target_distance ?? null,
-    target_duration_ms: body.target_duration_ms ?? null,
-    target_pace_ms: body.target_pace_ms ?? null,
-    target_rate: body.target_rate ?? null,
-    notes: body.notes ?? null,
-    completed_workout_id: null,
-    match_type: null,
-    status: 'planned',
-    workout: null,
-  };
-  overlay.created.push(plan);
+  const repeatWeeks = Number.isInteger(body.repeat_weeks) ? Math.min(25, Math.max(0, body.repeat_weeks)) : 0;
+  const plans = [];
+  for (let week = 0; week <= repeatWeeks; week++) {
+    const maxId = Math.max(DEMO_PLAN_ID_FLOOR - 1, ...overlay.created.map(p => p.id));
+    const plan = {
+      id: maxId + 1,
+      date: new Date(Date.parse(body.date) + week * 7 * 86400000).toISOString().slice(0, 10),
+      type: body.type || 'steady',
+      target_distance: body.target_distance ?? null,
+      target_duration_ms: body.target_duration_ms ?? null,
+      target_pace_ms: body.target_pace_ms ?? null,
+      target_rate: body.target_rate ?? null,
+      interval_reps: body.interval_reps ?? null,
+      interval_distance: body.interval_distance ?? null,
+      interval_duration_ms: body.interval_duration_ms ?? null,
+      interval_rest_ms: body.interval_rest_ms ?? null,
+      notes: body.notes ?? null,
+      completed_workout_id: null,
+      match_type: null,
+      status: 'planned',
+      workout: null,
+    };
+    overlay.created.push(plan);
+    plans.push(plan);
+  }
   writeOverlay(PLAN_OVERLAY_KEY, overlay);
-  return { ...plan, adherence: derivePlanAdherence(plan) };
+  return { ...plans[0], adherence: derivePlanAdherence(plans[0]), created_count: plans.length };
 }
 
 async function matchDemoPlan(planId, workoutId) {

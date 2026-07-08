@@ -24,6 +24,35 @@ export function calHrToWatts(calHr) {
   return (value - 300) / CAL_HR_FACTOR;
 }
 
+const LBS_PER_KG = 2.20462;
+
+// Concept2's weight-correction factor: (bodyweight lbs / 270) ^ 0.222.
+// Multiplying a time (or pace) by it estimates the equivalent performance
+// in an on-the-water boat, making scores comparable across body weights.
+export function weightFactor(weightKg) {
+  const kg = Number(weightKg);
+  if (!Number.isFinite(kg) || kg <= 0) return null;
+  return Math.pow((kg * LBS_PER_KG) / 270, 0.222);
+}
+
+// Weight-adjusted time or pace. Both scale by the same factor, so one
+// helper covers time_ms, pace_ms, or their seconds equivalents.
+export function weightAdjusted(value, weightKg) {
+  const factor = weightFactor(weightKg);
+  const input = Number(value);
+  if (!factor || !Number.isFinite(input) || input <= 0) return null;
+  return input * factor;
+}
+
+// Distance covered in a fixed time scales inversely: adjusted pace is
+// slower by the factor, so adjusted distance shrinks by it.
+export function weightAdjustedDistance(distance, weightKg) {
+  const factor = weightFactor(weightKg);
+  const input = Number(distance);
+  if (!factor || !Number.isFinite(input) || input <= 0) return null;
+  return input / factor;
+}
+
 export const RACE_STRATEGIES = ['even', 'negative', 'aggressive'];
 
 // Per-500m pace offset (seconds) as a function of race progress p ∈ [0, 1].
@@ -145,7 +174,8 @@ export function formatDuration(seconds, digits = 1) {
   const hours = Math.floor(value / 3600);
   const minutes = Math.floor((value % 3600) / 60);
   const remaining = value - hours * 3600 - minutes * 60;
-  const secondsText = remaining.toFixed(digits).padStart(2 + digits + 1, '0');
+  // Pad to two integer digits; fractional digits add the decimal point too.
+  const secondsText = remaining.toFixed(digits).padStart(digits > 0 ? digits + 3 : 2, '0');
 
   if (hours > 0) return `${hours}:${String(minutes).padStart(2, '0')}:${secondsText}`;
   return `${minutes}:${secondsText}`;

@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../../api.js';
 import { useUnits } from '../../context/UnitsContext.jsx';
 import { useTimeRange } from '../../context/TimeRangeContext.jsx';
+import { usePrefs } from '../../context/PrefsContext.jsx';
+import { weightAdjusted, weightAdjustedDistance } from '../../utils/ergMath.js';
 import styles from './Stats.module.css';
 
 const DISTANCE_LABELS = {
@@ -27,6 +29,7 @@ export default function PBStrip() {
   const navigate = useNavigate();
   const { formatPace, formatTime, formatDistance } = useUnits();
   const { from, to } = useTimeRange();
+  const { weightKg } = usePrefs();
 
   useEffect(() => {
     const params = {};
@@ -55,6 +58,9 @@ export default function PBStrip() {
           <span className={styles.pbDistance}>{DISTANCE_LABELS[pb.distance] || `${pb.distance}m`}</span>
           <span className={styles.pbTime}>{formatTime(pb.time_ms)}</span>
           <span className={styles.pbPace}>{formatPace(pb.pace_ms)}</span>
+          {weightKg && (
+            <span className={styles.pbAdjusted}>wt adj {formatTime(Math.round(weightAdjusted(pb.time_ms, weightKg)))}</span>
+          )}
           <span className={styles.pbDate}>{new Date(pb.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' })}</span>
         </button>
       ))}
@@ -70,6 +76,9 @@ export default function PBStrip() {
           <span className={styles.pbDistance}>{TIME_LABELS[tb.duration_s] || `${tb.duration_s}s`}</span>
           <span className={styles.pbTime}>{formatDistance(tb.distance)}</span>
           <span className={styles.pbPace}>{formatPace(tb.pace_ms)}</span>
+          {weightKg && (
+            <span className={styles.pbAdjusted}>wt adj {formatDistance(Math.round(weightAdjustedDistance(tb.distance, weightKg)))}</span>
+          )}
           <span className={styles.pbDate}>{new Date(tb.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' })}</span>
         </button>
       ))}

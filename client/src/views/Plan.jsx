@@ -22,23 +22,64 @@ function isoToday() {
 }
 
 function planSummary(plan, formatDistance) {
+  if (plan.interval_reps) {
+    const work = plan.interval_distance
+      ? formatDistance(plan.interval_distance)
+      : formatDuration(plan.interval_duration_ms / 1000, 0);
+    const rest = plan.interval_rest_ms
+      ? ` / ${formatDuration(plan.interval_rest_ms / 1000, 0)}r`
+      : '';
+    return `${plan.interval_reps}×${work}${rest}`;
+  }
   if (plan.target_distance) return formatDistance(plan.target_distance);
   if (plan.target_duration_ms) return formatDuration(plan.target_duration_ms / 1000, 0);
   return plan.type;
 }
 
 const EMPTY_FORM = {
-  type: 'steady', distance: '', duration: '', pace: '', rate: '', notes: '',
+  type: 'steady', distance: '', duration: '',
+  reps: '', repDistance: '', repDuration: '', rest: '',
+  pace: '', rate: '', notes: '', repeat: '0',
 };
+
+// Common erg sessions (Pete Plan staples and standard tests) to prefill
+// the form. Values are form-shaped, not payload-shaped.
+const SESSION_PRESETS = [
+  { label: '2k test', form: { type: 'test', distance: '2000' } },
+  { label: '5k test', form: { type: 'test', distance: '5000' } },
+  { label: '10k steady', form: { type: 'steady', distance: '10000' } },
+  { label: '30:00 steady', form: { type: 'steady', duration: '30:00' } },
+  { label: '60:00 steady', form: { type: 'steady', duration: '60:00' } },
+  { label: '8×500m / 3:30r', form: { type: 'intervals', reps: '8', repDistance: '500', rest: '3:30' } },
+  { label: '4×1000m / 5:00r', form: { type: 'intervals', reps: '4', repDistance: '1000', rest: '5:00' } },
+  { label: '5×1500m / 5:00r', form: { type: 'intervals', reps: '5', repDistance: '1500', rest: '5:00' } },
+  { label: '4×2000m / 5:00r', form: { type: 'intervals', reps: '4', repDistance: '2000', rest: '5:00' } },
+  { label: '3×2500m / 5:00r', form: { type: 'intervals', reps: '3', repDistance: '2500', rest: '5:00' } },
+  { label: '4×10:00 / 2:00r', form: { type: 'intervals', reps: '4', repDuration: '10:00', rest: '2:00' } },
+];
+
+const REPEAT_OPTIONS = [
+  ['0', 'Just this week'],
+  ['1', 'Next 2 weeks'],
+  ['3', 'Next 4 weeks'],
+  ['5', 'Next 6 weeks'],
+  ['7', 'Next 8 weeks'],
+  ['11', 'Next 12 weeks'],
+];
 
 function formFromPlan(plan) {
   return {
     type: plan.type,
-    distance: plan.target_distance ? String(plan.target_distance) : '',
-    duration: plan.target_duration_ms ? formatDuration(plan.target_duration_ms / 1000, 0) : '',
+    distance: plan.target_distance && !plan.interval_reps ? String(plan.target_distance) : '',
+    duration: plan.target_duration_ms && !plan.interval_reps ? formatDuration(plan.target_duration_ms / 1000, 0) : '',
+    reps: plan.interval_reps ? String(plan.interval_reps) : '',
+    repDistance: plan.interval_distance ? String(plan.interval_distance) : '',
+    repDuration: plan.interval_duration_ms ? formatDuration(plan.interval_duration_ms / 1000, 0) : '',
+    rest: plan.interval_rest_ms ? formatDuration(plan.interval_rest_ms / 1000, 0) : '',
     pace: plan.target_pace_ms ? formatPaceSeconds(plan.target_pace_ms / 1000) : '',
     rate: plan.target_rate ? String(plan.target_rate) : '',
     notes: plan.notes || '',
+    repeat: '0',
   };
 }
 
@@ -104,15 +145,38 @@ export default function Plan() {
     event.preventDefault();
     const payload = { type: form.type };
 
-    const distance = Math.round(Number(form.distance));
-    payload.target_distance = Number.isFinite(distance) && distance > 0 ? distance : null;
+    const reps = Math.round(Number(form.reps));
+    if (form.type === 'intervals' && reps > 0) {
+      const repDistance = Math.round(Number(form.repDistance));
+      const repDurationS = parseTimeInput(form.repDuration);
+      if (!(repDistance > 0) && !repDurationS) {
+        toast.error('Set a rep distance or rep time');
+        return;
+      }
+      const restS = parseTimeInput(form.rest);
+      payload.interval_reps = reps;
+      payload.interval_distance = repDistance > 0 ? repDistance : null;
+      payload.interval_duration_ms = repDurationS ? Math.round(repDurationS * 1000) : null;
+      payload.interval_rest_ms = restS ? Math.round(restS * 1000) : null;
+      // Totals (work only) drive auto-matching and adherence meters.
+      payload.target_distance = payload.interval_distance ? reps * payload.interval_distance : null;
+      payload.target_duration_ms = payload.interval_duration_ms ? reps * payload.interval_duration_ms : null;
+    } else {
+      payload.interval_reps = null;
+      payload.interval_distance = null;
+      payload.interval_duration_ms = null;
+      payload.interval_rest_ms = null;
 
-    const durationS = parseTimeInput(form.duration);
-    payload.target_duration_ms = durationS ? Math.round(durationS * 1000) : null;
+      const distance = Math.round(Number(form.distance));
+      payload.target_distance = Number.isFinite(distance) && distance > 0 ? distance : null;
 
-    if (!payload.target_distance && !payload.target_duration_ms) {
-      toast.error('Set a target distance or duration');
-      return;
+      const durationS = parseTimeInput(form.duration);
+      payload.target_duration_ms = durationS ? Math.round(durationS * 1000) : null;
+
+      if (!payload.target_distance && !payload.target_duration_ms) {
+        toast.error('Set a target distance or duration');
+        return;
+      }
     }
 
     const paceS = parsePaceInput(form.pace);
@@ -123,12 +187,21 @@ export default function Plan() {
 
     payload.notes = form.notes.trim() || null;
 
+    const repeatWeeks = editingId === 'new' ? Math.round(Number(form.repeat)) || 0 : 0;
     const request = editingId === 'new'
-      ? api.createPlan({ ...payload, date: selectedDate })
+      ? api.createPlan({
+          ...payload,
+          date: selectedDate,
+          ...(repeatWeeks > 0 ? { repeat_weeks: repeatWeeks } : {}),
+        })
       : api.updatePlan(editingId, payload);
 
     request
-      .then(() => { toast.success('Plan saved'); closeEdit(); load(); })
+      .then(() => {
+        toast.success(repeatWeeks > 0 ? `Plan saved for ${repeatWeeks + 1} weeks` : 'Plan saved');
+        closeEdit();
+        load();
+      })
       .catch(err => toast.error(err.message || 'Could not save plan'));
   };
 
@@ -359,6 +432,24 @@ export default function Plan() {
           <form className={styles.form} onSubmit={submit}>
             <div className={styles.formGrid}>
               <label className={styles.field}>
+                <span className={styles.fieldLabel}>Preset</span>
+                <select
+                  className={styles.input}
+                  value=""
+                  onChange={e => {
+                    const preset = SESSION_PRESETS[Number(e.target.value)];
+                    if (preset) {
+                      setForm({ ...EMPTY_FORM, ...preset.form, notes: form.notes, repeat: form.repeat });
+                    }
+                  }}
+                >
+                  <option value="">Choose a session…</option>
+                  {SESSION_PRESETS.map((preset, index) => (
+                    <option key={preset.label} value={index}>{preset.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label className={styles.field}>
                 <span className={styles.fieldLabel}>Type</span>
                 <select
                   className={styles.input}
@@ -370,27 +461,76 @@ export default function Plan() {
                   ))}
                 </select>
               </label>
-              <label className={styles.field}>
-                <span className={styles.fieldLabel}>Distance (m)</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="500"
-                  className={styles.input}
-                  value={form.distance}
-                  placeholder="10000"
-                  onChange={e => setForm({ ...form, distance: e.target.value })}
-                />
-              </label>
-              <label className={styles.field}>
-                <span className={styles.fieldLabel}>or Duration</span>
-                <input
-                  className={styles.input}
-                  value={form.duration}
-                  placeholder="45:00"
-                  onChange={e => setForm({ ...form, duration: e.target.value })}
-                />
-              </label>
+              {form.type === 'intervals' ? (
+                <>
+                  <label className={styles.field}>
+                    <span className={styles.fieldLabel}>Reps</span>
+                    <input
+                      type="number"
+                      min="0"
+                      max="50"
+                      className={styles.input}
+                      value={form.reps}
+                      placeholder="4"
+                      onChange={e => setForm({ ...form, reps: e.target.value })}
+                    />
+                  </label>
+                  <label className={styles.field}>
+                    <span className={styles.fieldLabel}>Rep distance (m)</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="250"
+                      className={styles.input}
+                      value={form.repDistance}
+                      placeholder="2000"
+                      onChange={e => setForm({ ...form, repDistance: e.target.value })}
+                    />
+                  </label>
+                  <label className={styles.field}>
+                    <span className={styles.fieldLabel}>or Rep time</span>
+                    <input
+                      className={styles.input}
+                      value={form.repDuration}
+                      placeholder="10:00"
+                      onChange={e => setForm({ ...form, repDuration: e.target.value })}
+                    />
+                  </label>
+                  <label className={styles.field}>
+                    <span className={styles.fieldLabel}>Rest</span>
+                    <input
+                      className={styles.input}
+                      value={form.rest}
+                      placeholder="5:00"
+                      onChange={e => setForm({ ...form, rest: e.target.value })}
+                    />
+                  </label>
+                </>
+              ) : (
+                <>
+                  <label className={styles.field}>
+                    <span className={styles.fieldLabel}>Distance (m)</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="500"
+                      className={styles.input}
+                      value={form.distance}
+                      placeholder="10000"
+                      onChange={e => setForm({ ...form, distance: e.target.value })}
+                    />
+                  </label>
+                  <label className={styles.field}>
+                    <span className={styles.fieldLabel}>or Duration</span>
+                    <input
+                      className={styles.input}
+                      value={form.duration}
+                      placeholder="45:00"
+                      onChange={e => setForm({ ...form, duration: e.target.value })}
+                    />
+                  </label>
+                </>
+              )}
               <label className={styles.field}>
                 <span className={styles.fieldLabel}>Pace /500m</span>
                 <input
@@ -412,6 +552,20 @@ export default function Plan() {
                   onChange={e => setForm({ ...form, rate: e.target.value })}
                 />
               </label>
+              {editingId === 'new' && (
+                <label className={styles.field}>
+                  <span className={styles.fieldLabel}>Repeat</span>
+                  <select
+                    className={styles.input}
+                    value={form.repeat}
+                    onChange={e => setForm({ ...form, repeat: e.target.value })}
+                  >
+                    {REPEAT_OPTIONS.map(([value, label]) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
+                  </select>
+                </label>
+              )}
             </div>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>Notes</span>

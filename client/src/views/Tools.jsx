@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
-import { Calculator, Clock3, Gauge, Zap } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Calculator, Clock3, Gauge, Scale, Zap } from 'lucide-react';
 import { useUnits } from '../context/UnitsContext.jsx';
+import { usePrefs } from '../context/PrefsContext.jsx';
 import {
   buildRacePlan,
   calHrToWatts,
@@ -9,6 +10,8 @@ import {
   paceToWatts,
   wattsToCalHr,
   wattsToPace,
+  weightAdjusted,
+  weightFactor,
 } from '../utils/ergMath.js';
 import styles from './Tools.module.css';
 
@@ -35,6 +38,95 @@ const SECONDS = Array.from({ length: 60 }, (_, i) => i); // 0–59
 function splitClock(totalSeconds) {
   const rounded = Math.max(0, Math.round(Number(totalSeconds) || 0));
   return { minutes: Math.floor(rounded / 60), seconds: rounded % 60 };
+}
+
+function WeightAdjustCard() {
+  const { weightKg } = usePrefs();
+  const [weightInput, setWeightInput] = useState('');
+  const [adjustDistance, setAdjustDistance] = useState('2000');
+  const [adjustSeconds, setAdjustSeconds] = useState(420);
+
+  // Settings weight arrives async; prefill until the user types their own.
+  useEffect(() => {
+    setWeightInput(current => current || (weightKg ? String(weightKg) : ''));
+  }, [weightKg]);
+
+  const factor = weightFactor(weightInput);
+  const adjustedSeconds = weightAdjusted(adjustSeconds, weightInput);
+  const distance = Number(adjustDistance);
+  const adjustedPace = adjustedSeconds && distance > 0
+    ? (adjustedSeconds / distance) * 500
+    : null;
+  const adjustParts = splitClock(adjustSeconds);
+
+  return (
+    <section className={styles.card}>
+      <div className={styles.cardHeader}>
+        <div>
+          <span className={styles.kicker}>Converter</span>
+          <h3 className={styles.cardTitle}>Weight-adjusted score</h3>
+        </div>
+        <Scale size={20} className={styles.cardIcon} aria-hidden="true" />
+      </div>
+
+      <div className={styles.converterGrid}>
+        <label className={styles.field}>
+          <span><Scale size={14} /> Weight (kg)</span>
+          <input
+            value={weightInput}
+            onChange={event => setWeightInput(event.target.value.replace(/[^\d.]/g, ''))}
+            inputMode="decimal"
+            placeholder="75"
+          />
+        </label>
+        <label className={styles.field}>
+          <span>Distance (m)</span>
+          <input
+            value={adjustDistance}
+            onChange={event => setAdjustDistance(event.target.value.replace(/[^\d]/g, ''))}
+            inputMode="numeric"
+            placeholder="2000"
+          />
+        </label>
+        <div className={styles.field}>
+          <span id="adjust-time-label">Time</span>
+          <div className={styles.timePicker} role="group" aria-labelledby="adjust-time-label">
+            <select
+              className={styles.timeSelect}
+              aria-label="Time minutes"
+              value={adjustParts.minutes}
+              onChange={event => setAdjustSeconds(Number(event.target.value) * 60 + adjustParts.seconds)}
+            >
+              {TARGET_MINUTES.map(value => <option key={value} value={value}>{value}</option>)}
+            </select>
+            <span className={styles.timeColon} aria-hidden="true">:</span>
+            <select
+              className={styles.timeSelect}
+              aria-label="Time seconds"
+              value={adjustParts.seconds}
+              onChange={event => setAdjustSeconds(adjustParts.minutes * 60 + Number(event.target.value))}
+            >
+              {SECONDS.map(value => (
+                <option key={value} value={value}>{String(value).padStart(2, '0')}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {factor && adjustedSeconds ? (
+        <div className={styles.resultBand}>
+          <span>{formatDuration(adjustedSeconds)} adj</span>
+          <span>{adjustedPace ? `${formatPaceSeconds(adjustedPace)} /500m` : '—'}</span>
+          <span>×{factor.toFixed(3)}</span>
+        </div>
+      ) : (
+        <div className={styles.empty}>
+          Enter your weight and a result to see its Concept2 weight-corrected equivalent.
+        </div>
+      )}
+    </section>
+  );
 }
 
 export default function Tools() {
@@ -142,6 +234,8 @@ export default function Tools() {
             <span>{watts && calHr ? `${Math.round(calHr)} Cal/hr` : '—'}</span>
           </div>
         </section>
+
+        <WeightAdjustCard />
 
         <section className={styles.card}>
           <div className={styles.cardHeader}>
