@@ -8,6 +8,7 @@ const DEFAULT_PREFS = {
   feed_limit: '50',
   week_start: 'monday',
   date_format: 'day-month',
+  weight_kg: '',
 };
 
 const VALID_VALUES = {
@@ -25,6 +26,11 @@ function normalizePrefs(settings = {}) {
     if (key === 'feed_limit') {
       const parsed = Number(value);
       if (Number.isFinite(parsed) && parsed > 0) prefs.feed_limit = String(Math.round(parsed));
+      continue;
+    }
+    if (key === 'weight_kg') {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed) && parsed > 0) prefs.weight_kg = String(parsed);
       continue;
     }
     prefs[key] = value;
@@ -54,6 +60,7 @@ export function PrefsProvider({ children }) {
         feedLimit: Number(prefs.feed_limit) || 50,
         weekStart: prefs.week_start,
         dateFormat: prefs.date_format,
+        weightKg: Number(prefs.weight_kg) > 0 ? Number(prefs.weight_kg) : null,
         updatePref,
       }}
     >

@@ -16,10 +16,11 @@ ErgDash connects to the Concept2 Logbook API to sync your workout history and di
 - **Session Detail:** Per-stroke pace and rate/HR charts, interval rep chart with HR recovery, rate-vs-pace scatter, HR zone bar, splits table, side-by-side session comparison, downloadable session card, computed metrics (fade index, consistency, effort, distance per stroke, watts/beat, HR drift, rate discipline)
 - **Workouts:** Filterable/sortable table with CSV/JSON export
 - **Goals & Targets:** Weekly/monthly/season/annual volume goals overlaid on the dashboard, plus performance targets per benchmark distance compared against current PBs and trend-based race predictions, with an optional race-day countdown
-- **Plan:** Month calendar to schedule future sessions (type, target distance/duration, pace, rate, notes); synced workouts auto-match same-day plans with manual link/unlink, missed days are flagged, and a Progress chart tracks plan adherence over time
+- **Plan:** Month calendar to schedule future sessions (type, target distance/duration, pace, rate, notes) with interval structure (e.g. 4×2000m / 5:00r), common-session presets, and weekly repeat; synced workouts auto-match same-day plans with manual link/unlink, missed days are flagged, and a Progress chart tracks plan adherence over time
 - **Progress:** Fitness (CTL/ATL/TSB), pace trend, power-duration curve with 90-day ghost, time-in-zone and polarization stacks, efficiency (watts/beat), distance per stroke, stroke quality, HR drift, cumulative metres race line, drag factor timeline, PB progression, fade fingerprint — all in an editable layout
-- **Tools:** Pace / watts / cal-per-hour converter and a race plan builder with even, negative, and aggressive pacing strategies
+- **Tools:** Pace / watts / cal-per-hour converter, a Concept2 weight-adjusted score calculator, and a race plan builder with even, negative, and aggressive pacing strategies
 - **HR Zones:** Five configurable zones in Settings (% of max HR), estimated from observed data until set
+- **Body weight:** Optional setting that adds weight-adjusted equivalents to personal bests and Tools
 - **Feed:** Always-visible sidebar of recent sessions with sparklines
 - **Ticker:** Sticky header with key stats, pace trace, and navigation
 - **Light/Dark theme:** System-aware with manual override

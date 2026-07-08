@@ -135,6 +135,52 @@ function HrZonesSection() {
   );
 }
 
+function AthleteSection() {
+  const { weightKg, updatePref } = usePrefs();
+  const [weight, setWeight] = useState('');
+  const toast = useToast();
+
+  useEffect(() => {
+    setWeight(weightKg ? String(weightKg) : '');
+  }, [weightKg]);
+
+  const save = () => {
+    const parsed = Number(weight);
+    const valid = weight === '' || (Number.isFinite(parsed) && parsed > 0);
+    if (!valid) return;
+    if ((weightKg || '') === (parsed || '')) return;
+    updatePref('weight_kg', weight === '' ? '' : parsed)
+      .then(() => toast.success('Settings saved'))
+      .catch(err => toast.error(err.message || 'Could not save settings'));
+  };
+
+  return (
+    <div className={styles.section}>
+      <h3 className={styles.sectionTitle}>Athlete</h3>
+      <div className={styles.row}>
+        <div>
+          <div className={styles.label}>Body Weight</div>
+          <div className={styles.subtext}>
+            Enables weight-adjusted paces on personal bests and in Tools — leave empty to disable
+          </div>
+        </div>
+        <input
+          type="number"
+          min="30"
+          max="200"
+          step="0.5"
+          value={weight}
+          placeholder="kg"
+          onChange={e => setWeight(e.target.value)}
+          onBlur={save}
+          aria-label="Body weight in kilograms"
+          className={styles.numberInput}
+        />
+      </div>
+    </div>
+  );
+}
+
 const VOLUME_PERIODS = [
   ['weekly', 'Weekly Metres', 'Target metres per week'],
   ['monthly', 'Monthly Metres', 'Target metres per calendar month'],
@@ -570,6 +616,8 @@ export default function Settings() {
           </div>
         </div>
       </div>
+
+      <AthleteSection />
 
       <GoalsSection />
 

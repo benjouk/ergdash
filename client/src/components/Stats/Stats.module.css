@@ -144,6 +144,12 @@
   color: var(--ink-3);
 }
 
+.pbAdjusted {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  color: var(--ink-3);
+}
+
 .metricsBar {
   display: flex;
   gap: var(--space-4);

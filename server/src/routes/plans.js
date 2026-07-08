@@ -117,7 +117,11 @@ function validatePlanBody(body, { partial = false } = {}) {
     }
   }
 
-  for (const field of ['target_distance', 'target_duration_ms', 'target_pace_ms', 'target_rate']) {
+  const INT_FIELDS = [
+    'target_distance', 'target_duration_ms', 'target_pace_ms', 'target_rate',
+    'interval_reps', 'interval_distance', 'interval_duration_ms', 'interval_rest_ms',
+  ];
+  for (const field of INT_FIELDS) {
     if (!has(field)) continue;
     if (body[field] == null) {
       fields[field] = null;
@@ -126,6 +130,14 @@ function validatePlanBody(body, { partial = false } = {}) {
     } else {
       fields[field] = body[field];
     }
+  }
+
+  const hasIntervalWork = fields.interval_distance != null || fields.interval_duration_ms != null;
+  if (fields.interval_reps != null && !hasIntervalWork) {
+    errors.push('interval_reps requires interval_distance or interval_duration_ms');
+  }
+  if (fields.interval_reps == null && (hasIntervalWork || fields.interval_rest_ms != null) && !partial) {
+    errors.push('interval fields require interval_reps');
   }
 
   if (has('notes')) {
@@ -151,36 +163,85 @@ function validatePlanBody(body, { partial = false } = {}) {
   return { errors, fields };
 }
 
+// An interval plan implies its own totals (work only — rest doesn't count
+// toward target meters), so a "4×2000m" plan matches an 8000m interval
+// workout without the caller having to do the multiplication.
+export function deriveIntervalTotals(fields) {
+  if (!fields.interval_reps) return fields;
+  if (fields.target_distance == null && fields.interval_distance) {
+    fields.target_distance = fields.interval_reps * fields.interval_distance;
+  }
+  if (fields.target_duration_ms == null && fields.interval_duration_ms) {
+    fields.target_duration_ms = fields.interval_reps * fields.interval_duration_ms;
+  }
+  return fields;
+}
+
+export const MAX_REPEAT_WEEKS = 25;
+
+// Weekly recurrence: the plan's date plus N more weekly occurrences. Each
+// occurrence becomes an independent row — no recurrence entity to manage,
+// and editing/deleting one never touches its siblings.
+export function expandRepeatDates(date, repeatWeeks) {
+  const dates = [date];
+  for (let week = 1; week <= repeatWeeks; week++) {
+    dates.push(new Date(Date.parse(date) + week * 7 * 86400000).toISOString().slice(0, 10));
+  }
+  return dates;
+}
+
 router.post('/', (req, res) => {
   const db = getDb();
   const body = req.body || {};
   const { errors, fields } = validatePlanBody(body);
+  deriveIntervalTotals(fields);
 
-  if (fields.date && body.target_distance == null && body.target_duration_ms == null) {
-    errors.push('Provide target_distance or target_duration_ms');
+  if (fields.date && fields.target_distance == null && fields.target_duration_ms == null) {
+    errors.push('Provide target_distance, target_duration_ms, or interval fields');
   }
+
+  let repeatWeeks = 0;
+  if (body.repeat_weeks != null) {
+    if (!Number.isInteger(body.repeat_weeks) || body.repeat_weeks < 0 || body.repeat_weeks > MAX_REPEAT_WEEKS) {
+      errors.push(`repeat_weeks must be an integer between 0 and ${MAX_REPEAT_WEEKS}`);
+    } else {
+      repeatWeeks = body.repeat_weeks;
+    }
+  }
+
   if (errors.length > 0) {
     return res.status(400).json({ error: 'Validation failed', details: errors });
   }
 
-  const result = db.prepare(`
-    INSERT INTO planned_workouts (date, type, target_distance, target_duration_ms, target_pace_ms, target_rate, notes)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    fields.date,
-    fields.type ?? 'steady',
-    fields.target_distance ?? null,
-    fields.target_duration_ms ?? null,
-    fields.target_pace_ms ?? null,
-    fields.target_rate ?? null,
-    fields.notes ?? null
-  );
+  const insert = db.prepare(`
+    INSERT INTO planned_workouts (date, type, target_distance, target_duration_ms, target_pace_ms, target_rate,
+                                  interval_reps, interval_distance, interval_duration_ms, interval_rest_ms, notes)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const ids = db.transaction(() => expandRepeatDates(fields.date, repeatWeeks).map(date =>
+    insert.run(
+      date,
+      fields.type ?? 'steady',
+      fields.target_distance ?? null,
+      fields.target_duration_ms ?? null,
+      fields.target_pace_ms ?? null,
+      fields.target_rate ?? null,
+      fields.interval_reps ?? null,
+      fields.interval_distance ?? null,
+      fields.interval_duration_ms ?? null,
+      fields.interval_rest_ms ?? null,
+      fields.notes ?? null
+    ).lastInsertRowid
+  ))();
 
   // The plan may describe a session already rowed today (or a past date) —
   // complete it immediately if an unmatched same-day workout fits.
-  autoMatchPlan(result.lastInsertRowid);
+  for (const id of ids) autoMatchPlan(id);
 
-  res.status(201).json(formatPlan(getPlan(db, result.lastInsertRowid)));
+  res.status(201).json({
+    ...formatPlan(getPlan(db, ids[0])),
+    created_count: ids.length,
+  });
 });
 
 router.patch('/:id', (req, res) => {
