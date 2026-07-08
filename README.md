@@ -58,60 +58,6 @@ The app is at `http://localhost:3100`. From a repo checkout, the included [docke
 docker compose pull && docker compose up -d   # or build from source: docker compose up -d --build
 ```
 
-### Updating and backups
-
-Update by pulling the new image and recreating the container (`docker compose pull && docker compose up -d`). All state lives in the SQLite database inside the `ergdash-data` volume; Settings offers one-click backup download and restore.
-
-## Development
-
-Requires Node.js 22+. No C2 credentials needed: the dev server seeds mock data and the login screen has a "Skip Auth" link.
-
-```bash
-# Server
-cd server && npm install
-npm run dev    # :3000, --watch
-
-# Client (separate terminal)
-cd client && npm install
-npm run dev    # Vite on :5173, proxies API to :3000
-```
-
-Open `http://localhost:5173`.
-
-## Architecture
-
-Single-container stack: Express serves both the API and the built React frontend, backed by SQLite (WAL mode).
-
-```
-client/          React 18 + Vite 5 + React Router 6
-  src/
-    components/  Ticker, Feed, Charts, Stats, Session, BottomNav, Skeleton, Toast
-    views/       Dashboard, Session, Progress, Workouts, Plan, Tools, Settings, Connect
-    context/     Theme, Auth, Sync, Units, Prefs, TimeRange, Toast providers
-    styles/      Design tokens (light/dark), global reset
-
-server/          Express 4 + better-sqlite3
-  src/
-    routes/      auth, workouts, stats, sync, settings, goals, plans,
-                 admin (backup/export/reset), health, insights
-    middleware/  error handler
-    db.js        DB init, migrations, WAL mode
-    auth.js      OAuth2 (Authorization Code + Refresh)
-    sync.js      Full sync, incremental sync, stroke enrichment
-    analytics.js Auto-tagging, fade index, consistency, CTL/ATL/TSB,
-                 HR zones, power curve, orchestration of stroke metrics
-    strokeMetrics.js Pure per-stroke maths (DPS, watts/beat, HR drift,
-                 rate discipline, HR recovery, zone time, best efforts)
-    hrZones.js   HR zone model (settings + observed-max fallback)
-    pbDetection.js PB progression detection and history backfill
-    insights.js  Rules-based training insights (pure, no DB)
-    goalProgress.js Pure goal-window and progress/gap maths
-    planMatching.js Same-day heuristic linking synced workouts to plans
-    seed.js      Mock data generator (workouts, goals, planned sessions)
-  test/          Vitest unit tests for the pure metric functions
-  migrations/    SQL schema
-```
-
 ## Environment Variables
 
 | Variable | Default | Description |
@@ -126,7 +72,3 @@ server/          Express 4 + better-sqlite3
 | `SESSION_SECRET` | - | Session signing secret (required in production, min 16 chars; generate with `openssl rand -base64 32`) |
 | `COOKIE_SECURE` | auto | Force the session cookie's `Secure` flag on/off; auto-detects from `C2_REDIRECT_URI` |
 | `CORS_ORIGIN` | disabled | Allow cross-origin API access from this origin. Not needed for normal setups; the frontend is served same-origin |
-
-## License
-
-[MIT](LICENSE)
