@@ -19,7 +19,7 @@
   <meta property="og:image" content="https://ergdash.com/og.png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
-  <meta property="og:image:alt" content="ErgDash — the charts your Concept2 Logbook doesn't give you." />
+  <meta property="og:image:alt" content="ErgDash — a self-hosted dashboard for your Concept2 rower." />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="ErgDash: a self-hosted dashboard for your Concept2 rower" />
   <meta name="twitter:description" content="Syncs your Concept2 Logbook and charts pace trends, personal bests, fitness modelling, and stroke-level detail. Open source and self-hosted." />
@@ -53,50 +53,50 @@
     </nav>
 
     <div class="hero-content">
-      <h1>The charts your Concept2 Logbook doesn't give you.</h1>
+      <h1>A self-hosted dashboard for your Concept2 rower.</h1>
       <p class="lede">
-        The Logbook stores every workout you've ever done, then shows you almost
-        none of it. ErgDash syncs that history and charts what you'd want to know:
-        how your pace is trending, whether your fitness is building or fading, and
-        how today's session compares with the hundreds before it.
+        ErgDash syncs your Concept2 Logbook and charts your training history:
+        pace trends, personal bests, fitness over time, and stroke-level detail
+        for every session. It's open source and runs on your own hardware as a
+        single Docker container.
       </p>
       <div class="cta-row">
-        <a href="/demo/" class="btn btn-primary btn-lg">Try the live demo</a>
-        <a href="https://github.com/benjouk/ergdash" target="_blank" rel="noopener" class="btn btn-ghost btn-lg">Self-host it →</a>
+        <a href="/demo/" class="btn btn-primary btn-lg">Try the demo</a>
+        <a href="https://github.com/benjouk/ergdash" target="_blank" rel="noopener" class="btn btn-ghost btn-lg">View on GitHub</a>
       </div>
-      <p class="demo-note">The demo is loaded with a season of sample workouts, so you can click around without signing up for anything.</p>
+      <p class="demo-note">The demo is pre-loaded with a season of sample workouts. No sign-up.</p>
     </div>
   </header>
 
   <main>
     <section class="features">
       <div class="feature">
-        <h2>Syncs itself</h2>
-        <p>Connect your Logbook account once and every workout arrives on its own, down to individual strokes where Concept2 recorded them.</p>
+        <h2>Automatic sync</h2>
+        <p>Connect your Logbook account once. New workouts are pulled in automatically, including per-stroke data where Concept2 recorded it.</p>
       </div>
       <div class="feature">
-        <h2>Built around rowing</h2>
-        <p>Pace ribbons, interval splits with heart-rate recovery, power curves, and CTL/ATL/TSB fitness modelling. The analysis cycling apps have had for years, applied to the erg.</p>
+        <h2>Rowing-specific analysis</h2>
+        <p>Pace ribbons, interval splits with heart-rate recovery, power-duration curves, and CTL/ATL/TSB fitness modelling.</p>
       </div>
       <div class="feature">
-        <h2>Runs at home</h2>
-        <p>One Docker container backed by a single SQLite file. No subscription, and no service that can shut down and take your training history with it.</p>
+        <h2>Self-hosted</h2>
+        <p>One Docker container backed by a single SQLite file. Your training data stays on your own hardware. No account, no subscription.</p>
       </div>
     </section>
 
     <section class="detail">
       <h2>What's in it</h2>
       <ul class="feature-list">
-        <li><strong>Dashboard</strong>: season metres, weekly volume, pace trend, personal bests, a calendar heatmap, and time in zone, all on one screen.</li>
-        <li><strong>Sessions</strong>: every stroke charted on a pace ribbon, interval reps with heart-rate recovery, and computed metrics like fade index, distance per stroke, and HR drift.</li>
-        <li><strong>Workouts</strong>: your full history in a filterable, sortable table, with CSV export when you want the raw numbers somewhere else.</li>
-        <li><strong>Progress</strong>: the long view. Fitness modelling, a power-duration curve with a ghost of your earlier self to chase, polarization stacks, and cumulative metres.</li>
+        <li><strong>Dashboard</strong>: season metres, weekly volume, pace trend, personal bests, a calendar heatmap, and time in zone.</li>
+        <li><strong>Sessions</strong>: per-stroke pace charts, interval reps with heart-rate recovery, and computed metrics like fade index, distance per stroke, and HR drift.</li>
+        <li><strong>Workouts</strong>: your full history in a filterable, sortable table, with CSV export.</li>
+        <li><strong>Progress</strong>: CTL/ATL/TSB fitness modelling, a power-duration curve with a 90-day comparison, time-in-zone breakdowns, and cumulative metres.</li>
       </ul>
     </section>
 
     <section class="self-host">
       <h2>Self-hosting</h2>
-      <p>ErgDash runs as a single Docker container with SQLite behind it, so your training data lives on your own hardware and nowhere else. The one bit of setup is registering an API application with Concept2 so ErgDash can read your Logbook. It takes a few minutes and the README walks you through it.</p>
+      <p>ErgDash runs as a single Docker container with SQLite for storage. The only setup is registering an API application with Concept2 so ErgDash can read your Logbook — the README walks you through it.</p>
       <pre class="code-block"><code>cp .env.example .env
 # fill in C2_CLIENT_ID / C2_CLIENT_SECRET
 docker compose up -d</code></pre>
