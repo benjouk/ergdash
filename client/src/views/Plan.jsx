@@ -7,6 +7,8 @@ import { monthGrid, shiftMonth, monthLabel } from '../utils/planCalendar.js';
 import MonthCalendar from '../components/Plan/MonthCalendar.jsx';
 import WeekStrip from '../components/Plan/WeekStrip.jsx';
 import DayPanel from '../components/Plan/DayPanel.jsx';
+import ProgramCard from '../components/Plan/ProgramCard.jsx';
+import ProgramBrowser from '../components/Plan/ProgramBrowser.jsx';
 import styles from './Plan.module.css';
 
 function isoToday() {
@@ -24,6 +26,7 @@ export default function Plan() {
 
   const [plans, setPlans] = useState(null);
   const [actualDays, setActualDays] = useState([]);
+  const [programs, setPrograms] = useState([]);
   const [selectedDate, setSelectedDate] = useState(today);
 
   const grid = useMemo(() => monthGrid(year, month, weekStart), [year, month, weekStart]);
@@ -35,6 +38,9 @@ export default function Plan() {
     api.getCalendar({ from: grid.from, to: grid.to })
       .then(d => setActualDays(d.days || []))
       .catch(() => setActualDays([]));
+    api.getPrograms()
+      .then(d => setPrograms(d.programs || []))
+      .catch(() => setPrograms([]));
   }, [grid.from, grid.to]);
 
   useEffect(() => { load(); }, [load]);
@@ -59,8 +65,8 @@ export default function Plan() {
     [plans],
   );
 
-  // Programs are wired in a later phase; an empty map keeps PlanRow badges off.
-  const programsById = useMemo(() => new Map(), []);
+  const programsById = useMemo(() => new Map(programs.map(p => [p.id, p])), [programs]);
+  const activeProgram = programs.find(p => p.status === 'active' || p.status === 'paused') || null;
 
   const dayPlans = plansByDay.get(selectedDate) || [];
   const dayActual = metersByDay.map.get(selectedDate);
@@ -96,6 +102,10 @@ export default function Plan() {
         </div>
       </div>
 
+      {activeProgram && (
+        <ProgramCard program={activeProgram} onChanged={load} />
+      )}
+
       <MonthCalendar
         grid={grid}
         plansByDay={plansByDay}
@@ -127,6 +137,8 @@ export default function Plan() {
         formatDistance={formatDistance}
         formatPace={formatPace}
       />
+
+      {!activeProgram && <ProgramBrowser onStarted={load} />}
     </div>
   );
 }

@@ -1,0 +1,31 @@
+.picker {
+  display: flex;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+}
+
+.day {
+  min-width: 42px;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--rule);
+  background: var(--surface-alt);
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 120ms ease, color 120ms ease, background 120ms ease;
+}
+
+.day:hover {
+  border-color: var(--accent);
+  color: var(--ink);
+}
+
+.active,
+.active:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
