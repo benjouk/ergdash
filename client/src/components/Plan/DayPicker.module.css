@@ -18,9 +18,11 @@
   transition: border-color 120ms ease, color 120ms ease, background 120ms ease;
 }
 
-.day:hover {
-  border-color: var(--accent);
-  color: var(--ink);
+@media (hover: hover) {
+  .day:hover {
+    border-color: var(--accent);
+    color: var(--ink);
+  }
 }
 
 .active,

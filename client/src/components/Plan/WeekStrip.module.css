@@ -63,8 +63,10 @@
   transition: border-color 120ms ease;
 }
 
-.day:hover {
-  border-color: var(--accent);
+@media (hover: hover) {
+  .day:hover {
+    border-color: var(--accent);
+  }
 }
 
 .daySelected {

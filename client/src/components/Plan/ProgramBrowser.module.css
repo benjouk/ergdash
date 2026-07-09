@@ -56,8 +56,10 @@
   transition: border-color 120ms ease;
 }
 
-.preset:hover {
-  border-color: var(--accent);
+@media (hover: hover) {
+  .preset:hover {
+    border-color: var(--accent);
+  }
 }
 
 .presetActive {

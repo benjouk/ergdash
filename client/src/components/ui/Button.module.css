@@ -14,12 +14,9 @@
   font-weight: 600;
   cursor: pointer;
   text-decoration: none;
+  /* Avoid the 300ms tap delay / double-tap-zoom so taps register immediately. */
+  touch-action: manipulation;
   transition: color 150ms ease, border-color 150ms ease;
-}
-
-.button:hover {
-  color: var(--accent);
-  border-color: var(--accent);
 }
 
 .button:disabled {
@@ -30,19 +27,8 @@
   opacity: 0.7;
 }
 
-.button:disabled:hover {
-  color: var(--ink-3);
-  border-color: var(--rule);
-}
-
 .buttonDanger {
   color: var(--negative);
-  border-color: var(--negative);
-}
-
-.buttonDanger:hover {
-  color: #FFFFFF;
-  background: var(--negative);
   border-color: var(--negative);
 }
 
@@ -52,10 +38,32 @@
   border-color: var(--accent);
 }
 
-.buttonPrimary:hover {
-  color: var(--on-accent);
-  background: var(--accent-deep);
-  border-color: var(--accent-deep);
+/* Hover styling only on devices that actually hover. On touch devices a
+   :hover rule makes iOS Safari swallow the first tap (it shows the hover
+   state instead of firing the click), so the button "just changes colour"
+   and does nothing — gating hover avoids that entirely. */
+@media (hover: hover) {
+  .button:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+
+  .button:disabled:hover {
+    color: var(--ink-3);
+    border-color: var(--rule);
+  }
+
+  .buttonDanger:hover {
+    color: #FFFFFF;
+    background: var(--negative);
+    border-color: var(--negative);
+  }
+
+  .buttonPrimary:hover {
+    color: var(--on-accent);
+    background: var(--accent-deep);
+    border-color: var(--accent-deep);
+  }
 }
 
 /* Compact variant for dense action rows (plan rows, session cards). */

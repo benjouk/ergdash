@@ -52,7 +52,9 @@
   transition: border-color 150ms ease, color 150ms ease;
 }
 
-.navButton:hover {
-  border-color: var(--accent);
-  color: var(--ink);
+@media (hover: hover) {
+  .navButton:hover {
+    border-color: var(--accent);
+    color: var(--ink);
+  }
 }

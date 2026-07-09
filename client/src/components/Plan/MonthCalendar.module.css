@@ -44,8 +44,10 @@
   transition: border-color 120ms ease;
 }
 
-.dayCell:hover {
-  border-color: var(--accent);
+@media (hover: hover) {
+  .dayCell:hover {
+    border-color: var(--accent);
+  }
 }
 
 .dayFill {
