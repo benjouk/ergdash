@@ -24,6 +24,15 @@ export function weekOfDate(isoDate) {
   return isoDay(Date.parse(isoDate) - weekdayOf(isoDate) * DAY_MS);
 }
 
+// The first date on/after isoDate whose weekday is `weekday` (0=Mon..6=Sun).
+// Used to roll a chosen start forward to the earliest training day so a
+// program always begins on a clean week-1, session-1 rather than joining a
+// calendar week partway through.
+export function alignStart(isoDate, weekday) {
+  const offset = (weekday - weekdayOf(isoDate) + 7) % 7;
+  return isoDay(Date.parse(isoDate) + offset * DAY_MS);
+}
+
 // Duration in weeks: cycle presets let the user choose (clamped); fixed and
 // race presets are exactly their template length.
 export function resolveDurationWeeks(preset, requested) {
@@ -63,13 +72,11 @@ export function validateProgramInput(preset, body) {
         || Number.isNaN(Date.parse(body.race_date))) {
       errors.push('race_date must be an ISO 8601 date (YYYY-MM-DD)');
     }
-  } else {
-    if (typeof body.start_date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(body.start_date)
-        || Number.isNaN(Date.parse(body.start_date))) {
-      errors.push('start_date must be an ISO 8601 date (YYYY-MM-DD)');
-    } else if (Array.isArray(days) && days.length && !days.includes(weekdayOf(body.start_date))) {
-      errors.push('start_date must fall on one of the chosen training days');
-    }
+  } else if (typeof body.start_date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(body.start_date)
+      || Number.isNaN(Date.parse(body.start_date))) {
+    // The start rolls forward to the first training day, so it need only be a
+    // valid date — it doesn't have to fall on a chosen training day.
+    errors.push('start_date must be an ISO 8601 date (YYYY-MM-DD)');
   }
 
   if (preset.kind === 'cycle' && body.duration_weeks != null) {
@@ -92,13 +99,16 @@ export function generateProgramSessions(preset, { startDate, trainingDays, durat
   const weeks = resolveDurationWeeks(preset, durationWeeks);
 
   // Anchor the week-0 Monday. For race presets, work backwards from the race
-  // date so the anchored session lands exactly on it.
+  // date so the anchored session lands exactly on it. Otherwise roll the
+  // chosen start forward to the earliest training day (slot 0) so week 0 is a
+  // full, clean cycle-week 1 — a mid-week start never skips earlier sessions.
   let mondayWeek0;
   const anchor = preset.kind === 'race' ? anchorSlot(preset) : null;
+  const alignedStart = anchor ? null : alignStart(startDate, days[0]);
   if (anchor) {
     mondayWeek0 = Date.parse(weekOfDate(raceDate)) - anchor.week * 7 * DAY_MS;
   } else {
-    mondayWeek0 = Date.parse(weekOfDate(startDate));
+    mondayWeek0 = Date.parse(weekOfDate(alignedStart));
   }
 
   const sessions = [];
@@ -121,15 +131,15 @@ export function generateProgramSessions(preset, { startDate, trainingDays, durat
     }
   }
 
-  // Trim the ends: non-race presets drop week-0 sessions before the chosen
-  // start (so a mid-week start is clean); race presets drop anything the
-  // schedule would place after race day.
+  // Race presets drop anything the schedule would place after race day.
+  // Non-race presets need no trimming: week 0 starts exactly on slot 0
+  // (alignedStart), so every generated session is on/after the start.
   const kept = anchor
     ? sessions.filter(s => s.date <= raceDate)
-    : sessions.filter(s => s.date >= startDate);
+    : sessions;
   kept.sort((a, b) => a.date.localeCompare(b.date)
     || a.program_week - b.program_week || a.program_slot - b.program_slot);
 
-  const effectiveStart = anchor ? (kept[0]?.date ?? raceDate) : startDate;
+  const effectiveStart = anchor ? (kept[0]?.date ?? raceDate) : alignedStart;
   return { startDate: effectiveStart, durationWeeks: weeks, sessions: kept };
 }

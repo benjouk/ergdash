@@ -61,15 +61,34 @@ describe('generateProgramSessions — weekday mapping', () => {
     expect(sessions[0].date).toBe('2026-07-06');
   });
 
-  it('drops week-0 sessions before a mid-week start', () => {
-    // Start Wednesday: Monday's slot-0 session is dropped.
+  it('rolls a mid-week start forward to the first training day (clean week 1)', () => {
+    // Start Wednesday with Mon/Wed/Fri days: rather than joining late, the
+    // program rolls to the following Monday so week 0 is a full, clean week 1.
     const { sessions, startDate } = generateProgramSessions(beginner, {
       startDate: '2026-07-08', trainingDays: [0, 2, 4], durationWeeks: 24,
     });
-    expect(startDate).toBe('2026-07-08');
-    expect(sessions.every(s => s.date >= '2026-07-08')).toBe(true);
-    // First week now only has Wed + Fri.
-    expect(sessions.filter(s => s.program_week === 0)).toHaveLength(2);
+    expect(startDate).toBe('2026-07-13'); // next Monday
+    expect(sessions.every(s => s.date >= '2026-07-13')).toBe(true);
+    const week0 = sessions.filter(s => s.program_week === 0);
+    expect(week0).toHaveLength(3); // full week, nothing dropped
+    // Slot 0 is session 1 of week 1, on the rolled-to Monday.
+    const first = week0.find(s => s.program_slot === 0);
+    expect(first.date).toBe('2026-07-13');
+    expect(first.type).toBe(beginner.weeks[0].sessions[0].type);
+  });
+
+  it('starting the Pete Plan on a Friday begins a clean week 1 the next Monday', () => {
+    // Mon–Fri days, pick Friday 2026-07-10 → rolls to Monday 2026-07-13.
+    const { sessions, startDate } = generateProgramSessions(pete, {
+      startDate: '2026-07-10', trainingDays: [0, 1, 2, 3, 4], durationWeeks: 12,
+    });
+    expect(startDate).toBe('2026-07-13');
+    expect(sessions).toHaveLength(60); // full plan, no sessions skipped
+    const first = sessions.find(s => s.program_week === 0 && s.program_slot === 0);
+    expect(first.date).toBe('2026-07-13');
+    // Session 1 of cycle-week 1 is the 8×500m speed intervals.
+    expect(first.interval_reps).toBe(8);
+    expect(first.interval_distance).toBe(500);
   });
 });
 
@@ -142,12 +161,13 @@ describe('validateProgramInput', () => {
     }).join(' ')).toMatch(/training_days/);
   });
 
-  it('requires the start date to be a training day', () => {
-    // 2026-07-07 is a Tuesday (weekday 1), not in Mon/Wed/Fri/Sat/Sun.
+  it('accepts a start date that is not a training day (it rolls forward)', () => {
+    // 2026-07-07 is a Tuesday, not in Mon/Wed/Fri/Sat/Sun — still valid now,
+    // since the generator rolls the start to the first training day.
     const errors = validateProgramInput(pete, {
       start_date: '2026-07-07', training_days: [0, 2, 4, 5, 6],
     });
-    expect(errors.join(' ')).toMatch(/training days/);
+    expect(errors).toEqual([]);
   });
 
   it('requires a race date for race presets', () => {

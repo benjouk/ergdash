@@ -14,15 +14,24 @@ const DAY_MS = 86400000;
 const isoToday = () => new Date().toISOString().slice(0, 10);
 const weekdayOf = (iso) => (new Date(Date.parse(iso)).getUTCDay() + 6) % 7;
 
-// The earliest date on/after `fromIso` whose weekday is in `days`.
-function nextTrainingDay(fromIso, days) {
+// The first date on/after `fromIso` that falls on the earliest training day
+// (sortedDays[0]) — the program always begins there so week 1 is a clean,
+// full cycle-week 1. `days` is kept sorted by the DayPicker.
+function firstTrainingDay(fromIso, days) {
   if (!days.length) return fromIso;
+  const target = days[0];
   const base = Date.parse(fromIso);
   for (let i = 0; i < 7; i++) {
     const iso = new Date(base + i * DAY_MS).toISOString().slice(0, 10);
-    if (days.includes(weekdayOf(iso))) return iso;
+    if (weekdayOf(iso) === target) return iso;
   }
   return fromIso;
+}
+
+function formatDay(iso) {
+  return new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', {
+    weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC',
+  });
 }
 
 function StartProgramForm({ preset, onStarted }) {
@@ -38,10 +47,15 @@ function StartProgramForm({ preset, onStarted }) {
   const [duration, setDuration] = useState(isCycle ? preset.defaultWeeks : preset.weeks.length);
   const [busy, setBusy] = useState(false);
 
-  // Keep the start date on a training day as the selection changes.
+  // Snap the start date to the first training day so the field always shows
+  // the real first-session date, both as the day selection and the date change.
   const setDaysAndSnap = (next) => {
     setDays(next);
-    if (!isRace) setStartDate(prev => nextTrainingDay(prev < isoToday() ? isoToday() : prev, next));
+    if (!isRace) setStartDate(prev => firstTrainingDay(prev < isoToday() ? isoToday() : prev, next));
+  };
+  const setStartDateSnapped = (value) => {
+    const from = value < isoToday() ? isoToday() : value;
+    setStartDate(firstTrainingDay(from, days));
   };
 
   const durationOptions = [];
@@ -60,10 +74,6 @@ function StartProgramForm({ preset, onStarted }) {
       if (!raceDate) { toast.error('Choose a race date'); return; }
       body.race_date = raceDate;
     } else {
-      if (!days.includes(weekdayOf(startDate))) {
-        toast.error('Start date must be one of your training days');
-        return;
-      }
       body.start_date = startDate;
       if (isCycle) body.duration_weeks = duration;
     }
@@ -97,8 +107,10 @@ function StartProgramForm({ preset, onStarted }) {
       ) : (
         <div className={styles.field}>
           <span className={styles.fieldLabel}>Start date</span>
-          <input type="date" className={styles.input} value={startDate} min={isoToday()} onChange={e => setStartDate(e.target.value)} />
-          <span className={styles.hint}>Must fall on one of your training days.</span>
+          <input type="date" className={styles.input} value={startDate} min={isoToday()} onChange={e => setStartDateSnapped(e.target.value)} />
+          <span className={styles.hint}>
+            {days.length ? `First session: ${formatDay(startDate)}.` : 'Pick your training days, then a start date.'}
+          </span>
         </div>
       )}
 

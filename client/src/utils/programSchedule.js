@@ -26,6 +26,12 @@ export function weekOfDate(isoDate) {
   return isoDay(Date.parse(isoDate) - weekdayOf(isoDate) * DAY_MS);
 }
 
+// The first date on/after isoDate whose weekday is `weekday` (0=Mon..6=Sun).
+export function alignStart(isoDate, weekday) {
+  const offset = (weekday - weekdayOf(isoDate) + 7) % 7;
+  return isoDay(Date.parse(isoDate) + offset * DAY_MS);
+}
+
 export function addDays(isoDate, days) {
   return isoDay(Date.parse(isoDate) + days * DAY_MS);
 }
@@ -95,8 +101,6 @@ export function validateProgramInput(preset, body) {
     }
   } else if (typeof body.start_date !== 'string' || Number.isNaN(Date.parse(body.start_date))) {
     errors.push('Choose a start date');
-  } else if (Array.isArray(days) && days.length && !days.includes(weekdayOf(body.start_date))) {
-    errors.push('start_date must fall on one of the chosen training days');
   }
   return errors;
 }
@@ -107,10 +111,11 @@ export function generateProgramSessions(preset, { startDate, trainingDays, durat
 
   let mondayWeek0;
   const anchor = preset.kind === 'race' ? anchorSlot(preset) : null;
+  const alignedStart = anchor ? null : alignStart(startDate, days[0]);
   if (anchor) {
     mondayWeek0 = Date.parse(weekOfDate(raceDate)) - anchor.week * 7 * DAY_MS;
   } else {
-    mondayWeek0 = Date.parse(weekOfDate(startDate));
+    mondayWeek0 = Date.parse(weekOfDate(alignedStart));
   }
 
   const sessions = [];
@@ -129,10 +134,10 @@ export function generateProgramSessions(preset, { startDate, trainingDays, durat
 
   const kept = anchor
     ? sessions.filter(s => s.date <= raceDate)
-    : sessions.filter(s => s.date >= startDate);
+    : sessions;
   kept.sort((a, b) => a.date.localeCompare(b.date)
     || a.program_week - b.program_week || a.program_slot - b.program_slot);
 
-  const effectiveStart = anchor ? (kept[0]?.date ?? raceDate) : startDate;
+  const effectiveStart = anchor ? (kept[0]?.date ?? raceDate) : alignedStart;
   return { startDate: effectiveStart, durationWeeks: weeks, sessions: kept };
 }
