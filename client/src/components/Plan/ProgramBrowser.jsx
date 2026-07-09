@@ -9,7 +9,6 @@ import DayPicker from './DayPicker.jsx';
 import btn from '../ui/Button.module.css';
 import styles from './ProgramBrowser.module.css';
 
-const isDemo = import.meta.env.VITE_DEMO === '1';
 const DAY_MS = 86400000;
 
 const isoToday = () => new Date().toISOString().slice(0, 10);
@@ -113,11 +112,10 @@ function StartProgramForm({ preset, onStarted }) {
       )}
 
       <div className={styles.actions}>
-        <button type="submit" className={`${btn.button} ${btn.buttonPrimary} ${btn.buttonSmall}`} disabled={busy || isDemo}>
+        <button type="submit" className={`${btn.button} ${btn.buttonPrimary} ${btn.buttonSmall}`} disabled={busy}>
           <CalendarPlus size={14} /> Start program
         </button>
       </div>
-      {isDemo && <span className={styles.hint}>Starting a program is disabled in the live demo.</span>}
     </form>
   );
 }

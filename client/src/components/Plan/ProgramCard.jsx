@@ -7,8 +7,6 @@ import DayPicker from './DayPicker.jsx';
 import btn from '../ui/Button.module.css';
 import styles from './ProgramCard.module.css';
 
-const isDemo = import.meta.env.VITE_DEMO === '1';
-
 // Vertical fill for one week: green for completed, red for missed, neutral for
 // what's still upcoming.
 function weekFill(wk) {
@@ -117,23 +115,23 @@ export default function ProgramCard({ program, onChanged }) {
         </div>
       ) : (
         <div className={styles.actions}>
-          <button type="button" className={`${btn.button} ${btn.buttonSmall}`} onClick={() => run(api.shiftProgram(program.id, 1), 'Shifted a week')} disabled={busy || isDemo}>
+          <button type="button" className={`${btn.button} ${btn.buttonSmall}`} onClick={() => run(api.shiftProgram(program.id, 1), 'Shifted a week')} disabled={busy}>
             <ChevronsRight size={14} /> Shift 1 week
           </button>
           {paused ? (
-            <button type="button" className={`${btn.button} ${btn.buttonSmall}`} onClick={() => run(api.updateProgram(program.id, { status: 'active' }), 'Program resumed')} disabled={busy || isDemo}>
+            <button type="button" className={`${btn.button} ${btn.buttonSmall}`} onClick={() => run(api.updateProgram(program.id, { status: 'active' }), 'Program resumed')} disabled={busy}>
               <Play size={14} /> Resume
             </button>
           ) : (
-            <button type="button" className={`${btn.button} ${btn.buttonSmall}`} onClick={() => run(api.updateProgram(program.id, { status: 'paused' }), 'Program paused')} disabled={busy || isDemo}>
+            <button type="button" className={`${btn.button} ${btn.buttonSmall}`} onClick={() => run(api.updateProgram(program.id, { status: 'paused' }), 'Program paused')} disabled={busy}>
               <Pause size={14} /> Pause
             </button>
           )}
-          <button type="button" className={`${btn.button} ${btn.buttonSmall}`} onClick={() => setEditDays(program.training_days)} disabled={isDemo}>
+          <button type="button" className={`${btn.button} ${btn.buttonSmall}`} onClick={() => setEditDays(program.training_days)}>
             <CalendarCog size={14} /> Edit days
           </button>
           <span className={styles.spacer} />
-          <button type="button" className={`${btn.button} ${btn.buttonDanger} ${btn.buttonSmall}`} onClick={() => setConfirm('')} disabled={isDemo}>
+          <button type="button" className={`${btn.button} ${btn.buttonDanger} ${btn.buttonSmall}`} onClick={() => setConfirm('')}>
             <Trash2 size={13} /> Delete program
           </button>
         </div>
