@@ -312,6 +312,10 @@ async function handlePatch(route, body) {
     throw new Error('Demo mode — goals are read-only in the live demo');
   }
 
+  if (route.startsWith('/api/programs')) {
+    throw new Error('Demo mode — programs are read-only in the live demo');
+  }
+
   if (route === '/api/settings') {
     const overlay = getSettingsOverlay();
     const next = { ...overlay };
@@ -370,6 +374,9 @@ export async function demoRequest(path, options = {}) {
     if (route.startsWith('/api/goals')) {
       throw new Error('Demo mode — goals are read-only in the live demo');
     }
+    if (route.startsWith('/api/programs')) {
+      throw new Error('Demo mode — programs are read-only in the live demo');
+    }
     throw new Error('Demo mode — run ErgDash self-hosted to connect your own Concept2 account');
   }
 
@@ -394,6 +401,9 @@ export async function demoRequest(path, options = {}) {
     }
     if (route.startsWith('/api/goals')) {
       throw new Error('Demo mode — goals are read-only in the live demo');
+    }
+    if (route.startsWith('/api/programs')) {
+      throw new Error('Demo mode — programs are read-only in the live demo');
     }
   }
 
