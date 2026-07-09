@@ -1,5 +1,9 @@
 import { initDb, getDb } from './db.js';
 import { computeMetricsForWorkout, computeFitnessLog, tagAllWorkouts, computePredictions } from './analytics.js';
+import { generateProgramSessions, resolveDurationWeeks, weekOfDate } from './programGenerator.js';
+import { getPreset } from './programPresets.js';
+import { deriveIntervalTotals } from './routes/plans.js';
+import { autoMatchPlan } from './planMatching.js';
 
 function seededRandom(seed) {
   let s = seed;
@@ -274,8 +278,59 @@ function seedGoals(db) {
 // A few weeks of plans around today: most past plans linked to the seeded
 // sessions they "predicted", a couple missed or skipped, and open plans for
 // the two weeks ahead — enough to exercise the Plan calendar and adherence.
+// A mid-flight Pete Plan so the dev/demo calendar shows a real program with
+// matched history. Seeded before the ad-hoc plans so it claims its own
+// completed sessions first.
+function seedProgram(db) {
+  if (db.prepare('SELECT COUNT(*) as c FROM programs').get().c > 0) return;
+
+  const preset = getPreset('pete-plan');
+  const trainingDays = [0, 1, 2, 4, 5]; // Mon, Tue, Wed, Fri, Sat
+  // Start on the Monday ~18 days ago so we're a couple of weeks in.
+  const startDate = weekOfDate(new Date(Date.now() - 18 * 86400000).toISOString().slice(0, 10));
+  const durationWeeks = resolveDurationWeeks(preset, 12);
+  const gen = generateProgramSessions(preset, { startDate, trainingDays, durationWeeks });
+
+  const insertProgram = db.prepare(`
+    INSERT INTO programs (preset_id, name, start_date, duration_weeks, training_days, race_date)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `);
+  const insertSession = db.prepare(`
+    INSERT INTO planned_workouts (
+      date, type, target_distance, target_duration_ms, target_pace_ms, target_rate,
+      interval_reps, interval_distance, interval_duration_ms, interval_rest_ms, notes,
+      program_id, program_week, program_slot
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  const ids = [];
+  db.transaction(() => {
+    const pid = insertProgram.run(
+      preset.id, preset.name, gen.startDate, gen.durationWeeks, JSON.stringify(trainingDays), null,
+    ).lastInsertRowid;
+    for (const s of gen.sessions) {
+      const f = deriveIntervalTotals({ ...s });
+      ids.push(insertSession.run(
+        s.date, s.type, f.target_distance ?? null, f.target_duration_ms ?? null,
+        s.target_pace_ms ?? null, s.target_rate ?? null,
+        s.interval_reps ?? null, s.interval_distance ?? null,
+        s.interval_duration_ms ?? null, s.interval_rest_ms ?? null, s.notes ?? null,
+        pid, s.program_week, s.program_slot,
+      ).lastInsertRowid);
+    }
+  })();
+
+  for (const id of ids) {
+    const row = db.prepare('SELECT date FROM planned_workouts WHERE id = ?').get(id);
+    if (row.date <= todayStr) autoMatchPlan(id);
+  }
+  console.log('Seeded training program (Pete Plan)');
+}
+
 function seedPlannedWorkouts(db) {
-  const count = db.prepare('SELECT COUNT(*) as c FROM planned_workouts').get().c;
+  // Count only ad-hoc plans; the program seed above already inserted its rows.
+  const count = db.prepare('SELECT COUNT(*) as c FROM planned_workouts WHERE program_id IS NULL').get().c;
   if (count > 0) return;
 
   const fourWeeksAgo = new Date(Date.now() - 28 * 86400000).toISOString().slice(0, 10);
@@ -303,6 +358,8 @@ function seedPlannedWorkouts(db) {
     for (const [day, w] of byDay) {
       const roll = rand();
       if (roll < 0.15) continue; // trained without a plan that day
+      // The program may already own this day's workout; don't double-link it.
+      if (db.prepare('SELECT 1 FROM planned_workouts WHERE completed_workout_id = ?').get(w.id)) continue;
       const type = w.has_intervals ? 'intervals' : 'steady';
       if (roll < 0.9) {
         insertPlan.run(day, type, w.distance, null, w.pace_ms, null, null, w.id, 'auto', 'completed');
@@ -346,6 +403,7 @@ export function seedDatabase() {
   if (count > 0) {
     console.log(`Database already has ${count} workouts, skipping seed`);
     seedGoals(db);
+    seedProgram(db);
     seedPlannedWorkouts(db);
     return;
   }
@@ -424,6 +482,7 @@ export function seedDatabase() {
   console.log('Computed workout metrics');
 
   seedGoals(db);
+  seedProgram(db);
   seedPlannedWorkouts(db);
 }
 
