@@ -5,6 +5,7 @@ import { usePrefs } from '../context/PrefsContext.jsx';
 import { useUnits } from '../context/UnitsContext.jsx';
 import { monthGrid, shiftMonth, monthLabel } from '../utils/planCalendar.js';
 import MonthCalendar from '../components/Plan/MonthCalendar.jsx';
+import WeekStrip from '../components/Plan/WeekStrip.jsx';
 import DayPanel from '../components/Plan/DayPanel.jsx';
 import styles from './Plan.module.css';
 
@@ -104,6 +105,16 @@ export default function Plan() {
         onSelectDate={setSelectedDate}
         formatDistance={formatDistance}
         weekStart={weekStart}
+      />
+
+      <WeekStrip
+        selectedDate={selectedDate}
+        weekStart={weekStart}
+        plansByDay={plansByDay}
+        metersByDay={metersByDay}
+        today={today}
+        onSelectDate={setSelectedDate}
+        formatDistance={formatDistance}
       />
 
       <DayPanel
