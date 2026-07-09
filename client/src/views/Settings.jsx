@@ -9,6 +9,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { usePrefs } from '../context/PrefsContext.jsx';
 import { useTimeRange } from '../context/TimeRangeContext.jsx';
+import Segmented from '../components/ui/Segmented.jsx';
 import styles from './Settings.module.css';
 
 const DEFAULT_ZONE_PERCENTS = [60, 70, 80, 90, 100];
@@ -376,21 +377,6 @@ function formatSyncTime(isoString) {
   return date.toLocaleString(undefined, {
     day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
   });
-}
-
-function Segmented({ options, value, onChange, ariaLabel }) {
-  return (
-    <div className={styles.segmented} role="group" aria-label={ariaLabel}>
-      {options.map(([val, label]) => (
-        <button
-          key={val}
-          onClick={() => onChange(val)}
-          aria-pressed={value === val}
-          className={`${styles.segment} ${value === val ? styles.segmentActive : ''}`}
-        >{label}</button>
-      ))}
-    </div>
-  );
 }
 
 function SelectRow({ label, subtext, value, onChange, options }) {

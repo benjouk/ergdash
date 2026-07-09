@@ -1,0 +1,69 @@
+/* Adherence chips, shared by the month calendar, week strip, and plan rows. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  border-radius: 999px;
+  border: 1px solid var(--rule);
+  background: var(--surface);
+  padding: 0 var(--space-2);
+  min-height: 14px;
+}
+
+.chipText {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--ink-2);
+}
+
+.chip_planned {
+  border-color: var(--accent);
+}
+
+.chip_planned .chipText {
+  color: var(--accent-deep);
+}
+
+.chip_completed {
+  border-color: var(--positive);
+  background: var(--positive-bg, var(--surface));
+}
+
+.chip_completed .chipText {
+  color: var(--positive);
+}
+
+.chip_missed {
+  border-color: var(--negative);
+}
+
+.chip_missed .chipText {
+  color: var(--negative);
+}
+
+.chip_skipped {
+  border-style: dashed;
+}
+
+.chip_skipped .chipText {
+  color: var(--ink-3);
+  text-decoration: line-through;
+}
+
+/* Dense variant: on narrow screens the month calendar collapses chips to
+   colour-coded dots so cells stay legible. */
+@media (max-width: 767px) {
+  .chipDense {
+    width: 8px;
+    min-height: 8px;
+    padding: 0;
+    align-self: flex-start;
+  }
+
+  .chipDense .chipText {
+    display: none;
+  }
+}
