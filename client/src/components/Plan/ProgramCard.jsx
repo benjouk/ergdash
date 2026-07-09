@@ -134,7 +134,7 @@ export default function ProgramCard({ program, onChanged }) {
           </button>
           <span className={styles.spacer} />
           <button type="button" className={`${btn.button} ${btn.buttonDanger} ${btn.buttonSmall}`} onClick={() => setConfirm('')} disabled={isDemo}>
-            <Trash2 size={13} /> Delete
+            <Trash2 size={13} /> Delete program
           </button>
         </div>
       )}

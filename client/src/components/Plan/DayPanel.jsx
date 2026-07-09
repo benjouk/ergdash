@@ -66,6 +66,7 @@ export default function DayPanel({
             linkedWorkoutIds={linkedWorkoutIds}
             program={plan.program_id ? programsById.get(plan.program_id) : null}
             onEdit={p => setEditing({ mode: 'edit', plan: p })}
+            onDelete={remove}
             onChanged={onChanged}
             formatDistance={formatDistance}
             formatPace={formatPace}
@@ -79,7 +80,6 @@ export default function DayPanel({
           date={date}
           onSaved={() => closeAnd(onChanged)}
           onCancel={() => setEditing(null)}
-          onDelete={remove}
         />
       )}
     </div>

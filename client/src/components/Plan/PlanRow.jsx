@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { CalendarDays } from 'lucide-react';
+import { CalendarDays, Trash2 } from 'lucide-react';
 import { api } from '../../api.js';
 import { useToast } from '../../context/ToastContext.jsx';
 import { planSummary, PLAN_TYPE_LABELS } from './planFormat.js';
@@ -11,10 +11,11 @@ import styles from './PlanRow.module.css';
 // One planned session with its status actions and inline link-picker.
 // `program` (optional) tags the row with its training-program week.
 export default function PlanRow({
-  plan, dayActual, linkedWorkoutIds, program, onEdit, onChanged, formatDistance, formatPace,
+  plan, dayActual, linkedWorkoutIds, program, onEdit, onDelete, onChanged, formatDistance, formatPace,
 }) {
   const toast = useToast();
   const [candidates, setCandidates] = useState(null); // workout list or null
+  const [confirming, setConfirming] = useState(false); // delete confirm shown?
 
   const setStatus = (status) => {
     api.updatePlan(plan.id, { status })
@@ -87,7 +88,31 @@ export default function PlanRow({
         {plan.status === 'skipped' && (
           <button type="button" className={`${btn.button} ${btn.buttonSmall}`} onClick={() => setStatus('planned')}>Unskip</button>
         )}
+        <span className={styles.actionSpacer} />
+        <button
+          type="button"
+          className={`${btn.button} ${btn.buttonDanger} ${btn.buttonSmall}`}
+          onClick={() => setConfirming(true)}
+          aria-label="Delete session"
+        >
+          <Trash2 size={13} /> Delete
+        </button>
       </div>
+      {confirming && (
+        <div className={styles.confirmRow}>
+          <span className={styles.confirmLabel}>Remove this session?</span>
+          <button
+            type="button"
+            className={`${btn.button} ${btn.buttonDanger} ${btn.buttonSmall}`}
+            onClick={() => { setConfirming(false); onDelete(plan); }}
+          >
+            <Trash2 size={13} /> Confirm
+          </button>
+          <button type="button" className={`${btn.button} ${btn.buttonSmall}`} onClick={() => setConfirming(false)}>
+            Cancel
+          </button>
+        </div>
+      )}
       {candidates && (
         <div className={styles.linkPicker}>
           <span className={styles.linkPickerLabel}>Link which session?</span>

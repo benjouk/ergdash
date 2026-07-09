@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Trash2 } from 'lucide-react';
 import { api } from '../../api.js';
 import { useToast } from '../../context/ToastContext.jsx';
 import {
@@ -11,7 +10,8 @@ import styles from './SessionForm.module.css';
 
 // Add or edit a single planned session. Owns its own form state; calls
 // onSaved() after a successful create/update so the parent can refetch.
-export default function SessionForm({ plan, date, onSaved, onCancel, onDelete }) {
+// Deletion lives on the plan row (PlanRow), not here.
+export default function SessionForm({ plan, date, onSaved, onCancel }) {
   const isNew = !plan;
   const toast = useToast();
   const [form, setForm] = useState(() => (plan ? formFromPlan(plan) : EMPTY_FORM));
@@ -158,18 +158,6 @@ export default function SessionForm({ plan, date, onSaved, onCancel, onDelete })
           {isNew ? 'Add plan' : 'Save changes'}
         </button>
         <button type="button" className={`${btn.button} ${btn.buttonSmall}`} onClick={onCancel}>Cancel</button>
-        {!isNew && (
-          <>
-            <span className={styles.spacer} />
-            <button
-              type="button"
-              className={`${btn.button} ${btn.buttonDanger} ${btn.buttonSmall}`}
-              onClick={() => onDelete(plan)}
-            >
-              <Trash2 size={13} /> Delete
-            </button>
-          </>
-        )}
       </div>
     </form>
   );
