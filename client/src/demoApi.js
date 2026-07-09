@@ -5,7 +5,7 @@
 import { computeDateRange } from './utils/timeRange.js';
 import {
   generateProgramSessions, resolveDurationWeeks, deriveIntervalTotals,
-  validateProgramInput, shiftDate, remapDate,
+  validateProgramInput, shiftDate, remapDate, RACE_MIN_LEAD_DAYS,
 } from './utils/programSchedule.js';
 
 const BASE = import.meta.env.BASE_URL;
@@ -305,6 +305,11 @@ async function startDemoProgram(body) {
   if (!preset) throw new Error('Unknown preset_id');
   const errors = validateProgramInput(preset, body);
   if (errors.length) throw new Error(errors[0]);
+  // Match the server's minimum race lead time (routes/programs.js).
+  if (preset.kind === 'race') {
+    const lead = (Date.parse(body.race_date) - Date.parse(todayStr())) / DAY_MS;
+    if (lead < RACE_MIN_LEAD_DAYS) throw new Error(`race_date must be at least ${RACE_MIN_LEAD_DAYS / 7} weeks away`);
+  }
   const inProgress = (await loadDemoPrograms()).find(p => p.status === 'active' || p.status === 'paused');
   if (inProgress) throw new Error('A program is already in progress. Delete it before starting another.');
 

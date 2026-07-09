@@ -5,6 +5,7 @@ import { useToast } from '../../context/ToastContext.jsx';
 import { usePrefs } from '../../context/PrefsContext.jsx';
 import { useUnits } from '../../context/UnitsContext.jsx';
 import { planSummary, PLAN_TYPE_LABELS } from './planFormat.js';
+import { RACE_MIN_LEAD_DAYS } from '../../utils/programSchedule.js';
 import DayPicker from './DayPicker.jsx';
 import btn from '../ui/Button.module.css';
 import styles from './ProgramBrowser.module.css';
@@ -84,6 +85,9 @@ function StartProgramForm({ preset, onStarted }) {
       .finally(() => setBusy(false));
   };
 
+  // A race must be at least RACE_MIN_LEAD_DAYS out (matches the server/demo).
+  const raceMin = new Date(Date.now() + RACE_MIN_LEAD_DAYS * DAY_MS).toISOString().slice(0, 10);
+
   // Rough preview of when a race block begins (server computes the exact date).
   const racePreviewStart = raceDate
     ? new Date(Date.parse(raceDate) - (preset.weeks.length - 1) * 7 * DAY_MS).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })
@@ -99,7 +103,7 @@ function StartProgramForm({ preset, onStarted }) {
       {isRace ? (
         <div className={styles.field}>
           <span className={styles.fieldLabel}>Race date</span>
-          <input type="date" className={styles.input} value={raceDate} min={isoToday()} onChange={e => setRaceDate(e.target.value)} />
+          <input type="date" className={styles.input} value={raceDate} min={raceMin} onChange={e => setRaceDate(e.target.value)} />
           {racePreviewStart && (
             <span className={styles.hint}>{preset.weeks.length}-week block, starting around {racePreviewStart}.</span>
           )}

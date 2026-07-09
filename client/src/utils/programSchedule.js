@@ -5,10 +5,14 @@
 //   - server/src/programGenerator.js (generateProgramSessions, weekday math)
 //   - server/src/programPresets.js   (anchorSlot)
 //   - server/src/routes/plans.js     (deriveIntervalTotals)
+//   - server/src/routes/programs.js  (RACE_MIN_LEAD_DAYS)
 // The real app never imports this — it hits the server. UTC date math,
 // weekday convention 0=Mon..6=Sun.
 
 const DAY_MS = 86400000;
+
+// A race program must be at least this far out (mirrors the server route).
+export const RACE_MIN_LEAD_DAYS = 14;
 const SESSION_COLUMNS = [
   'type', 'target_distance', 'target_duration_ms', 'target_pace_ms', 'target_rate',
   'interval_reps', 'interval_distance', 'interval_duration_ms', 'interval_rest_ms', 'notes',
