@@ -3,6 +3,10 @@
 // live demo can run as a static site while staying byte-for-byte in sync
 // with whatever the real API currently returns.
 import { computeDateRange } from './utils/timeRange.js';
+import {
+  generateProgramSessions, resolveDurationWeeks, deriveIntervalTotals,
+  validateProgramInput, shiftDate, remapDate, RACE_MIN_LEAD_DAYS,
+} from './utils/programSchedule.js';
 
 const BASE = import.meta.env.BASE_URL;
 const RANGE_KEYS = ['30d', '90d', 'season', 'last_season', 'all'];
@@ -155,6 +159,194 @@ function patchDemoPlan(id, fields) {
   writeOverlay(PLAN_OVERLAY_KEY, overlay);
 }
 
+// --- training-program overlay (visitor-side program management) ---
+// Programs live in localStorage like plans; their sessions ARE plan rows
+// (program_id/week/slot), so a program mutation edits those plan rows through
+// the plan overlay plus this program overlay. Mirrors server/src/routes/
+// programs.js so the demo behaves like the real backend.
+
+const PROGRAM_OVERLAY_KEY = 'ergdash-demo-program-overlay';
+const DEMO_PROGRAM_ID_FLOOR = 90000;
+const DAY_MS = 86400000;
+const todayStr = () => new Date().toISOString().slice(0, 10);
+
+function getProgramOverlay() {
+  return readOverlay(PROGRAM_OVERLAY_KEY, { patched: {}, deleted: [], started: [] });
+}
+
+function patchDemoProgram(id, fields) {
+  const overlay = getProgramOverlay();
+  overlay.patched[id] = { ...overlay.patched[id], ...fields };
+  writeOverlay(PROGRAM_OVERLAY_KEY, overlay);
+}
+
+// Recompute per-week and overall progress from the program's plan sessions,
+// matching the server's decorateProgram.
+function decorateDemoProgram(program, plans) {
+  const today = todayStr();
+  const rows = plans.filter(p => p.program_id === program.id);
+  const totals = { total: 0, completed: 0, skipped: 0, missed: 0, upcoming: 0 };
+  const weekMap = new Map();
+  for (const row of rows) {
+    const adh = derivePlanAdherence(row);
+    totals.total += 1;
+    if (adh === 'completed') totals.completed += 1;
+    else if (adh === 'skipped') totals.skipped += 1;
+    else if (adh === 'missed') totals.missed += 1;
+    else totals.upcoming += 1;
+    const w = row.program_week;
+    if (w == null) continue;
+    if (!weekMap.has(w)) {
+      weekMap.set(w, { week: w, from: row.date, to: row.date, total: 0, completed: 0, skipped: 0, missed: 0 });
+    }
+    const wk = weekMap.get(w);
+    if (row.date < wk.from) wk.from = row.date;
+    if (row.date > wk.to) wk.to = row.date;
+    wk.total += 1;
+    if (adh === 'completed') wk.completed += 1;
+    else if (adh === 'skipped') wk.skipped += 1;
+    else if (adh === 'missed') wk.missed += 1;
+  }
+  const weeks = [...weekMap.values()].sort((a, b) => a.week - b.week);
+  let currentWeek = 0;
+  for (const wk of weeks) if (today >= wk.from) currentWeek = wk.week;
+  currentWeek = Math.min(currentWeek, program.duration_weeks - 1);
+  return {
+    ...program,
+    progress: { current_week: currentWeek, total_weeks: program.duration_weeks, sessions: totals, weeks },
+  };
+}
+
+async function loadDemoPrograms() {
+  const fixture = await lookupFixture('/api/programs', {});
+  const overlay = getProgramOverlay();
+  const deleted = new Set(overlay.deleted);
+  const plans = await loadDemoPlans();
+  return [...(fixture.programs || []), ...overlay.started]
+    .filter(p => !deleted.has(p.id))
+    .map(p => ({ ...p, ...(overlay.patched[p.id] || {}) }))
+    .map(p => decorateDemoProgram(p, plans));
+}
+
+async function findDemoProgram(id) {
+  const program = (await loadDemoPrograms()).find(p => p.id === id);
+  if (!program) throw new Error('Program not found');
+  return program;
+}
+
+// Future, still-planned sessions of a program (the only ones any mutation
+// moves or removes — completed/past rows are frozen).
+async function futureProgramSessions(id, fromDate = todayStr()) {
+  const plans = await loadDemoPlans();
+  return plans.filter(p => p.program_id === id && p.status === 'planned' && p.date >= fromDate);
+}
+
+async function shiftDemoProgram(id, weeks) {
+  await findDemoProgram(id);
+  if (!Number.isInteger(weeks) || weeks < 1 || weeks > 8) throw new Error('weeks must be between 1 and 8');
+  for (const p of await futureProgramSessions(id)) patchDemoPlan(p.id, { date: shiftDate(p.date, weeks) });
+  return findDemoProgram(id);
+}
+
+async function setDemoProgramStatus(id, status) {
+  const program = await findDemoProgram(id);
+  if (status === 'paused' && program.status === 'active') {
+    patchDemoProgram(id, { status: 'paused', paused_at: todayStr() });
+  } else if (status === 'active' && program.status === 'paused') {
+    const from = program.paused_at || todayStr();
+    const elapsedDays = Math.max(0, (Date.parse(todayStr()) - Date.parse(from)) / DAY_MS);
+    const weeks = Math.ceil(elapsedDays / 7);
+    if (weeks > 0) {
+      for (const p of await futureProgramSessions(id, from)) patchDemoPlan(p.id, { date: shiftDate(p.date, weeks) });
+    }
+    patchDemoProgram(id, { status: 'active', paused_at: null });
+  }
+  return findDemoProgram(id);
+}
+
+async function remapDemoProgram(id, days) {
+  const program = await findDemoProgram(id);
+  if (!Array.isArray(days) || days.length !== program.training_days.length
+      || !days.every(d => Number.isInteger(d) && d >= 0 && d <= 6) || new Set(days).size !== days.length) {
+    throw new Error(`training_days must be ${program.training_days.length} unique weekdays`);
+  }
+  const sorted = [...days].sort((a, b) => a - b);
+  for (const p of await futureProgramSessions(id)) {
+    if (p.program_slot != null) patchDemoPlan(p.id, { date: remapDate(p.date, sorted[p.program_slot]) });
+  }
+  patchDemoProgram(id, { training_days: sorted });
+  return findDemoProgram(id);
+}
+
+async function deleteDemoProgram(id) {
+  await findDemoProgram(id);
+  const today = todayStr();
+  const plans = await loadDemoPlans();
+  const planOverlay = getPlanOverlay();
+  for (const p of plans) {
+    if (p.program_id !== id) continue;
+    if (p.status === 'planned' && p.date >= today) {
+      planOverlay.deleted.push(p.id);
+    } else {
+      // Survivors stay on the calendar, unlinked (like the server's FK SET NULL).
+      planOverlay.patched[p.id] = { ...planOverlay.patched[p.id], program_id: null };
+    }
+  }
+  writeOverlay(PLAN_OVERLAY_KEY, planOverlay);
+  const progOverlay = getProgramOverlay();
+  progOverlay.deleted.push(id);
+  writeOverlay(PROGRAM_OVERLAY_KEY, progOverlay);
+  return { ok: true };
+}
+
+async function startDemoProgram(body) {
+  const presets = (await lookupFixture('/api/programs/presets', {})).presets || [];
+  const preset = presets.find(p => p.id === body.preset_id);
+  if (!preset) throw new Error('Unknown preset_id');
+  const errors = validateProgramInput(preset, body);
+  if (errors.length) throw new Error(errors[0]);
+  // Match the server's minimum race lead time (routes/programs.js).
+  if (preset.kind === 'race') {
+    const lead = (Date.parse(body.race_date) - Date.parse(todayStr())) / DAY_MS;
+    if (lead < RACE_MIN_LEAD_DAYS) throw new Error(`race_date must be at least ${RACE_MIN_LEAD_DAYS / 7} weeks away`);
+  }
+  const inProgress = (await loadDemoPrograms()).find(p => p.status === 'active' || p.status === 'paused');
+  if (inProgress) throw new Error('A program is already in progress. Delete it before starting another.');
+
+  const trainingDays = [...body.training_days].sort((a, b) => a - b);
+  const durationWeeks = resolveDurationWeeks(preset, body.duration_weeks);
+  const gen = generateProgramSessions(preset, {
+    startDate: body.start_date, trainingDays, durationWeeks, raceDate: body.race_date,
+  });
+
+  const planOverlay = getPlanOverlay();
+  const progOverlay = getProgramOverlay();
+  const programId = Math.max(DEMO_PROGRAM_ID_FLOOR - 1, ...progOverlay.started.map(p => p.id)) + 1;
+  let nextPlanId = Math.max(DEMO_PLAN_ID_FLOOR - 1, ...planOverlay.created.map(p => p.id)) + 1;
+
+  for (const s of gen.sessions) {
+    const f = deriveIntervalTotals({ ...s });
+    planOverlay.created.push({
+      id: nextPlanId++, date: s.date, type: s.type,
+      target_distance: f.target_distance ?? null, target_duration_ms: f.target_duration_ms ?? null,
+      target_pace_ms: s.target_pace_ms ?? null, target_rate: s.target_rate ?? null,
+      interval_reps: s.interval_reps ?? null, interval_distance: s.interval_distance ?? null,
+      interval_duration_ms: s.interval_duration_ms ?? null, interval_rest_ms: s.interval_rest_ms ?? null,
+      notes: s.notes ?? null, completed_workout_id: null, match_type: null, status: 'planned', workout: null,
+      program_id: programId, program_week: s.program_week, program_slot: s.program_slot,
+    });
+  }
+  progOverlay.started.push({
+    id: programId, preset_id: preset.id, name: preset.name,
+    start_date: gen.startDate, duration_weeks: gen.durationWeeks,
+    training_days: trainingDays, race_date: body.race_date ?? null,
+    status: 'active', paused_at: null, created_at: new Date().toISOString(),
+  });
+  writeOverlay(PLAN_OVERLAY_KEY, planOverlay);
+  writeOverlay(PROGRAM_OVERLAY_KEY, progOverlay);
+  return findDemoProgram(programId);
+}
+
 // --- request handling ---
 
 function parsePath(path) {
@@ -207,6 +399,10 @@ async function handleGet(route, params) {
     if (params.from) plans = plans.filter(p => p.date >= params.from.slice(0, 10));
     if (params.to) plans = plans.filter(p => p.date < params.to.slice(0, 10));
     return { plans };
+  }
+
+  if (route === '/api/programs') {
+    return { programs: await loadDemoPrograms() };
   }
 
   if (route === '/api/stats/calendar' && (params.from || params.to)) {
@@ -312,6 +508,14 @@ async function handlePatch(route, body) {
     throw new Error('Demo mode — goals are read-only in the live demo');
   }
 
+  const programMatch = route.match(/^\/api\/programs\/(\d+)$/);
+  if (programMatch) {
+    const id = Number(programMatch[1]);
+    if (body.status !== undefined) return setDemoProgramStatus(id, body.status);
+    if (body.training_days !== undefined) return remapDemoProgram(id, body.training_days);
+    throw new Error('No supported fields (status or training_days)');
+  }
+
   if (route === '/api/settings') {
     const overlay = getSettingsOverlay();
     const next = { ...overlay };
@@ -367,6 +571,14 @@ export async function demoRequest(path, options = {}) {
       const body = options.body ? JSON.parse(options.body) : {};
       return matchDemoPlan(Number(matchRoute[1]), Number(body.workout_id));
     }
+    if (route === '/api/programs') {
+      return startDemoProgram(options.body ? JSON.parse(options.body) : {});
+    }
+    const shiftRoute = route.match(/^\/api\/programs\/(\d+)\/shift$/);
+    if (shiftRoute) {
+      const body = options.body ? JSON.parse(options.body) : {};
+      return shiftDemoProgram(Number(shiftRoute[1]), Number(body.weeks));
+    }
     if (route.startsWith('/api/goals')) {
       throw new Error('Demo mode — goals are read-only in the live demo');
     }
@@ -391,6 +603,10 @@ export async function demoRequest(path, options = {}) {
       overlay.deleted.push(id);
       writeOverlay(PLAN_OVERLAY_KEY, overlay);
       return { ok: true };
+    }
+    const programRoute = route.match(/^\/api\/programs\/(\d+)$/);
+    if (programRoute) {
+      return deleteDemoProgram(Number(programRoute[1]));
     }
     if (route.startsWith('/api/goals')) {
       throw new Error('Demo mode — goals are read-only in the live demo');

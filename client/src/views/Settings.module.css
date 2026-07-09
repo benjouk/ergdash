@@ -70,93 +70,17 @@
   margin-top: 2px;
 }
 
-/* Segmented control */
-.segmented {
-  display: inline-flex;
-  padding: 3px;
-  gap: 2px;
-  background: var(--surface-alt);
-  border: 1px solid var(--rule);
-  border-radius: 999px;
-}
-
-.segment {
-  padding: var(--space-1) var(--space-3);
-  border-radius: 999px;
-  font-size: 0.78rem;
-  font-weight: 600;
-  text-transform: capitalize;
-  color: var(--ink-2);
-  transition: background 150ms ease, color 150ms ease, box-shadow 150ms ease;
-}
-
-.segment:hover {
-  color: var(--ink);
-}
-
-.segmentActive,
-.segmentActive:hover {
-  background: var(--accent);
-  color: var(--on-accent);
-  box-shadow: var(--shadow-sm);
-}
-
+/* Buttons compose the shared primitive so Settings and Plan stay in sync. */
 .button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-1);
-  padding: var(--space-2) var(--space-4);
-  border-radius: 999px;
-  border: 1px solid var(--rule);
-  background: var(--surface);
-  color: var(--ink-2);
-  font-size: 0.8rem;
-  font-weight: 600;
-  cursor: pointer;
-  text-decoration: none;
-  transition: color 150ms ease, border-color 150ms ease;
-}
-
-.button:hover {
-  color: var(--accent);
-  border-color: var(--accent);
-}
-
-.button:disabled {
-  cursor: not-allowed;
-  color: var(--ink-3);
-  border-color: var(--rule);
-  background: var(--surface-alt);
-  opacity: 0.7;
-}
-
-.button:disabled:hover {
-  color: var(--ink-3);
-  border-color: var(--rule);
+  composes: button from '../components/ui/Button.module.css';
 }
 
 .buttonDanger {
-  color: var(--negative);
-  border-color: var(--negative);
-}
-
-.buttonDanger:hover {
-  color: #FFFFFF;
-  background: var(--negative);
-  border-color: var(--negative);
+  composes: buttonDanger from '../components/ui/Button.module.css';
 }
 
 .buttonPrimary {
-  color: var(--on-accent);
-  background: var(--accent);
-  border-color: var(--accent);
-}
-
-.buttonPrimary:hover {
-  color: var(--on-accent);
-  background: var(--accent-deep);
-  border-color: var(--accent-deep);
+  composes: buttonPrimary from '../components/ui/Button.module.css';
 }
 
 .inlineControls {

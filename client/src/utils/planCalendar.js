@@ -49,3 +49,16 @@ export function weekdayLabels(weekStart = 'monday') {
   const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   return weekStart === 'sunday' ? ['Sun', ...labels.slice(0, 6)] : labels;
 }
+
+// The seven ISO dates of the week containing `isoDate`, aligned to the user's
+// week start. UTC math, matching monthGrid, so it lines up with server dates.
+export function weekOf(isoDate, weekStart = 'monday') {
+  const base = Date.parse(isoDate);
+  const dow = weekStart === 'sunday'
+    ? new Date(base).getUTCDay()
+    : (new Date(base).getUTCDay() + 6) % 7;
+  const start = base - dow * DAY_MS;
+  const days = [];
+  for (let i = 0; i < 7; i++) days.push(isoDay(start + i * DAY_MS));
+  return days;
+}

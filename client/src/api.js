@@ -101,6 +101,22 @@ export const api = {
   unmatchPlan: (id) => request(`/api/plans/${id}/match`, { method: 'DELETE' }),
   getPlanAdherence: (params = {}) => request(`/api/plans/adherence?${new URLSearchParams(params)}`),
 
+  getProgramPresets: () => request('/api/programs/presets'),
+  getPrograms: () => request('/api/programs'),
+  createProgram: (data) => request('/api/programs', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+  updateProgram: (id, data) => request(`/api/programs/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  }),
+  shiftProgram: (id, weeks) => request(`/api/programs/${id}/shift`, {
+    method: 'POST',
+    body: JSON.stringify({ weeks }),
+  }),
+  deleteProgram: (id) => request(`/api/programs/${id}`, { method: 'DELETE' }),
+
   getWeeklyInsight: () => request('/api/insights/weekly'),
 
   triggerSync: () => request('/api/sync', { method: 'POST' }),

@@ -147,6 +147,8 @@ async function main() {
     await capture('/api/goals');
     await capture('/api/plans');
     await capture('/api/plans/adherence', { weeks: 12 });
+    await capture('/api/programs/presets');
+    await capture('/api/programs');
 
     const calendarFrom = new Date(Date.now() - 400 * 86400000).toISOString().slice(0, 10);
     await capture('/api/stats/calendar', { from: calendarFrom });

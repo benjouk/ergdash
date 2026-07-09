@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { monthGrid, shiftMonth, weekdayLabels } from './planCalendar.js';
+import { monthGrid, shiftMonth, weekdayLabels, weekOf } from './planCalendar.js';
 
 describe('monthGrid', () => {
   it('starts the grid on the week-start day before the 1st', () => {
@@ -61,5 +61,34 @@ describe('weekdayLabels', () => {
     expect(weekdayLabels('monday')[0]).toBe('Mon');
     expect(weekdayLabels('sunday')[0]).toBe('Sun');
     expect(weekdayLabels('sunday')).toHaveLength(7);
+  });
+});
+
+describe('weekOf', () => {
+  it('returns the Monday-started week containing the date', () => {
+    // 2026-07-09 is a Thursday.
+    const week = weekOf('2026-07-09', 'monday');
+    expect(week).toHaveLength(7);
+    expect(week[0]).toBe('2026-07-06'); // Monday
+    expect(week[3]).toBe('2026-07-09'); // the date itself
+    expect(week[6]).toBe('2026-07-12'); // Sunday
+  });
+
+  it('returns the Sunday-started week when configured', () => {
+    const week = weekOf('2026-07-09', 'sunday');
+    expect(week[0]).toBe('2026-07-05'); // Sunday
+    expect(week[6]).toBe('2026-07-11'); // Saturday
+  });
+
+  it('keeps the week start itself as the first cell', () => {
+    // 2026-07-06 is a Monday.
+    expect(weekOf('2026-07-06', 'monday')[0]).toBe('2026-07-06');
+  });
+
+  it('crosses a month boundary correctly', () => {
+    // 2026-08-01 is a Saturday; its Monday-week starts in July.
+    const week = weekOf('2026-08-01', 'monday');
+    expect(week[0]).toBe('2026-07-27');
+    expect(week[6]).toBe('2026-08-02');
   });
 });

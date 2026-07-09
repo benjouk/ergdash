@@ -1,0 +1,101 @@
+.planRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  background: var(--surface-alt);
+  border-radius: var(--radius-md);
+}
+
+.planRowMain {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.planRowTitle {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.programBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--accent-deep);
+  background: var(--accent-bg, var(--surface));
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: 1px var(--space-2);
+}
+
+.planRowNotes {
+  font-size: 0.75rem;
+  color: var(--ink-2);
+  white-space: pre-wrap;
+}
+
+.planRowLinked {
+  font-size: 0.72rem;
+  color: var(--ink-3);
+}
+
+.sessionLink {
+  color: var(--accent-deep);
+  text-decoration: underline;
+}
+
+.planRowActions {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.actionSpacer {
+  flex: 1;
+}
+
+.confirmRow {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px dashed var(--rule);
+}
+
+.confirmLabel {
+  font-size: 0.75rem;
+  color: var(--ink-2);
+}
+
+.linkPicker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px dashed var(--rule);
+}
+
+.linkPickerLabel {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+}
+
+.linkOptions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}

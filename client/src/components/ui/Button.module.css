@@ -1,0 +1,73 @@
+/* Shared pill button primitive. Used by Settings (via composes) and the Plan
+   view components so every page shares one button system. */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-4);
+  border-radius: 999px;
+  border: 1px solid var(--rule);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  /* Avoid the 300ms tap delay / double-tap-zoom so taps register immediately. */
+  touch-action: manipulation;
+  transition: color 150ms ease, border-color 150ms ease;
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  color: var(--ink-3);
+  border-color: var(--rule);
+  background: var(--surface-alt);
+  opacity: 0.7;
+}
+
+.buttonDanger {
+  color: var(--negative);
+  border-color: var(--negative);
+}
+
+.buttonPrimary {
+  color: var(--on-accent);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+/* Hover styling only on devices that actually hover. On touch devices a
+   :hover rule makes iOS Safari swallow the first tap (it shows the hover
+   state instead of firing the click), so the button "just changes colour"
+   and does nothing — gating hover avoids that entirely. */
+@media (hover: hover) {
+  .button:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+
+  .button:disabled:hover {
+    color: var(--ink-3);
+    border-color: var(--rule);
+  }
+
+  .buttonDanger:hover {
+    color: #FFFFFF;
+    background: var(--negative);
+    border-color: var(--negative);
+  }
+
+  .buttonPrimary:hover {
+    color: var(--on-accent);
+    background: var(--accent-deep);
+    border-color: var(--accent-deep);
+  }
+}
+
+/* Compact variant for dense action rows (plan rows, session cards). */
+.buttonSmall {
+  padding: var(--space-1) var(--space-3);
+  font-size: 0.75rem;
+}
