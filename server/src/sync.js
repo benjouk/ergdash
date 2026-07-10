@@ -371,7 +371,7 @@ async function fetchAndStoreStrokes(db, id, token) {
     db.prepare('UPDATE workouts SET has_stroke_data = 1 WHERE id = ?').run(id);
   }
 
-  // Fetch intervals from the C2 detail endpoint if we don't have any yet.
+  // Fetch intervals from the C2 intervals endpoint if we don't have any yet.
   // The bulk list endpoint omits intervals, so they're only available per-workout.
   const hasIntervals = db.prepare(
     'SELECT COUNT(*) as c FROM intervals WHERE workout_id = ?'
@@ -379,9 +379,10 @@ async function fetchAndStoreStrokes(db, id, token) {
 
   if (!hasIntervals) {
     try {
-      const detail = await fetchC2Api(`/api/users/me/results/${id}`, token);
-      if (detail.intervals?.length > 0) {
-        writeIntervals(db, id, detail.intervals);
+      const resp = await fetchC2Api(`/api/users/me/results/${id}/intervals`, token);
+      const intervals = resp.data || resp;
+      if (Array.isArray(intervals) && intervals.length > 0) {
+        writeIntervals(db, id, intervals);
       }
     } catch {
       // Non-fatal — intervals will be retried on next enrichment pass
@@ -474,11 +475,12 @@ export async function runIntervalBackfill() {
 
   for (const { id } of workouts) {
     try {
-      const detail = await fetchC2Api(`/api/users/me/results/${id}`, token);
-      if (detail.intervals?.length > 0) {
-        writeIntervals(db, id, detail.intervals);
+      const resp = await fetchC2Api(`/api/users/me/results/${id}/intervals`, token);
+      const intervals = resp.data || resp;
+      if (Array.isArray(intervals) && intervals.length > 0) {
+        writeIntervals(db, id, intervals);
         recomputeWorkoutAnalytics(id);
-        console.log(`  Workout ${id}: ${detail.intervals.length} intervals`);
+        console.log(`  Workout ${id}: ${intervals.length} intervals`);
       }
       await delay(1000);
     } catch (err) {
