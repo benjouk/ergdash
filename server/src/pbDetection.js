@@ -4,23 +4,30 @@ export const STANDARD_PB_DISTANCES = [500, 1000, 2000, 5000, 6000, 10000, 21097,
 
 const STANDARD_DISTANCE_SET = new Set(STANDARD_PB_DISTANCES);
 
+function normalizeTag(inferred_tag) {
+  return inferred_tag === 'interval' ? 'interval' : 'endurance';
+}
+
 export function computePbProgression(workouts) {
-  const bestByDistance = new Map();
+  const bestByKey = new Map();
   const events = [];
 
   for (const workout of workouts) {
     if (!STANDARD_DISTANCE_SET.has(workout.distance)) continue;
     if (!workout.pace_ms || workout.pace_ms <= 0) continue;
 
-    const currentBest = bestByDistance.get(workout.distance);
+    const tag = normalizeTag(workout.inferred_tag);
+    const key = `${workout.distance}:${tag}`;
+    const currentBest = bestByKey.get(key);
     if (currentBest == null || workout.pace_ms < currentBest) {
-      bestByDistance.set(workout.distance, workout.pace_ms);
+      bestByKey.set(key, workout.pace_ms);
       events.push({
         workout_id: workout.id,
         distance: workout.distance,
         pace_ms: workout.pace_ms,
         time_ms: workout.time_ms,
         achieved_at: workout.date,
+        tag,
       });
     }
   }
@@ -34,7 +41,7 @@ export function backfillPbHistory() {
   if (existing > 0) return [];
 
   const workouts = db.prepare(`
-    SELECT id, date, distance, pace_ms, time_ms
+    SELECT id, date, distance, pace_ms, time_ms, inferred_tag
     FROM workouts
     WHERE type = 'rower'
     ORDER BY date ASC, id ASC
@@ -44,8 +51,6 @@ export function backfillPbHistory() {
   insertPbEvents(db, events);
 
   if (events.length > 0) {
-    // Backfilled PBs are history, not news — mark them seen so the client's
-    // celebration banner only fires for PBs set after this point.
     db.prepare(
       "INSERT OR IGNORE INTO settings (key, value) VALUES ('pb_last_seen_at', ?)"
     ).run(new Date().toISOString());
@@ -69,7 +74,7 @@ export function detectNewPbs(workoutIds) {
 
   const placeholders = ids.map(() => '?').join(',');
   const workouts = db.prepare(`
-    SELECT id, date, distance, pace_ms, time_ms
+    SELECT id, date, distance, pace_ms, time_ms, inferred_tag
     FROM workouts
     WHERE type = 'rower'
       AND id IN (${placeholders})
@@ -80,17 +85,19 @@ export function detectNewPbs(workoutIds) {
 
   if (workouts.length === 0) return [];
 
-  const bestByDistance = new Map(
+  const bestByKey = new Map(
     db.prepare(`
-      SELECT distance, MIN(pace_ms) as pace_ms
+      SELECT distance, tag, MIN(pace_ms) as pace_ms
       FROM pb_history
-      GROUP BY distance
-    `).all().map(row => [row.distance, row.pace_ms])
+      GROUP BY distance, tag
+    `).all().map(row => [`${row.distance}:${row.tag}`, row.pace_ms])
   );
 
   const events = [];
   for (const workout of workouts) {
-    const currentBest = bestByDistance.get(workout.distance);
+    const tag = normalizeTag(workout.inferred_tag);
+    const key = `${workout.distance}:${tag}`;
+    const currentBest = bestByKey.get(key);
     if (currentBest == null || workout.pace_ms < currentBest) {
       const event = {
         workout_id: workout.id,
@@ -98,8 +105,9 @@ export function detectNewPbs(workoutIds) {
         pace_ms: workout.pace_ms,
         time_ms: workout.time_ms,
         achieved_at: workout.date,
+        tag,
       };
-      bestByDistance.set(workout.distance, workout.pace_ms);
+      bestByKey.set(key, workout.pace_ms);
       events.push(event);
     }
   }
@@ -108,11 +116,6 @@ export function detectNewPbs(workoutIds) {
   return events;
 }
 
-// Rebuilds pb_history from scratch for the given distances. Use this when an
-// existing workout's C2-owned performance fields (distance/pace/time) change
-// via sync, since a correction can invalidate or restore PBs at that
-// distance in ways detectNewPbs (which only looks at newly inserted rows)
-// can't detect.
 export function reconcilePbDistances(distances) {
   const targets = [...new Set((distances || []).filter(d => STANDARD_DISTANCE_SET.has(d)))];
   if (targets.length === 0) return [];
@@ -121,7 +124,7 @@ export function reconcilePbDistances(distances) {
   const placeholders = targets.map(() => '?').join(',');
 
   const workouts = db.prepare(`
-    SELECT id, date, distance, pace_ms, time_ms
+    SELECT id, date, distance, pace_ms, time_ms, inferred_tag
     FROM workouts
     WHERE type = 'rower' AND distance IN (${placeholders}) AND pace_ms > 0
     ORDER BY date ASC, id ASC
@@ -141,8 +144,8 @@ function insertPbEvents(db, events) {
   if (events.length === 0) return;
 
   const insert = db.prepare(`
-    INSERT INTO pb_history (workout_id, distance, pace_ms, time_ms, achieved_at)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO pb_history (workout_id, distance, pace_ms, time_ms, achieved_at, tag)
+    VALUES (?, ?, ?, ?, ?, ?)
   `);
 
   db.transaction(() => {
@@ -152,7 +155,8 @@ function insertPbEvents(db, events) {
         event.distance,
         event.pace_ms,
         event.time_ms,
-        event.achieved_at
+        event.achieved_at,
+        event.tag
       );
     }
   })();

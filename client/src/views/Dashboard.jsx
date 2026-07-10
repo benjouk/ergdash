@@ -117,7 +117,8 @@ export default function Dashboard() {
 }
 
 function formatPbEvent(event) {
-  return `New ${distanceLabel(event.distance)} PB - ${formatTimeTenths(event.time_ms)}`;
+  const tagSuffix = event.tag === 'interval' ? ' (interval)' : '';
+  return `New ${distanceLabel(event.distance)}${tagSuffix} PB - ${formatTimeTenths(event.time_ms)}`;
 }
 
 function formatTimeTenths(timeMs) {

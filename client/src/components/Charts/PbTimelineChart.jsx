@@ -21,6 +21,17 @@ const LINE_COLORS = [
   'var(--ink-2)',
 ];
 
+function seriesKey(row) {
+  return row.tag === 'interval' ? `i${row.distance}` : `d${row.distance}`;
+}
+
+function seriesLabel(key) {
+  const isInterval = key.startsWith('i');
+  const distance = Number(key.slice(1));
+  const label = distanceLabel(distance);
+  return isInterval ? `${label} (int)` : label;
+}
+
 export default function PbTimelineChart() {
   const { formatPace } = useUnits();
   const { from, to } = useTimeRange();
@@ -37,11 +48,11 @@ export default function PbTimelineChart() {
   if (error) return <ChartEmpty title="PB Progression" message="Couldn't load chart data." error onRetry={retry} />;
   if (data.length === 0) return <ChartEmpty title="PB Progression" />;
 
-  const distances = [...new Set(data.map(row => row.distance))];
+  const keys = [...new Set(data.map(row => seriesKey(row)))];
   const chartData = data.map(row => ({
     date: row.achieved_at,
     dateShort: new Date(row.achieved_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
-    [`d${row.distance}`]: row.pace_ms,
+    [seriesKey(row)]: row.pace_ms,
   }));
 
   const latest = data[data.length - 1];
@@ -53,7 +64,7 @@ export default function PbTimelineChart() {
           PB Progression
         </div>
         <div className={styles.chartValue}>
-          {distanceLabel(latest.distance)}
+          {distanceLabel(latest.distance)}{latest.tag === 'interval' ? ' (int)' : ''}
           <span className={styles.chartValueUnit}>latest</span>
         </div>
       </div>
@@ -78,25 +89,26 @@ export default function PbTimelineChart() {
           />
           <Tooltip
             {...TOOLTIP_PROPS}
-            formatter={(value, key) => [formatPace(value), distanceLabel(Number(String(key).slice(1)))]}
+            formatter={(value, key) => [formatPace(value), seriesLabel(String(key))]}
           />
-          {distances.map((distance, index) => (
+          {keys.map((key, index) => (
             <Line
-              key={distance}
+              key={key}
               type="monotone"
-              dataKey={`d${distance}`}
-              name={distanceLabel(distance)}
+              dataKey={key}
+              name={seriesLabel(key)}
               connectNulls
               stroke={LINE_COLORS[index % LINE_COLORS.length]}
               strokeWidth={2}
+              strokeDasharray={key.startsWith('i') ? '6 3' : undefined}
               dot={{ r: 3, fill: 'var(--accent-3)', stroke: 'var(--surface)', strokeWidth: 1 }}
               activeDot={{ r: 5, fill: 'var(--accent-3)', stroke: 'var(--surface)', strokeWidth: 1 }}
             />
           ))}
         </LineChart>
       </ResponsiveContainer>
-    
-      <ChartInfo>Your personal-best pace for each distance over time — every point marks a new PB, and each line tracks one distance.</ChartInfo>
+
+      <ChartInfo>Your personal-best pace for each distance over time — every point marks a new PB. Solid lines are endurance; dashed lines are interval.</ChartInfo>
     </div>
   );
 }

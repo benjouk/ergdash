@@ -289,7 +289,7 @@ function getCurrentPbDistances(db, workoutId) {
       AND ph.pace_ms = (
         SELECT MIN(current.pace_ms)
         FROM pb_history current
-        WHERE current.distance = ph.distance
+        WHERE current.distance = ph.distance AND current.tag = ph.tag
       )
     ORDER BY ph.distance ASC
   `).all(workoutId).map(row => row.distance);

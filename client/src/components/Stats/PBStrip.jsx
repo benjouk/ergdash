@@ -49,13 +49,16 @@ export default function PBStrip() {
     <div className={styles.pbStrip}>
       {pbs.map(pb => (
         <button
-          key={pb.distance}
+          key={`${pb.distance}_${pb.tag || 'endurance'}`}
           type="button"
           className={styles.pbCard}
           onClick={() => navigate(`/session/${pb.workout_id}`)}
-          aria-label={`Open ${DISTANCE_LABELS[pb.distance] || `${pb.distance}m`} personal best`}
+          aria-label={`Open ${DISTANCE_LABELS[pb.distance] || `${pb.distance}m`}${pb.tag === 'interval' ? ' interval' : ''} personal best`}
         >
-          <span className={styles.pbDistance}>{DISTANCE_LABELS[pb.distance] || `${pb.distance}m`}</span>
+          <span className={styles.pbDistance}>
+            {DISTANCE_LABELS[pb.distance] || `${pb.distance}m`}
+            {pb.tag === 'interval' && <span className={styles.pbTag}> int</span>}
+          </span>
           <span className={styles.pbTime}>{formatTime(pb.time_ms)}</span>
           <span className={styles.pbPace}>{formatPace(pb.pace_ms)}</span>
           {weightKg && (
