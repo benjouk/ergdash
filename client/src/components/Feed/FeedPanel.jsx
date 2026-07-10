@@ -171,7 +171,7 @@ function FeedItem({ workout, active, pinned = false, units, formatPace, formatDi
         {units === 'pace' && <span className={styles.paceUnit}>/500 m</span>}
       </div>
       <div className={styles.itemDetail}>
-        {formatDistance(workout.distance)} · {formatTime(workout.time_ms)}
+        <span className={styles.itemDistance}>{formatDistance(workout.distance)}</span> · {formatTime(workout.time_ms)}
         {workout.stroke_rate ? ` · ${workout.stroke_rate}spm` : ''}
       </div>
       {workout.pace_profile?.length >= 2 && (

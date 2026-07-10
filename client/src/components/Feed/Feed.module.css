@@ -132,7 +132,7 @@
 .itemMetrics {
   display: flex;
   align-items: baseline;
-  gap: var(--space-3);
+  gap: var(--space-1);
 }
 
 .itemPace {
@@ -148,7 +148,10 @@
   font-size: 0.75rem;
   font-weight: 400;
   color: var(--ink-2);
-  margin-left: 2px;
+}
+
+.itemDistance {
+  font-weight: 600;
 }
 
 .itemDetail {
