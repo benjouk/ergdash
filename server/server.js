@@ -9,6 +9,7 @@ import { initDb, getDb } from './src/db.js';
 import { startSyncSchedule } from './src/sync.js';
 import { initAuth, hasValidSession, isAuthenticated } from './src/auth.js';
 import { errorHandler } from './src/middleware/error.js';
+import { isDevAuthBypassEnabled, sameOriginWriteGuard, validateCorsOriginConfig } from './src/middleware/security.js';
 import { seedDatabase } from './src/seed.js';
 import {
   tagAllWorkouts,
@@ -43,21 +44,37 @@ if (process.env.NODE_ENV !== 'production') {
   seedDatabase();
 }
 
-app.use(helmet({ contentSecurityPolicy: false }));
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", 'data:', 'blob:'],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'", 'data:'],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+      frameAncestors: ["'none'"],
+    },
+  },
+}));
 // The client is always same-origin (Express serves the built frontend; the
 // Vite dev server proxies /api, /auth and /health), so cross-origin access is
 // disabled unless explicitly opted in via CORS_ORIGIN.
-app.use(cors({ origin: process.env.CORS_ORIGIN || false, credentials: true }));
+app.use(cors({ origin: validateCorsOriginConfig(), credentials: true }));
 app.use(compression());
 app.use(morgan('short'));
 app.use(express.json());
+app.use(sameOriginWriteGuard);
 
 app.use('/health', healthRouter);
 app.use('/auth', authRouter);
 
 function requireAuth(req, res, next) {
-  if (process.env.NODE_ENV !== 'production') {
-    // Dev mode: bypass auth. In dev, use /auth/mock-login to get a session
+  if (isDevAuthBypassEnabled()) {
+    // Explicit local-development bypass. In dev, use /auth/mock-login to get a session.
     return next();
   }
   if (!isAuthenticated() || !hasValidSession(req)) {

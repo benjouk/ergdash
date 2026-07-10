@@ -76,4 +76,6 @@ docker compose pull && docker compose up -d   # or build from source: docker com
 | `SYNC_INTERVAL_MINUTES` | `15` | Auto-sync interval |
 | `SESSION_SECRET` | - | Session signing secret (required in production, min 16 chars; generate with `openssl rand -base64 32`) |
 | `COOKIE_SECURE` | auto | Force the session cookie's `Secure` flag on/off; auto-detects from `C2_REDIRECT_URI` |
-| `CORS_ORIGIN` | disabled | Allow cross-origin API access from this origin. Not needed for normal setups; the frontend is served same-origin |
+| `APP_ORIGIN` | - | Optional canonical app origin used by production same-origin write checks when proxy headers do not match the public URL |
+| `CORS_ORIGIN` | disabled | Allow credentialed cross-origin API access from an explicit trusted origin. Production values must be `https://` and must not be `*`; not needed for normal same-origin setups |
+| `ERGDASH_DEV_AUTH_BYPASS` | disabled | Set to `1` only for local development if you intentionally want API routes to bypass OAuth/session checks |
