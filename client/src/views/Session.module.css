@@ -151,6 +151,11 @@
   color: var(--accent-2);
 }
 
+.tagSummary {
+  text-transform: none;
+  letter-spacing: 0;
+}
+
 .heroBadges {
   display: inline-flex;
   align-items: flex-start;
