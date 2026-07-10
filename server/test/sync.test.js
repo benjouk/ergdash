@@ -114,17 +114,21 @@ describe('insertWorkout', () => {
 
   it('replaces intervals on update instead of accumulating duplicates', () => {
     insertWorkout(db, c2Workout({
-      intervals: [{ type: 'work', distance: 500, time: 120, stroke_rate: 26 }],
+      workout: { intervals: [{ type: 'distance', distance: 500, time: 120, stroke_rate: 26 }] },
     }));
     insertWorkout(db, c2Workout({
       comments: 'changed',
-      intervals: [
-        { type: 'work', distance: 500, time: 118, stroke_rate: 27 },
-        { type: 'rest', distance: 0, time: 30, stroke_rate: 0 },
-      ],
+      workout: { intervals: [
+        { type: 'distance', distance: 500, time: 118, stroke_rate: 27, rest_time: 300 },
+        { type: 'distance', distance: 500, time: 120, stroke_rate: 26 },
+      ] },
     }));
 
     const intervals = db.prepare('SELECT * FROM intervals WHERE workout_id = ? ORDER BY interval_index').all(1);
-    expect(intervals).toHaveLength(2);
+    // 2 work reps + 1 rest (from first interval's rest_time) = 3 rows
+    expect(intervals).toHaveLength(3);
+    expect(intervals[0].type).toBe('work');
+    expect(intervals[1].type).toBe('rest');
+    expect(intervals[2].type).toBe('work');
   });
 });
