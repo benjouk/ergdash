@@ -474,6 +474,16 @@
   background: var(--accent-3-bg);
 }
 
+/* Rest interval rows */
+.restRow {
+  opacity: 0.45;
+  font-style: italic;
+}
+
+.restLabel {
+  color: var(--ink-3);
+}
+
 .paceCell {
   position: relative;
 }
@@ -794,12 +804,9 @@
   }
 }
 
-/* Very narrow: splits table keeps Split/Time/Pace only */
+/* Very narrow: hide secondary columns in splits/intervals table */
 @media (max-width: 480px) {
-  .splitsTable th:nth-child(4),
-  .splitsTable td:nth-child(4),
-  .splitsTable th:nth-child(5),
-  .splitsTable td:nth-child(5) {
+  .splitsTable .hideNarrow {
     display: none;
   }
 }
