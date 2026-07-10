@@ -503,7 +503,15 @@ async function fetchAndStoreStrokes(db, id, token) {
   ).get(id).c > 0;
 
   if (!hasIntervals) {
-    let intervals = await fetchIntervalsFromC2(id, token);
+    let intervals = [];
+    const raw = db.prepare('SELECT raw_json FROM workouts WHERE id = ?').get(id);
+    if (raw?.raw_json) {
+      const c2 = extractC2Intervals(JSON.parse(raw.raw_json));
+      if (c2.length > 0) intervals = expandC2Intervals(c2);
+    }
+    if (intervals.length === 0) {
+      intervals = await fetchIntervalsFromC2(id, token);
+    }
     if (intervals.length === 0) {
       intervals = inferIntervalsFromStrokes(db, id);
     }
@@ -582,23 +590,32 @@ export async function runStrokeEnrichment() {
 }
 
 export async function runIntervalBackfill() {
-  const token = await getValidToken();
-  if (!token) return;
-
   const db = getDb();
   const workouts = db.prepare(`
-    SELECT w.id FROM workouts w
+    SELECT w.id, w.raw_json FROM workouts w
     WHERE w.has_stroke_data = 1
       AND NOT EXISTS (SELECT 1 FROM intervals WHERE workout_id = w.id)
     ORDER BY w.date DESC LIMIT 10
   `).all();
 
   if (workouts.length === 0) return;
-  console.log(`Interval backfill: fetching intervals for ${workouts.length} workouts`);
+  console.log(`Interval backfill: processing ${workouts.length} workouts`);
 
-  for (const { id } of workouts) {
+  for (const { id, raw_json } of workouts) {
     try {
-      let intervals = await fetchIntervalsFromC2(id, token);
+      let intervals = [];
+      if (raw_json) {
+        const stored = JSON.parse(raw_json);
+        const c2 = extractC2Intervals(stored);
+        if (c2.length > 0) {
+          intervals = expandC2Intervals(c2);
+          console.log(`  Workout ${id}: ${c2.length} intervals from stored data`);
+        }
+      }
+      if (intervals.length === 0) {
+        const token = await getValidToken();
+        if (token) intervals = await fetchIntervalsFromC2(id, token);
+      }
       if (intervals.length === 0) {
         intervals = inferIntervalsFromStrokes(db, id);
       }

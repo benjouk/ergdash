@@ -358,12 +358,6 @@ function getPaceProfile(db, workoutId) {
   return intervals.length >= 2 ? intervals : [];
 }
 
-router.get('/:id/raw', (req, res) => {
-  const db = getDb();
-  const row = db.prepare('SELECT raw_json FROM workouts WHERE id = ?').get(Number(req.params.id));
-  if (!row) return res.status(404).json({ error: 'Not found' });
-  res.json(JSON.parse(row.raw_json || '{}'));
-});
 
 router.post('/:id/enrich', async (req, res) => {
   const id = Number(req.params.id);
