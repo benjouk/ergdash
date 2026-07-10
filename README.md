@@ -49,6 +49,7 @@ services:
     environment:
       C2_CLIENT_ID: your-client-id
       C2_CLIENT_SECRET: your-client-secret
+      C2_REDIRECT_URI: http://localhost:3100/auth/callback
       SESSION_SECRET: your-session-secret
     restart: unless-stopped
 
