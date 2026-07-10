@@ -49,7 +49,7 @@ export default function FeedPanel({ layout = 'column' }) {
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState('');
   const params = useParams();
-  const { formatPace, formatDistance, formatTime } = useUnits();
+  const { units, formatPace, formatDistance, formatTime } = useUnits();
   const { from, to } = useTimeRange();
   const { feedLimit, dateFormat } = usePrefs();
 
@@ -101,6 +101,7 @@ export default function FeedPanel({ layout = 'column' }) {
                 workout={w}
                 active={params.id === String(w.id)}
                 pinned
+                units={units}
                 formatPace={formatPace}
                 formatDistance={formatDistance}
                 formatTime={formatTime}
@@ -132,6 +133,7 @@ export default function FeedPanel({ layout = 'column' }) {
               key={w.id}
               workout={w}
               active={params.id === String(w.id)}
+              units={units}
               formatPace={formatPace}
               formatDistance={formatDistance}
               formatTime={formatTime}
@@ -144,7 +146,7 @@ export default function FeedPanel({ layout = 'column' }) {
   );
 }
 
-function FeedItem({ workout, active, pinned = false, formatPace, formatDistance, formatTime, dateFormat }) {
+function FeedItem({ workout, active, pinned = false, units, formatPace, formatDistance, formatTime, dateFormat }) {
   return (
     <Link
       to={`/session/${workout.id}`}
@@ -164,13 +166,13 @@ function FeedItem({ workout, active, pinned = false, formatPace, formatDistance,
           )}
         </span>
       </div>
-      <div className={styles.itemTitle}>{workoutTitle(workout)}</div>
       <div className={styles.itemMetrics}>
         <span className={styles.itemPace}>{formatPace(workout.pace_ms)}</span>
-        <span className={styles.itemDetail}>
-          {formatDistance(workout.distance)} · {formatTime(workout.time_ms)}
-          {workout.stroke_rate ? ` · ${workout.stroke_rate}spm` : ''}
-        </span>
+        {units === 'pace' && <span className={styles.paceUnit}>/500 m</span>}
+      </div>
+      <div className={styles.itemDetail}>
+        {formatDistance(workout.distance)} · {formatTime(workout.time_ms)}
+        {workout.stroke_rate ? ` · ${workout.stroke_rate}spm` : ''}
       </div>
       {workout.pace_profile?.length >= 2 && (
         <div className={styles.sparklineRow}>

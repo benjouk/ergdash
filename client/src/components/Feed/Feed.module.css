@@ -144,6 +144,13 @@
   font-variant-numeric: tabular-nums;
 }
 
+.paceUnit {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--ink-2);
+  margin-left: 2px;
+}
+
 .itemDetail {
   font-size: 0.75rem;
   color: var(--ink-2);
