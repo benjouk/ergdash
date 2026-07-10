@@ -96,7 +96,7 @@
   align-items: center;
 }
 
-.editDays {
+.manage {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);

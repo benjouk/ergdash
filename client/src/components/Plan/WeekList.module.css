@@ -1,4 +1,4 @@
-.strip {
+.card {
   background: var(--surface);
   border: 1px solid var(--rule);
   border-radius: var(--radius-lg);
@@ -9,7 +9,7 @@
   gap: var(--space-3);
 }
 
-.stripHeader {
+.header {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
@@ -17,7 +17,7 @@
   flex-wrap: wrap;
 }
 
-.stripTitle {
+.title {
   font-family: var(--font-display);
   font-size: 0.8rem;
   font-weight: 700;
@@ -26,7 +26,7 @@
   color: var(--ink-2);
 }
 
-.stripTotals {
+.totals {
   font-family: var(--font-mono);
   font-size: 0.72rem;
   font-variant-numeric: tabular-nums;
@@ -35,50 +35,53 @@
   gap: var(--space-3);
 }
 
-.stripTotals strong {
+.totals strong {
   color: var(--ink-2);
   font-weight: 600;
 }
 
-.days {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: var(--space-2);
-}
-
-.day {
+.list {
   display: flex;
   flex-direction: column;
-  align-items: stretch;
-  gap: 4px;
-  min-height: 92px;
-  padding: var(--space-2);
+  gap: 2px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
   background: var(--surface-alt);
   border: 1px solid transparent;
+  border-left: 3px solid transparent;
   border-radius: var(--radius-md);
   cursor: pointer;
   font: inherit;
   color: inherit;
   text-align: left;
-  transition: border-color 120ms ease;
+  /* Avoid the 300ms tap delay / double-tap-zoom so taps register immediately. */
+  touch-action: manipulation;
+  transition: border-color 120ms ease, background 120ms ease;
 }
 
 @media (hover: hover) {
-  .day:hover {
+  .row:hover {
     border-color: var(--accent);
   }
 }
 
-.daySelected {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
+.rowSelected {
+  border-left-color: var(--accent);
+  background: var(--accent-bg, var(--surface-alt));
 }
 
-.dayHead {
+.day {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
-  gap: 4px;
+  gap: var(--space-1);
+  flex: 0 0 52px;
 }
 
 .dayName {
@@ -96,36 +99,42 @@
   color: var(--ink-2);
 }
 
-.dayToday .dayNum {
+.rowToday .dayNum {
   color: var(--on-accent);
   background: var(--accent);
   border-radius: 999px;
   padding: 0 5px;
 }
 
-.dayChips {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+.summary {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.78rem;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.dayMeters {
-  margin-top: auto;
-  font-family: var(--font-mono);
-  font-size: 0.62rem;
+.rest {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.75rem;
   color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-@media (max-width: 767px) {
-  .days {
-    grid-auto-flow: column;
-    grid-template-columns: none;
-    grid-auto-columns: 68%;
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
-  }
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  color: var(--ink-2);
+}
 
-  .day {
-    scroll-snap-align: start;
-  }
+.count {
+  color: var(--ink-3);
 }

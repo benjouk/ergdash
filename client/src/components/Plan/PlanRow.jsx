@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { CalendarDays, Trash2 } from 'lucide-react';
+import { CalendarDays, MoreHorizontal, Trash2 } from 'lucide-react';
 import { api } from '../../api.js';
 import { useToast } from '../../context/ToastContext.jsx';
 import { planSummary, PLAN_TYPE_LABELS } from './planFormat.js';
@@ -10,12 +10,35 @@ import styles from './PlanRow.module.css';
 
 // One planned session with its status actions and inline link-picker.
 // `program` (optional) tags the row with its training-program week.
+// Common actions stay visible; destructive ones live behind the "…" menu.
 export default function PlanRow({
   plan, dayActual, linkedWorkoutIds, program, onEdit, onDelete, onChanged, formatDistance, formatPace,
 }) {
   const toast = useToast();
   const [candidates, setCandidates] = useState(null); // workout list or null
   const [confirming, setConfirming] = useState(false); // delete confirm shown?
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+
+    const handlePointerDown = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') setMenuOpen(false);
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [menuOpen]);
 
   const setStatus = (status) => {
     api.updatePlan(plan.id, { status })
@@ -49,7 +72,6 @@ export default function PlanRow({
   return (
     <div className={styles.planRow}>
       <div className={styles.planRowMain}>
-        <AdherenceChip adherence={plan.adherence}>{plan.adherence}</AdherenceChip>
         <span className={styles.planRowTitle}>
           {PLAN_TYPE_LABELS[plan.type] || plan.type}
           {' · '}
@@ -57,12 +79,15 @@ export default function PlanRow({
           {plan.target_pace_ms ? ` @ ${formatPace(plan.target_pace_ms)}` : ''}
           {plan.target_rate ? ` · ${plan.target_rate}spm` : ''}
         </span>
-        {program && (
+        <AdherenceChip adherence={plan.adherence}>{plan.adherence}</AdherenceChip>
+      </div>
+      {program && (
+        <div className={styles.planRowMeta}>
           <span className={styles.programBadge}>
             <CalendarDays size={11} /> {program.name} · Wk {plan.program_week + 1}
           </span>
-        )}
-      </div>
+        </div>
+      )}
       {plan.notes && <div className={styles.planRowNotes}>{plan.notes}</div>}
       {plan.workout && (
         <div className={styles.planRowLinked}>
@@ -89,14 +114,30 @@ export default function PlanRow({
           <button type="button" className={`${btn.button} ${btn.buttonSmall}`} onClick={() => setStatus('planned')}>Unskip</button>
         )}
         <span className={styles.actionSpacer} />
-        <button
-          type="button"
-          className={`${btn.button} ${btn.buttonDanger} ${btn.buttonSmall}`}
-          onClick={() => setConfirming(true)}
-          aria-label="Delete session"
-        >
-          <Trash2 size={13} /> Delete
-        </button>
+        <span className={styles.overflowWrapper} ref={menuRef}>
+          <button
+            type="button"
+            className={`${btn.button} ${btn.buttonSmall}`}
+            onClick={() => setMenuOpen(open => !open)}
+            aria-label="More actions"
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+          >
+            <MoreHorizontal size={14} />
+          </button>
+          {menuOpen && (
+            <div className={styles.overflowMenu} role="menu">
+              <button
+                type="button"
+                role="menuitem"
+                className={styles.overflowItem}
+                onClick={() => { setMenuOpen(false); setConfirming(true); }}
+              >
+                <Trash2 size={13} /> Delete session
+              </button>
+            </div>
+          )}
+        </span>
       </div>
       {confirming && (
         <div className={styles.confirmRow}>
