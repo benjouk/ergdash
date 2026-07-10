@@ -100,31 +100,42 @@ function generateInterval(id, date, factor) {
 
   const intervals = [];
   let totalTime = 0;
+  let idx = 0;
   for (let i = 0; i < numIntervals; i++) {
     const iPace = paceMs + randInt(-2000, 3000);
     const iTime = Math.round((intDistance / 500) * (iPace / 1000) * 1000);
     intervals.push({
-      index: i, type: 'work', distance: intDistance,
+      index: idx++, type: 'work', distance: intDistance,
       timeMs: iTime, paceMs: iPace,
       strokeRate: Math.round(randBetween(28, 34) * 10) / 10,
       hrAvg: randInt(165, 180),
     });
-    totalTime += iTime + restTimeMs;
+    totalTime += iTime;
+    const restDistance = Math.round(restTimeMs / 1000 * randBetween(0.15, 0.25));
+    intervals.push({
+      index: idx++, type: 'rest', distance: restDistance,
+      timeMs: restTimeMs, paceMs: null,
+      strokeRate: null,
+      hrAvg: null,
+    });
+    totalTime += restTimeMs;
   }
 
-  const avgPace = Math.round(intervals.reduce((s, i) => s + i.paceMs, 0) / numIntervals);
+  const workIntervals = intervals.filter(i => i.type === 'work');
+  const avgPace = Math.round(workIntervals.reduce((s, i) => s + i.paceMs, 0) / numIntervals);
   const hrAvg = randInt(165, 178);
-  const strokes = generateIntervalStrokeData(intervals, restTimeMs);
+  const strokes = generateIntervalStrokeData(workIntervals, restTimeMs);
+  const totalRestTimeMs = numIntervals * restTimeMs;
+  const totalRestDistance = intervals.filter(i => i.type === 'rest').reduce((s, i) => s + i.distance, 0);
 
   return {
     id, date: sessionDate(date), distance, timeMs: totalTime, paceMs: avgPace,
     strokeRate: Math.round(randBetween(29, 33) * 10) / 10,
-    // Strokes only happen during work reps; counting the rests inflated the
-    // stroke count and dragged distance-per-stroke down to implausible values.
     strokeCount: strokes.length,
     hrAvg, hrMax: hrAvg + randInt(10, 18), dragFactor: randInt(118, 128),
     calories: Math.round(distance / 22 + randBetween(-5, 5)),
     type: 'interval', workoutType: 'FixedDistanceSplits',
+    restTimeMs: totalRestTimeMs, restDistance: totalRestDistance,
     intervals, strokes,
   };
 }
@@ -416,8 +427,9 @@ export function seedDatabase() {
       id, user_id, date, type, workout_type,
       distance, time_ms, pace_ms, stroke_rate, stroke_count,
       calories, heart_rate_avg, heart_rate_max, drag_factor,
+      rest_time_ms, rest_distance,
       has_stroke_data, synced_at
-    ) VALUES (?, 1, ?, 'rower', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    ) VALUES (?, 1, ?, 'rower', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
   `);
 
   const insertInterval = db.prepare(`
@@ -440,6 +452,7 @@ export function seedDatabase() {
         w.id, w.date, w.workoutType,
         w.distance, w.timeMs, w.paceMs, w.strokeRate, w.strokeCount,
         w.calories, w.hrAvg, w.hrMax, w.dragFactor,
+        w.restTimeMs || null, w.restDistance || null,
         w.strokes ? 1 : 0
       );
 

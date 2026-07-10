@@ -400,16 +400,13 @@ export function computeWeekStreak(db) {
 
 export function inferWorkoutTag(workout) {
   const db = getDb();
-  const intervalCount = db.prepare(
-    "SELECT COUNT(*) as count FROM intervals WHERE workout_id = ? AND type = 'work'"
-  ).get(workout.id)?.count || 0;
   const restCount = db.prepare(
     "SELECT COUNT(*) as count FROM intervals WHERE workout_id = ? AND type = 'rest'"
   ).get(workout.id)?.count || 0;
 
   const hasRest = restCount > 0 || workout.rest_time_ms > 0 || workout.rest_distance > 0;
 
-  if (hasRest || intervalCount >= 2) {
+  if (hasRest) {
     return 'interval';
   }
 

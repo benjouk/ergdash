@@ -661,59 +661,67 @@ export default function Session() {
         </div>
       )}
 
-      {splitRows.length > 0 && (
+      {splitRows.length > 0 && (() => {
+        const isIntervalTable = isInterval && workout.intervals?.length > 0;
+        const workReps = isIntervalTable ? splitRows.filter(r => !r.rest) : splitRows;
+        const repCount = workReps.length;
+        const hasDistance = splitRows.some(r => r.distance > 0);
+        const hasCalories = splitRows.some(r => r.calories > 0);
+        const hasRecovery = splitRows.some(r => r.recovery_bpm != null);
+        const bestPace = Math.min(...workReps.map(r => r.pace_ms).filter(Boolean));
+        return (
         <div className={styles.card}>
           <div className={styles.cardHeader}>
-            <div className={styles.cardTitle}>Splits</div>
-            <span className={styles.cardKicker}>{splitRows.length} splits</span>
+            <div className={styles.cardTitle}>{isIntervalTable ? 'Intervals' : 'Splits'}</div>
+            <span className={styles.cardKicker}>
+              {isIntervalTable ? `${repCount} reps` : `${splitRows.length} splits`}
+            </span>
           </div>
           <div className={styles.tableWrap}>
             <table className={styles.splitsTable}>
               <thead>
                 <tr>
-                  <th>Split</th>
+                  <th>{isIntervalTable ? 'Rep' : 'Split'}</th>
+                  {hasDistance && <th>Dist</th>}
                   <th>Time</th>
                   <th>Pace</th>
-                  <th>Rate</th>
-                  <th>HR</th>
-                  {splitRows.some(r => r.calories > 0) && <th>Cal</th>}
-                  {splitRows.some(r => r.recovery_bpm != null) && <th>Recovery</th>}
+                  <th className={styles.hideNarrow}>Rate</th>
+                  <th className={styles.hideNarrow}>HR</th>
+                  {hasCalories && <th className={styles.hideNarrow}>Cal</th>}
+                  {hasRecovery && <th className={styles.hideNarrow}>Recovery</th>}
                 </tr>
               </thead>
               <tbody>
-                {(() => {
-                  const bestPace = Math.min(...splitRows.map(r => r.pace_ms).filter(Boolean));
-                  const hasCalories = splitRows.some(r => r.calories > 0);
-                  const hasRecovery = splitRows.some(r => r.recovery_bpm != null);
-                  return splitRows.map(row => {
-                  const barWidth = row.pace_ms && bestPace && Number.isFinite(bestPace) ? (bestPace / row.pace_ms) * 100 : 0;
+                {splitRows.map(row => {
+                  const barWidth = !row.rest && row.pace_ms && bestPace && Number.isFinite(bestPace) ? (bestPace / row.pace_ms) * 100 : 0;
                   return (
-                    <tr key={row.key} className={row.best ? styles.bestRow : undefined}>
-                      <td>{row.label}</td>
+                    <tr key={row.key} className={`${row.best ? styles.bestRow : ''} ${row.rest ? styles.restRow : ''}`}>
+                      <td className={row.rest ? styles.restLabel : undefined}>{row.label}</td>
+                      {hasDistance && <td>{row.distance ? `${row.distance}m` : ''}</td>}
                       <td>{formatTimePrecise(row.time_ms)}</td>
                       <td className={`${styles.paceCell} ${row.best ? styles.bestSplit : ''}`}>
                         {barWidth > 0 && <div className={styles.paceBar} style={{ width: `${barWidth}%` }} />}
-                        {formatPace(row.pace_ms)}
-                        {row.best && <span className={styles.splitMarkerBest} title="Fastest split" aria-label="Fastest split">▲</span>}
-                        {row.worst && <span className={styles.splitMarkerWorst} title="Slowest split" aria-label="Slowest split">▼</span>}
+                        {row.rest ? '' : formatPace(row.pace_ms)}
+                        {row.best && <span className={styles.splitMarkerBest} title="Fastest rep" aria-label="Fastest rep">▲</span>}
+                        {row.worst && <span className={styles.splitMarkerWorst} title="Slowest rep" aria-label="Slowest rep">▼</span>}
                       </td>
-                      <td>{row.stroke_rate ? row.stroke_rate.toFixed(1) : '--'}</td>
-                      <td>{row.heart_rate ? Math.round(row.heart_rate) : '--'}</td>
-                      {hasCalories && <td>{row.calories ? Math.round(row.calories) : '--'}</td>}
+                      <td className={styles.hideNarrow}>{!row.rest && row.stroke_rate ? row.stroke_rate.toFixed(1) : '--'}</td>
+                      <td className={styles.hideNarrow}>{!row.rest && row.heart_rate ? Math.round(row.heart_rate) : '--'}</td>
+                      {hasCalories && <td className={styles.hideNarrow}>{!row.rest && row.calories ? Math.round(row.calories) : '--'}</td>}
                       {hasRecovery && (
-                        <td style={row.recovery_bpm != null ? { color: row.recovery_bpm > 0 ? 'var(--positive)' : 'var(--negative)' } : undefined}>
+                        <td className={styles.hideNarrow} style={row.recovery_bpm != null ? { color: row.recovery_bpm > 0 ? 'var(--positive)' : 'var(--negative)' } : undefined}>
                           {row.recovery_bpm != null ? `${row.recovery_bpm > 0 ? '−' : '+'}${Math.abs(row.recovery_bpm)}` : '--'}
                         </td>
                       )}
                     </tr>
                   );
-                });
-                })()}
+                })}
               </tbody>
             </table>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       <div className={styles.card}>
         <div className={styles.cardHeader}>
@@ -862,8 +870,9 @@ function buildSplitRows(workout) {
       if (isWork) workRep += 1;
       return {
         key: `interval-${interval.id || index}`,
-        label: `${index + 1}`,
+        label: isWork ? `Rep ${workRep}` : 'Rest',
         rest: !isWork,
+        distance: interval.distance,
         time_ms: interval.time_ms,
         pace_ms: interval.pace_ms,
         stroke_rate: interval.stroke_rate,
