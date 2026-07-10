@@ -28,7 +28,7 @@ ErgDash connects to the Concept2 Logbook API to sync your workout history and di
 
 ## Setup
 
-1. Register an OAuth app at [log.concept2.com/developers](https://log.concept2.com/developers). Set the redirect URI to `http://localhost:3100/auth/callback`, or your real host/port. It must match `C2_REDIRECT_URI` exactly.
+1. Register an OAuth app at [log.concept2.com/developers/keys](https://log.concept2.com/developers/keys). Set the redirect URI to `http://localhost:3100/auth/callback`, or your real host/port. It must match `C2_REDIRECT_URI` exactly.
 2. `cp .env.example .env` and fill in `C2_CLIENT_ID`, `C2_CLIENT_SECRET`, and `SESSION_SECRET` (`openssl rand -base64 32`).
 
 ## Run (Docker)
