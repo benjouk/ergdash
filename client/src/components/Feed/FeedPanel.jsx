@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useMatch } from 'react-router-dom';
 import { Pin } from 'lucide-react';
 import { api } from '../../api.js';
 import { useUnits } from '../../context/UnitsContext.jsx';
@@ -48,7 +48,7 @@ export default function FeedPanel({ layout = 'column' }) {
   const [loading, setLoading] = useState(true);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState('');
-  const params = useParams();
+  const activeId = useMatch('/session/:id')?.params?.id;
   const { units, formatPace, formatDistance, formatTime } = useUnits();
   const { from, to } = useTimeRange();
   const { feedLimit, dateFormat } = usePrefs();
@@ -99,7 +99,7 @@ export default function FeedPanel({ layout = 'column' }) {
               <FeedItem
                 key={`pinned-${w.id}`}
                 workout={w}
-                active={params.id === String(w.id)}
+                active={activeId === String(w.id)}
                 pinned
                 units={units}
                 formatPace={formatPace}
@@ -132,7 +132,7 @@ export default function FeedPanel({ layout = 'column' }) {
             <FeedItem
               key={w.id}
               workout={w}
-              active={params.id === String(w.id)}
+              active={activeId === String(w.id)}
               units={units}
               formatPace={formatPace}
               formatDistance={formatDistance}
