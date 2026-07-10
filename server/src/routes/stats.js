@@ -266,21 +266,28 @@ router.get('/personal-bests', (req, res) => {
 
   const pbs = [];
   for (const dist of STANDARD_PB_DISTANCES) {
-    const row = db.prepare(`
-      SELECT w.id, w.date, w.time_ms, w.pace_ms, w.distance
-      FROM workouts w
-      WHERE w.type = 'rower' AND w.distance = ? AND w.pace_ms > 0${dateFilter}
-      ORDER BY w.pace_ms ASC LIMIT 1
-    `).get(dist, ...dateParams);
+    for (const [tag, tagCondition] of [
+      ['endurance', "(w.inferred_tag IS NULL OR w.inferred_tag != 'interval')"],
+      ['interval', "w.inferred_tag = 'interval'"],
+    ]) {
+      const row = db.prepare(`
+        SELECT w.id, w.date, w.time_ms, w.pace_ms, w.distance
+        FROM workouts w
+        WHERE w.type = 'rower' AND w.distance = ? AND w.pace_ms > 0
+          AND ${tagCondition}${dateFilter}
+        ORDER BY w.pace_ms ASC LIMIT 1
+      `).get(dist, ...dateParams);
 
-    if (row) {
-      pbs.push({
-        distance: dist,
-        workout_id: row.id,
-        date: row.date,
-        time_ms: row.time_ms,
-        pace_ms: row.pace_ms,
-      });
+      if (row) {
+        pbs.push({
+          distance: dist,
+          tag,
+          workout_id: row.id,
+          date: row.date,
+          time_ms: row.time_ms,
+          pace_ms: row.pace_ms,
+        });
+      }
     }
   }
 
@@ -344,7 +351,7 @@ router.get('/pb-history', (req, res) => {
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
   const rows = db.prepare(`
     SELECT ph.id, ph.workout_id, ph.distance, ph.pace_ms, ph.time_ms,
-           ph.achieved_at, w.date as workout_date
+           ph.achieved_at, ph.tag, w.date as workout_date
     FROM pb_history ph
     JOIN workouts w ON w.id = ph.workout_id
     ${where}

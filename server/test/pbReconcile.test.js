@@ -8,6 +8,7 @@ let db;
 let insertWorkout;
 let backfillPbHistory;
 let reconcilePbDistances;
+let tagAllWorkouts;
 let getDb;
 let initDb;
 let closeDb;
@@ -20,9 +21,11 @@ beforeEach(async () => {
   const dbModule = await import('../src/db.js');
   const syncModule = await import('../src/sync.js');
   const pbModule = await import('../src/pbDetection.js');
+  const analyticsModule = await import('../src/analytics.js');
   ({ getDb, initDb, closeDb } = dbModule);
   ({ insertWorkout } = syncModule);
   ({ backfillPbHistory, reconcilePbDistances } = pbModule);
+  ({ tagAllWorkouts } = analyticsModule);
 
   initDb();
   db = getDb();
@@ -60,6 +63,7 @@ describe('reconcilePbDistances', () => {
     let history = db.prepare('SELECT * FROM pb_history WHERE distance = 2000').all();
     expect(history).toHaveLength(1);
     expect(history[0].pace_ms).toBe(120000);
+    expect(history[0].tag).toBe('endurance');
 
     // Corrected result is faster.
     insertWorkout(db, c2Workout({ id: 1, time: 4700 })); // pace 117500
@@ -92,5 +96,24 @@ describe('reconcilePbDistances', () => {
     insertWorkout(db, c2Workout({ id: 1, distance: 1234, time: 4800 }));
     backfillPbHistory();
     expect(reconcilePbDistances([1234])).toEqual([]);
+  });
+
+  it('tracks separate PBs for interval and endurance workouts', () => {
+    insertWorkout(db, c2Workout({ id: 1, date: '2024-01-01T08:00:00', time: 4800 })); // endurance 2k, pace 120000
+    insertWorkout(db, c2Workout({
+      id: 2, date: '2024-01-02T08:00:00', time: 4600, // interval 2k, pace 115000
+      rest_time: 600,
+      workout: { intervals: [
+        { type: 'distance', distance: 1000, time: 2300, stroke_rate: 28, rest_time: 600 },
+        { type: 'distance', distance: 1000, time: 2300, stroke_rate: 28 },
+      ] },
+    }));
+    tagAllWorkouts();
+    backfillPbHistory();
+
+    const history = db.prepare('SELECT workout_id, pace_ms, tag FROM pb_history WHERE distance = 2000 ORDER BY achieved_at').all();
+    expect(history).toHaveLength(2);
+    expect(history[0]).toMatchObject({ workout_id: 1, tag: 'endurance' });
+    expect(history[1]).toMatchObject({ workout_id: 2, tag: 'interval' });
   });
 });

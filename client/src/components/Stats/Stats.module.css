@@ -150,6 +150,14 @@
   color: var(--ink-3);
 }
 
+.pbTag {
+  font-size: 0.6rem;
+  font-weight: 400;
+  color: var(--interval);
+  text-transform: lowercase;
+  letter-spacing: 0;
+}
+
 .metricsBar {
   display: flex;
   gap: var(--space-4);
