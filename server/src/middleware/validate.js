@@ -1,19 +1,21 @@
+function isStrictDate(value) {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split('-').map(Number);
+  if (year < 1900 || year > 2100) return false;
+  const d = new Date(Date.UTC(year, month - 1, day));
+  return d.getUTCFullYear() === year && d.getUTCMonth() === month - 1 && d.getUTCDate() === day;
+}
+
 export function validateDateRange(req, res, next) {
   const { from, to } = req.query;
   const errors = [];
 
-  if (from) {
-    const fromDate = new Date(from);
-    if (isNaN(fromDate.getTime())) {
-      errors.push('Invalid "from" date format. Use ISO 8601 (YYYY-MM-DD)');
-    }
+  if (from && !isStrictDate(from)) {
+    errors.push('Invalid "from" date format. Use ISO 8601 (YYYY-MM-DD)');
   }
 
-  if (to) {
-    const toDate = new Date(to);
-    if (isNaN(toDate.getTime())) {
-      errors.push('Invalid "to" date format. Use ISO 8601 (YYYY-MM-DD)');
-    }
+  if (to && !isStrictDate(to)) {
+    errors.push('Invalid "to" date format. Use ISO 8601 (YYYY-MM-DD)');
   }
 
   if (errors.length > 0) {

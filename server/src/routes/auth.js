@@ -58,15 +58,7 @@ router.get('/callback', async (req, res) => {
 
 router.get('/status', (req, res) => {
   const connected = isAuthenticated();
-  let authenticated;
-  if (process.env.NODE_ENV !== 'production') {
-    authenticated = connected;
-  } else if (connected && !hasValidSession(req)) {
-    createAuthSession(res);
-    authenticated = true;
-  } else {
-    authenticated = connected && hasValidSession(req);
-  }
+  const authenticated = connected && hasValidSession(req);
   res.json({
     authenticated,
     connected,
