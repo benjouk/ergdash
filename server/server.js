@@ -10,7 +10,7 @@ import { startSyncSchedule } from './src/sync.js';
 import { initAuth, hasValidSession, isAuthenticated } from './src/auth.js';
 import { errorHandler } from './src/middleware/error.js';
 import { isDevAuthBypassEnabled, sameOriginWriteGuard, validateCorsOriginConfig } from './src/middleware/security.js';
-import { seedDatabase } from './src/seed.js';
+import { seedDatabase, shouldAutoSeedDemoData } from './src/seed.js';
 import {
   tagAllWorkouts,
   computeAllMetrics,
@@ -40,7 +40,7 @@ const app = express();
 initDb();
 initAuth();
 
-if (process.env.NODE_ENV !== 'production') {
+if (shouldAutoSeedDemoData()) {
   seedDatabase();
 }
 

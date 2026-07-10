@@ -85,13 +85,26 @@ export function detectNewPbs(workoutIds) {
 
   if (workouts.length === 0) return [];
 
-  const bestByKey = new Map(
-    db.prepare(`
-      SELECT distance, tag, MIN(pace_ms) as pace_ms
-      FROM pb_history
-      GROUP BY distance, tag
-    `).all().map(row => [`${row.distance}:${row.tag}`, row.pace_ms])
-  );
+  const distances = [...new Set(workouts.map(workout => workout.distance))];
+  const distancePlaceholders = distances.map(() => '?').join(',');
+  const priorWorkouts = db.prepare(`
+    SELECT distance, pace_ms, inferred_tag
+    FROM workouts
+    WHERE type = 'rower'
+      AND distance IN (${distancePlaceholders})
+      AND id NOT IN (${placeholders})
+      AND pace_ms > 0
+  `).all(...distances, ...ids);
+
+  // Notifications compare against the best result that existed before this
+  // batch arrived. The history itself is rebuilt chronologically below so a
+  // late upload can insert or invalidate historical progression events.
+  const bestByKey = new Map();
+  for (const workout of priorWorkouts) {
+    const key = `${workout.distance}:${normalizeTag(workout.inferred_tag)}`;
+    const best = bestByKey.get(key);
+    if (best == null || workout.pace_ms < best) bestByKey.set(key, workout.pace_ms);
+  }
 
   const events = [];
   for (const workout of workouts) {
@@ -112,7 +125,7 @@ export function detectNewPbs(workoutIds) {
     }
   }
 
-  insertPbEvents(db, events);
+  reconcilePbDistances(distances);
   return events;
 }
 

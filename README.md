@@ -79,3 +79,4 @@ docker compose pull && docker compose up -d   # or build from source: docker com
 | `APP_ORIGIN` | - | Optional canonical app origin used by production same-origin write checks when proxy headers do not match the public URL |
 | `CORS_ORIGIN` | disabled | Allow credentialed cross-origin API access from an explicit trusted origin. Production values must be `https://` and must not be `*`; not needed for normal same-origin setups |
 | `ERGDASH_DEV_AUTH_BYPASS` | disabled | Set to `1` only for local development if you intentionally want API routes to bypass OAuth/session checks |
+| `ERGDASH_SEED_DEMO` | disabled | Set to `1` on a non-production server to explicitly load mock workouts, goals, and plans |

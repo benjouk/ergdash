@@ -112,6 +112,7 @@ async function main() {
     env: {
       ...process.env,
       NODE_ENV: 'development',
+      ERGDASH_SEED_DEMO: '1',
       PORT: String(PORT),
       DATA_DIR: dataDir,
     },

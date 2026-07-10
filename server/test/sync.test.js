@@ -6,6 +6,7 @@ import { join } from 'path';
 let dataDir;
 let db;
 let insertWorkout;
+let selectPendingStrokeWorkouts;
 let getDb;
 let initDb;
 let closeDb;
@@ -18,7 +19,7 @@ beforeEach(async () => {
   const dbModule = await import('../src/db.js');
   const syncModule = await import('../src/sync.js');
   ({ getDb, initDb, closeDb } = dbModule);
-  ({ insertWorkout } = syncModule);
+  ({ insertWorkout, selectPendingStrokeWorkouts } = syncModule);
 
   initDb();
   db = getDb();
@@ -57,6 +58,24 @@ describe('insertWorkout', () => {
 
     const row = db.prepare('SELECT * FROM workouts WHERE id = ?').get(1);
     expect(row.comments).toBe('original comment');
+  });
+
+  it('normalizes nested C2 intervals when inserting a brand-new workout', () => {
+    insertWorkout(db, c2Workout({
+      workout: { intervals: [
+        { type: 'distance', distance: 500, time: 118, rest_time: 300 },
+        { type: 'distance', distance: 500, time: 120 },
+      ] },
+    }));
+
+    const intervals = db.prepare(
+      'SELECT type, distance, time_ms FROM intervals WHERE workout_id = ? ORDER BY interval_index'
+    ).all(1);
+    expect(intervals).toEqual([
+      { type: 'work', distance: 500, time_ms: 11800 },
+      { type: 'rest', distance: 0, time_ms: 30000 },
+      { type: 'work', distance: 500, time_ms: 12000 },
+    ]);
   });
 
   it('is a no-op when the incoming workout is unchanged', () => {
@@ -130,5 +149,30 @@ describe('insertWorkout', () => {
     expect(intervals[0].type).toBe('work');
     expect(intervals[1].type).toBe('rest');
     expect(intervals[2].type).toBe('work');
+  });
+});
+
+describe('selectPendingStrokeWorkouts', () => {
+  it('uses the enrichment cursor to walk the whole pending backlog and wrap', () => {
+    for (let id = 1; id <= 25; id++) {
+      insertWorkout(db, c2Workout({ id }));
+    }
+
+    const setCursor = db.prepare(`
+      INSERT OR REPLACE INTO sync_state (key, value, updated_at)
+      VALUES ('last_enriched_workout_id', ?, datetime('now'))
+    `);
+
+    setCursor.run('16');
+    expect(selectPendingStrokeWorkouts(db, 10).map(row => row.id))
+      .toEqual([15, 14, 13, 12, 11, 10, 9, 8, 7, 6]);
+
+    setCursor.run('6');
+    expect(selectPendingStrokeWorkouts(db, 10).map(row => row.id))
+      .toEqual([5, 4, 3, 2, 1]);
+
+    setCursor.run('1');
+    expect(selectPendingStrokeWorkouts(db, 10).map(row => row.id))
+      .toEqual([25, 24, 23, 22, 21, 20, 19, 18, 17, 16]);
   });
 });

@@ -17,6 +17,10 @@ import { matchNewWorkouts } from './planMatching.js';
 
 let syncInProgress = false;
 
+export function isSyncInProgress() {
+  return syncInProgress;
+}
+
 function setSyncState(key, value) {
   const db = getDb();
   db.prepare("INSERT OR REPLACE INTO sync_state (key, value, updated_at) VALUES (?, ?, datetime('now'))").run(key, value);
@@ -281,7 +285,11 @@ export function insertWorkout(db, workout) {
       ?, ?, ?, ?, datetime('now')
     )
   `).run(workout.id, ...fields);
-  writeIntervals(db, workout.id, workout.intervals);
+  const c2Intervals = extractC2Intervals(workout);
+  const intervals = c2Intervals.length > 0
+    ? expandC2Intervals(c2Intervals)
+    : workout.intervals;
+  writeIntervals(db, workout.id, intervals);
   return { id: workout.id, inserted: true };
 }
 
@@ -569,9 +577,7 @@ export async function runStrokeEnrichment() {
   const remaining = db.prepare('SELECT COUNT(*) as c FROM workouts WHERE has_stroke_data = 0').get().c;
   if (remaining === 0) return;
 
-  const workouts = db.prepare(
-    'SELECT id FROM workouts WHERE has_stroke_data = 0 ORDER BY date DESC LIMIT 10'
-  ).all();
+  const workouts = selectPendingStrokeWorkouts(db, 10);
 
   console.log(`Stroke enrichment: processing ${workouts.length} of ${remaining} remaining`);
 
@@ -587,6 +593,36 @@ export async function runStrokeEnrichment() {
       setSyncState('last_enriched_workout_id', String(id));
     }
   }
+}
+
+// Walk the pending set by ID and wrap after reaching the end. Workouts with
+// no available stroke stream are retried on later passes without pinning the
+// queue to the same newest ten rows forever.
+export function selectPendingStrokeWorkouts(db, limit = 10) {
+  const cursorRow = db.prepare(
+    "SELECT value FROM sync_state WHERE key = 'last_enriched_workout_id'"
+  ).get();
+  const cursor = Number(cursorRow?.value);
+  const boundedLimit = Math.max(1, Math.min(100, Number(limit) || 10));
+  let workouts = [];
+
+  if (Number.isInteger(cursor)) {
+    workouts = db.prepare(`
+      SELECT id FROM workouts
+      WHERE has_stroke_data = 0 AND id < ?
+      ORDER BY id DESC LIMIT ?
+    `).all(cursor, boundedLimit);
+  }
+
+  if (workouts.length === 0) {
+    workouts = db.prepare(`
+      SELECT id FROM workouts
+      WHERE has_stroke_data = 0
+      ORDER BY id DESC LIMIT ?
+    `).all(boundedLimit);
+  }
+
+  return workouts;
 }
 
 export async function runIntervalBackfill() {
