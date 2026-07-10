@@ -1,6 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="ErgDash">
   <rect width="512" height="512" fill="#141418"/>
   <circle cx="256" cy="256" r="232" fill="#0A0A0C"/>
-  <path d="M92 322V190h118c37 0 64 24 64 57 0 23-13 42-34 51l48 24h-66l-39-27h-35v27H92Zm56-72h54c11 0 18-6 18-15 0-8-7-14-18-14h-54v29Z" fill="#C3D500"/>
-  <path d="M302 322l48-132h48l-48 132h-48Zm74 0 48-132h48l-48 132h-48Z" fill="#C3D500"/>
+  <rect x="117" y="117" width="59" height="278" rx="16" fill="#A9B54A"/>
+  <rect x="117" y="117" width="219" height="59" rx="16" fill="#A9B54A"/>
+  <rect x="117" y="226" width="165" height="59" rx="16" fill="#A9B54A"/>
+  <rect x="117" y="336" width="219" height="59" rx="16" fill="#A9B54A"/>
 </svg>
