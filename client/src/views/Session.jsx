@@ -386,8 +386,8 @@ export default function Session() {
                               {formatDateShort(new Date(w.date))}
                             </span>
                             {w.inferred_tag && (
-                              <span className={`${styles.tag} ${isInterval ? styles.tagInterval : ''}`}>
-                                {w.inferred_tag}
+                              <span className={`${styles.tag} ${isInterval ? styles.tagInterval : ''} ${w.interval_summary ? styles.tagSummary : ''}`}>
+                                {w.interval_summary || w.inferred_tag}
                               </span>
                             )}
                           </span>
@@ -481,8 +481,8 @@ export default function Session() {
           <div className={styles.heroBadges}>
             <PBBadges distances={workout.pb_distances} />
             {tag && (
-              <span className={`${styles.tag} ${isInterval ? styles.tagInterval : ''}`}>
-                {tag}
+              <span className={`${styles.tag} ${isInterval ? styles.tagInterval : ''} ${workout.interval_summary ? styles.tagSummary : ''}`}>
+                {workout.interval_summary || tag}
               </span>
             )}
           </div>

@@ -36,12 +36,6 @@ const TAG_CLASS = {
   interval: styles.tagInterval,
 };
 
-function workoutTitle(w) {
-  const dist = w.distance >= 1000 ? `${(w.distance / 1000).toFixed(w.distance % 1000 === 0 ? 0 : 1)}k` : `${w.distance}m`;
-  if (w.inferred_tag === 'interval') return `${dist} intervals`;
-  return `${dist} endurance`;
-}
-
 export default function FeedPanel({ layout = 'column' }) {
   const [workouts, setWorkouts] = useState([]);
   const [pinnedWorkouts, setPinnedWorkouts] = useState([]);
@@ -160,8 +154,8 @@ function FeedItem({ workout, active, pinned = false, units, formatPace, formatDi
         <span className={styles.itemBadges}>
           <PBBadges distances={workout.pb_distances} compact />
           {workout.inferred_tag && (
-            <span className={`${styles.itemTag} ${TAG_CLASS[workout.inferred_tag] || ''}`}>
-              {workout.inferred_tag}
+            <span className={`${styles.itemTag} ${TAG_CLASS[workout.inferred_tag] || ''} ${workout.interval_summary ? styles.itemTagSummary : ''}`}>
+              {workout.interval_summary || workout.inferred_tag}
             </span>
           )}
         </span>

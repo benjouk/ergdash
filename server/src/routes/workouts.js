@@ -93,11 +93,15 @@ router.get('/', (req, res) => {
   `).all(...params, lim, off);
 
   res.json({
-    data: rows.map(row => ({
-      ...formatWorkout(row),
-      pb_distances: getCurrentPbDistances(db, row.id),
-      pace_profile: getPaceProfile(db, row.id),
-    })),
+    data: rows.map(row => {
+      const summary = normalizeWorkoutTag(row.inferred_tag) === 'interval'
+        ? computeIntervalSummary(db, row.id) : null;
+      return {
+        ...formatWorkout(row, summary),
+        pb_distances: getCurrentPbDistances(db, row.id),
+        pace_profile: getPaceProfile(db, row.id),
+      };
+    }),
     meta: {
       total,
       limit: lim,
@@ -156,9 +160,11 @@ router.patch('/:id', (req, res) => {
 
   db.prepare(`UPDATE workouts SET ${updates.join(', ')} WHERE id = ?`).run(...params, id);
   const workout = getWorkoutWithMetrics(db, id);
+  const patchSummary = normalizeWorkoutTag(workout.inferred_tag) === 'interval'
+    ? computeIntervalSummary(db, id) : null;
 
   res.json({
-    ...formatWorkout(workout),
+    ...formatWorkout(workout, patchSummary),
     pb_distances: getCurrentPbDistances(db, id),
   });
 });
@@ -189,7 +195,9 @@ router.get('/:id', (req, res) => {
     'SELECT rep_index, hr_end, hr_next_start, drop_bpm, rest_s FROM interval_recoveries WHERE workout_id = ? ORDER BY rep_index'
   ).all(id);
 
-  const formatted = formatWorkout(workout);
+  const summary = normalizeWorkoutTag(workout.inferred_tag) === 'interval'
+    ? computeIntervalSummaryFromRows(intervals) : null;
+  const formatted = formatWorkout(workout, summary);
 
   res.json({
     ...formatted,
@@ -232,7 +240,7 @@ function median(values) {
   return sorted.length % 2 ? sorted[mid] : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
 }
 
-function formatWorkout(row) {
+function formatWorkout(row, intervalSummary = null) {
   return {
     id: row.id,
     user_id: row.user_id,
@@ -240,6 +248,7 @@ function formatWorkout(row) {
     type: row.type,
     workout_type: row.workout_type,
     inferred_tag: normalizeWorkoutTag(row.inferred_tag),
+    interval_summary: intervalSummary,
     distance: row.distance,
     time_ms: row.time_ms,
     pace_ms: row.pace_ms,
@@ -293,6 +302,55 @@ function getCurrentPbDistances(db, workoutId) {
       )
     ORDER BY ph.distance ASC
   `).all(workoutId).map(row => row.distance);
+}
+
+function formatDistanceCompact(meters) {
+  if (meters < 1000) return `${meters}m`;
+  const km = meters / 1000;
+  return meters % 1000 === 0 ? `${km}k` : `${km.toFixed(1).replace(/\.0$/, '')}k`;
+}
+
+function formatDurationCompact(ms) {
+  const totalSec = Math.round(ms / 1000);
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  return `${min}:${String(sec).padStart(2, '0')}`;
+}
+
+function intervalSummaryFromWorkRest(workIntervals, firstRestMs) {
+  if (workIntervals.length < 2) return null;
+
+  const n = workIntervals.length;
+  const distances = workIntervals.map(i => i.distance).filter(d => d > 0);
+  const times = workIntervals.map(i => i.time_ms).filter(t => t > 0);
+
+  let workPart;
+  if (distances.length === n && new Set(distances).size === 1) {
+    workPart = formatDistanceCompact(distances[0]);
+  } else if (times.length === n && new Set(times).size === 1) {
+    workPart = formatDurationCompact(times[0]);
+  } else {
+    return `${n} reps`;
+  }
+
+  const restPart = firstRestMs > 0 ? ` / ${formatDurationCompact(firstRestMs)}r` : '';
+  return `${n}×${workPart}${restPart}`;
+}
+
+function computeIntervalSummary(db, workoutId) {
+  const work = db.prepare(
+    "SELECT distance, time_ms FROM intervals WHERE workout_id = ? AND type = 'work' ORDER BY interval_index"
+  ).all(workoutId);
+  const firstRest = db.prepare(
+    "SELECT time_ms FROM intervals WHERE workout_id = ? AND type = 'rest' ORDER BY interval_index LIMIT 1"
+  ).get(workoutId);
+  return intervalSummaryFromWorkRest(work, firstRest?.time_ms || 0);
+}
+
+function computeIntervalSummaryFromRows(intervals) {
+  const work = intervals.filter(i => i.type === 'work');
+  const firstRest = intervals.find(i => i.type === 'rest');
+  return intervalSummaryFromWorkRest(work, firstRest?.time_ms || 0);
 }
 
 function normalizeWorkoutTag(tag) {

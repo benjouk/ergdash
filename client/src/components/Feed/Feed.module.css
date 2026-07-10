@@ -122,6 +122,11 @@
   background: var(--accent-2-bg);
 }
 
+.itemTagSummary {
+  text-transform: none;
+  letter-spacing: 0;
+}
+
 .itemTitle {
   font-size: 0.8rem;
   font-weight: 600;
