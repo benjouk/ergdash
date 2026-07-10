@@ -30,15 +30,15 @@ export function validatePaginationParams(req, res, next) {
   const errors = [];
 
   if (limit) {
-    const l = parseInt(limit, 10);
-    if (isNaN(l) || l < 1 || l > 1000) {
+    const l = Number(limit);
+    if (typeof limit !== 'string' || !Number.isInteger(l) || l < 1 || l > 1000) {
       errors.push('limit must be a number between 1 and 1000');
     }
   }
 
   if (offset) {
-    const o = parseInt(offset, 10);
-    if (isNaN(o) || o < 0) {
+    const o = Number(offset);
+    if (typeof offset !== 'string' || !Number.isInteger(o) || o < 0) {
       errors.push('offset must be a non-negative number');
     }
   }
@@ -69,15 +69,15 @@ export function validateDistanceRange(req, res, next) {
   const errors = [];
 
   if (min_distance) {
-    const m = parseInt(min_distance, 10);
-    if (isNaN(m) || m < 0) {
+    const m = Number(min_distance);
+    if (typeof min_distance !== 'string' || !Number.isInteger(m) || m < 0) {
       errors.push('min_distance must be a non-negative number');
     }
   }
 
   if (max_distance) {
-    const m = parseInt(max_distance, 10);
-    if (isNaN(m) || m < 0) {
+    const m = Number(max_distance);
+    if (typeof max_distance !== 'string' || !Number.isInteger(m) || m < 0) {
       errors.push('max_distance must be a non-negative number');
     }
   }

@@ -3,11 +3,11 @@ import { createReadStream, existsSync, renameSync, rmSync, writeFileSync } from 
 import { join } from 'path';
 import { clearAuth, clearAuthSession } from '../auth.js';
 import { closeDb, getDataDir, getDb, getDbPath, reopenDb } from '../db.js';
-import { runFullSync } from '../sync.js';
+import { isSyncInProgress, runFullSync } from '../sync.js';
 
 const router = Router();
 const SQLITE_MAGIC = Buffer.from('SQLite format 3\0', 'binary');
-const EXPORT_TABLES = [
+export const EXPORT_TABLES = [
   'workouts',
   'intervals',
   'strokes',
@@ -17,9 +17,12 @@ const EXPORT_TABLES = [
   'interval_recoveries',
   'fitness_log',
   'pb_history',
+  'goals',
+  'programs',
+  'planned_workouts',
   'settings',
 ];
-const WIPE_TABLES = [
+export const WIPE_TABLES = [
   'pb_history',
   'interval_recoveries',
   'best_efforts',
@@ -35,6 +38,25 @@ const SYNC_CURSOR_KEYS = [
   'sync_progress',
   'last_enriched_workout_id',
 ];
+
+export function wipeWorkoutData(db) {
+  db.transaction(() => {
+    // Workout FKs are SET NULL on deletion, but completion is a property of
+    // the link. Reset linked plans first so the fresh sync can match them.
+    db.prepare(`
+      UPDATE planned_workouts
+      SET completed_workout_id = NULL, status = 'planned', match_type = NULL,
+          updated_at = datetime('now')
+      WHERE completed_workout_id IS NOT NULL
+    `).run();
+
+    for (const table of WIPE_TABLES) {
+      db.prepare(`DELETE FROM ${table}`).run();
+    }
+    db.prepare(`DELETE FROM sync_state WHERE key IN (${SYNC_CURSOR_KEYS.map(() => '?').join(', ')})`).run(...SYNC_CURSOR_KEYS);
+    db.prepare("INSERT OR REPLACE INTO sync_state (key, value, updated_at) VALUES ('sync_status', 'idle', datetime('now'))").run();
+  })();
+}
 
 function todayStamp() {
   return new Date().toISOString().slice(0, 10);
@@ -146,15 +168,13 @@ router.post('/disconnect', (req, res, next) => {
 });
 
 router.post('/wipe', (req, res, next) => {
+  if (isSyncInProgress()) {
+    return res.status(409).json({ error: 'Cannot wipe local data while a sync is running' });
+  }
+
   try {
     const db = getDb();
-    db.transaction(() => {
-      for (const table of WIPE_TABLES) {
-        db.prepare(`DELETE FROM ${table}`).run();
-      }
-      db.prepare(`DELETE FROM sync_state WHERE key IN (${SYNC_CURSOR_KEYS.map(() => '?').join(', ')})`).run(...SYNC_CURSOR_KEYS);
-      db.prepare("INSERT OR REPLACE INTO sync_state (key, value, updated_at) VALUES ('sync_status', 'idle', datetime('now'))").run();
-    })();
+    wipeWorkoutData(db);
 
     runFullSync().catch(err => console.error('Post-wipe sync failed:', err));
     res.json({ ok: true });

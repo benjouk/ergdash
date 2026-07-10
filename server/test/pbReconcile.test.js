@@ -8,6 +8,7 @@ let db;
 let insertWorkout;
 let backfillPbHistory;
 let reconcilePbDistances;
+let detectNewPbs;
 let tagAllWorkouts;
 let getDb;
 let initDb;
@@ -24,7 +25,7 @@ beforeEach(async () => {
   const analyticsModule = await import('../src/analytics.js');
   ({ getDb, initDb, closeDb } = dbModule);
   ({ insertWorkout } = syncModule);
-  ({ backfillPbHistory, reconcilePbDistances } = pbModule);
+  ({ backfillPbHistory, reconcilePbDistances, detectNewPbs } = pbModule);
   ({ tagAllWorkouts } = analyticsModule);
 
   initDb();
@@ -115,5 +116,43 @@ describe('reconcilePbDistances', () => {
     expect(history).toHaveLength(2);
     expect(history[0]).toMatchObject({ workout_id: 1, tag: 'endurance' });
     expect(history[1]).toMatchObject({ workout_id: 2, tag: 'interval' });
+  });
+});
+
+describe('detectNewPbs', () => {
+  it('rebuilds progression when a late upload predates an existing PB', () => {
+    insertWorkout(db, c2Workout({ id: 1, date: '2024-01-01T08:00:00', time: 4800 })); // 120000
+    insertWorkout(db, c2Workout({ id: 2, date: '2024-03-01T08:00:00', time: 4600 })); // 115000
+    tagAllWorkouts();
+    backfillPbHistory();
+
+    insertWorkout(db, c2Workout({ id: 3, date: '2024-02-01T08:00:00', time: 4400 })); // 110000
+    tagAllWorkouts();
+    const notifications = detectNewPbs([3]);
+
+    expect(notifications.map(event => event.workout_id)).toEqual([3]);
+    const history = db.prepare(
+      'SELECT workout_id, pace_ms FROM pb_history WHERE distance = 2000 ORDER BY achieved_at'
+    ).all();
+    expect(history).toEqual([
+      { workout_id: 1, pace_ms: 120000 },
+      { workout_id: 3, pace_ms: 110000 },
+    ]);
+  });
+
+  it('adds a late historical PB without notifying when it is not the current best', () => {
+    insertWorkout(db, c2Workout({ id: 1, date: '2024-01-01T08:00:00', time: 4800 })); // 120000
+    insertWorkout(db, c2Workout({ id: 2, date: '2024-03-01T08:00:00', time: 4400 })); // 110000
+    tagAllWorkouts();
+    backfillPbHistory();
+
+    insertWorkout(db, c2Workout({ id: 3, date: '2024-02-01T08:00:00', time: 4600 })); // 115000
+    tagAllWorkouts();
+    expect(detectNewPbs([3])).toEqual([]);
+
+    const history = db.prepare(
+      'SELECT workout_id FROM pb_history WHERE distance = 2000 ORDER BY achieved_at'
+    ).all();
+    expect(history.map(row => row.workout_id)).toEqual([1, 3, 2]);
   });
 });

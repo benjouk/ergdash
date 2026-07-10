@@ -498,6 +498,12 @@ export function seedDatabase() {
   seedPlannedWorkouts(db);
 }
 
+// Demo data must be an explicit opt-in. NODE_ENV alone is too broad: local
+// and staging servers may point at persistent databases containing real data.
+export function shouldAutoSeedDemoData(env = process.env) {
+  return env.NODE_ENV !== 'production' && env.ERGDASH_SEED_DEMO === '1';
+}
+
 if (process.argv[1] && process.argv[1].endsWith('seed.js')) {
   initDb();
   seedDatabase();
