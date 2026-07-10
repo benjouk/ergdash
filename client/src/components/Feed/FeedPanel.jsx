@@ -87,7 +87,7 @@ export default function FeedPanel({ layout = 'column' }) {
     return () => {
       mounted = false;
     };
-  }, [from, to, isRow, params.id, feedLimit]);
+  }, [from, to, isRow, activeId, feedLimit]);
 
   return (
     <div className={styles.feed}>
