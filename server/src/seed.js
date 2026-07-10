@@ -99,7 +99,7 @@ function generateInterval(id, date, factor) {
   const restTimeMs = pick([60000, 90000, 120000]);
 
   const intervals = [];
-  let totalTime = 0;
+  let workTime = 0;
   let idx = 0;
   for (let i = 0; i < numIntervals; i++) {
     const iPace = paceMs + randInt(-2000, 3000);
@@ -110,7 +110,7 @@ function generateInterval(id, date, factor) {
       strokeRate: Math.round(randBetween(28, 34) * 10) / 10,
       hrAvg: randInt(165, 180),
     });
-    totalTime += iTime;
+    workTime += iTime;
     const restDistance = Math.round(restTimeMs / 1000 * randBetween(0.15, 0.25));
     intervals.push({
       index: idx++, type: 'rest', distance: restDistance,
@@ -118,7 +118,6 @@ function generateInterval(id, date, factor) {
       strokeRate: null,
       hrAvg: null,
     });
-    totalTime += restTimeMs;
   }
 
   const workIntervals = intervals.filter(i => i.type === 'work');
@@ -129,7 +128,7 @@ function generateInterval(id, date, factor) {
   const totalRestDistance = intervals.filter(i => i.type === 'rest').reduce((s, i) => s + i.distance, 0);
 
   return {
-    id, date: sessionDate(date), distance, timeMs: totalTime, paceMs: avgPace,
+    id, date: sessionDate(date), distance, timeMs: workTime, paceMs: avgPace,
     strokeRate: Math.round(randBetween(29, 33) * 10) / 10,
     strokeCount: strokes.length,
     hrAvg, hrMax: hrAvg + randInt(10, 18), dragFactor: randInt(118, 128),
