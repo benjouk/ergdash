@@ -151,9 +151,11 @@
   color: var(--accent-2);
 }
 
-.tagSummary {
-  text-transform: none;
-  letter-spacing: 0;
+.summaryCellSubtitle {
+  font-size: 0.65rem;
+  font-weight: 500;
+  color: var(--ink-3);
+  margin-top: -1px;
 }
 
 .heroBadges {

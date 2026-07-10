@@ -320,7 +320,7 @@ export default function Session() {
 
   const summaryItems = [
     { label: 'Time', value: formatTimePrecise(workout.time_ms) },
-    { label: 'Distance', value: formatDistanceNumber(workout.distance), unit: 'm' },
+    { label: 'Distance', value: formatDistanceNumber(workout.distance), unit: 'm', subtitle: workout.interval_summary },
     { label: primaryMetric.averageLabel, value: formatPace(workout.pace_ms), unit: primaryMetric.unit, accent: true },
     { label: 'Power', value: formatNumber(avgWatts), unit: 'w' },
     { label: 'Rate', value: formatRate(workout.stroke_rate), unit: 'spm' },
@@ -386,8 +386,8 @@ export default function Session() {
                               {formatDateShort(new Date(w.date))}
                             </span>
                             {w.inferred_tag && (
-                              <span className={`${styles.tag} ${isInterval ? styles.tagInterval : ''} ${w.interval_summary ? styles.tagSummary : ''}`}>
-                                {w.interval_summary || w.inferred_tag}
+                              <span className={`${styles.tag} ${isInterval ? styles.tagInterval : ''}`}>
+                                {w.inferred_tag}
                               </span>
                             )}
                           </span>
@@ -481,8 +481,8 @@ export default function Session() {
           <div className={styles.heroBadges}>
             <PBBadges distances={workout.pb_distances} />
             {tag && (
-              <span className={`${styles.tag} ${isInterval ? styles.tagInterval : ''} ${workout.interval_summary ? styles.tagSummary : ''}`}>
-                {workout.interval_summary || tag}
+              <span className={`${styles.tag} ${isInterval ? styles.tagInterval : ''}`}>
+                {tag}
               </span>
             )}
           </div>
@@ -497,6 +497,7 @@ export default function Session() {
               {item.value}
               {item.unit && <span className={styles.summaryCellUnit}>{item.unit}</span>}
             </span>
+            {item.subtitle && <span className={styles.summaryCellSubtitle}>{item.subtitle}</span>}
           </div>
         ))}
       </div>
