@@ -53,6 +53,129 @@ function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+// Expand C2 API interval objects into work+rest rows for our DB.
+// C2 intervals are all work reps; rest is indicated by a rest_time field
+// on each interval (the C2 "type" field means "time"/"distance", not work/rest).
+function expandC2Intervals(c2Intervals) {
+  const rows = [];
+  for (const iv of c2Intervals) {
+    rows.push({
+      type: 'work',
+      distance: iv.distance || 0,
+      time: iv.time || null,
+      stroke_rate: iv.stroke_rate || null,
+      stroke_count: iv.stroke_count || null,
+      calories_total: iv.calories_total || null,
+      heart_rate: iv.heart_rate || null,
+    });
+    if (iv.rest_time > 0) {
+      rows.push({
+        type: 'rest',
+        distance: iv.rest_distance || 0,
+        time: iv.rest_time,
+        stroke_rate: null,
+        stroke_count: null,
+        calories_total: null,
+        heart_rate: null,
+      });
+    }
+  }
+  return rows;
+}
+
+// Extract C2 intervals from a result object.
+// The bulk list nests them at result.workout.intervals;
+// the detail endpoint wraps in { data: { ... workout: { intervals } } }.
+function extractC2Intervals(result) {
+  const raw = result?.workout?.intervals;
+  if (Array.isArray(raw) && raw.length > 0) return raw;
+  return [];
+}
+
+// Fetch intervals from the C2 detail endpoint for a single workout.
+// Returns expanded work+rest rows (may be empty).
+async function fetchIntervalsFromC2(id, token) {
+  try {
+    const resp = await fetchC2Api(`/api/users/me/results/${id}`, token);
+    const inner = resp.data || resp;
+    const raw = extractC2Intervals(inner);
+    if (raw.length > 0) {
+      console.log(`  Workout ${id}: fetched ${raw.length} intervals from detail endpoint`);
+      return expandC2Intervals(raw);
+    }
+  } catch (err) {
+    console.log(`  Workout ${id}: detail endpoint failed (${err.message})`);
+  }
+  return [];
+}
+
+// Build interval rows from stroke data by detecting rest gaps (time jumps
+// without distance progress). Used as a last resort when the C2 API doesn't
+// return interval data but the workout is known to be interval-type.
+function inferIntervalsFromStrokes(db, workoutId) {
+  const workout = db.prepare(
+    'SELECT rest_time_ms, distance FROM workouts WHERE id = ?'
+  ).get(workoutId);
+  if (!workout || !workout.rest_time_ms || workout.rest_time_ms <= 0) return [];
+
+  const strokes = db.prepare(
+    'SELECT time_s, distance_m, pace_ms, stroke_rate, heart_rate FROM strokes WHERE workout_id = ? ORDER BY stroke_number'
+  ).all(workoutId);
+  if (strokes.length < 4) return [];
+
+  const reps = [];
+  let repStart = 0;
+  for (let i = 1; i < strokes.length; i++) {
+    const dt = strokes[i].time_s - strokes[i - 1].time_s;
+    const dd = strokes[i].distance_m - strokes[i - 1].distance_m;
+    if (dt > 5 && dd < 5) {
+      reps.push({ startIdx: repStart, endIdx: i - 1 });
+      repStart = i;
+    }
+  }
+  reps.push({ startIdx: repStart, endIdx: strokes.length - 1 });
+
+  if (reps.length < 2) return [];
+
+  const intervals = [];
+  for (let r = 0; r < reps.length; r++) {
+    const rep = reps[r];
+    const repStrokes = strokes.slice(rep.startIdx, rep.endIdx + 1);
+    const dist = repStrokes[repStrokes.length - 1].distance_m - repStrokes[0].distance_m;
+    const timeSec = repStrokes[repStrokes.length - 1].time_s - repStrokes[0].time_s;
+    const avgSR = repStrokes.reduce((s, st) => s + (st.stroke_rate || 0), 0) / repStrokes.length;
+    const avgHR = repStrokes.filter(s => s.heart_rate).reduce((s, st) => s + st.heart_rate, 0)
+      / (repStrokes.filter(s => s.heart_rate).length || 1);
+
+    intervals.push({
+      type: 'work',
+      distance: Math.round(dist),
+      time: Math.round(timeSec * 10),
+      stroke_rate: Math.round(avgSR),
+      stroke_count: repStrokes.length,
+      calories_total: null,
+      heart_rate: avgHR > 0 ? { average: Math.round(avgHR), max: null } : null,
+    });
+
+    if (r < reps.length - 1) {
+      const restStart = strokes[rep.endIdx].time_s;
+      const restEnd = strokes[reps[r + 1].startIdx].time_s;
+      intervals.push({
+        type: 'rest',
+        distance: 0,
+        time: Math.round((restEnd - restStart) * 10),
+        stroke_rate: null,
+        stroke_count: null,
+        calories_total: null,
+        heart_rate: null,
+      });
+    }
+  }
+
+  console.log(`  Workout ${workoutId}: inferred ${reps.length} reps from stroke data`);
+  return intervals;
+}
+
 function writeIntervals(db, workoutId, intervals) {
   db.prepare('DELETE FROM intervals WHERE workout_id = ?').run(workoutId);
   if (!intervals || intervals.length === 0) return;
@@ -126,7 +249,10 @@ export function insertWorkout(db, workout) {
         synced_at = datetime('now')
       WHERE id = ?
     `).run(...fields, workout.id);
-    writeIntervals(db, workout.id, workout.intervals);
+    const c2Intervals = extractC2Intervals(workout);
+    if (c2Intervals.length > 0) {
+      writeIntervals(db, workout.id, expandC2Intervals(c2Intervals));
+    }
 
     const perfChanged = existing.distance !== workout.distance
       || existing.pace_ms !== paceMs
@@ -371,21 +497,18 @@ async function fetchAndStoreStrokes(db, id, token) {
     db.prepare('UPDATE workouts SET has_stroke_data = 1 WHERE id = ?').run(id);
   }
 
-  // Fetch intervals from the C2 intervals endpoint if we don't have any yet.
-  // The bulk list endpoint omits intervals, so they're only available per-workout.
+  // Fetch intervals if we don't have any yet.
   const hasIntervals = db.prepare(
     'SELECT COUNT(*) as c FROM intervals WHERE workout_id = ?'
   ).get(id).c > 0;
 
   if (!hasIntervals) {
-    try {
-      const resp = await fetchC2Api(`/api/users/me/results/${id}/intervals`, token);
-      const intervals = resp.data || resp;
-      if (Array.isArray(intervals) && intervals.length > 0) {
-        writeIntervals(db, id, intervals);
-      }
-    } catch {
-      // Non-fatal — intervals will be retried on next enrichment pass
+    let intervals = await fetchIntervalsFromC2(id, token);
+    if (intervals.length === 0) {
+      intervals = inferIntervalsFromStrokes(db, id);
+    }
+    if (intervals.length > 0) {
+      writeIntervals(db, id, intervals);
     }
   }
 
@@ -475,12 +598,13 @@ export async function runIntervalBackfill() {
 
   for (const { id } of workouts) {
     try {
-      const resp = await fetchC2Api(`/api/users/me/results/${id}/intervals`, token);
-      const intervals = resp.data || resp;
-      if (Array.isArray(intervals) && intervals.length > 0) {
+      let intervals = await fetchIntervalsFromC2(id, token);
+      if (intervals.length === 0) {
+        intervals = inferIntervalsFromStrokes(db, id);
+      }
+      if (intervals.length > 0) {
         writeIntervals(db, id, intervals);
         recomputeWorkoutAnalytics(id);
-        console.log(`  Workout ${id}: ${intervals.length} intervals`);
       }
       await delay(1000);
     } catch (err) {
