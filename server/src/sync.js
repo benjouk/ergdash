@@ -371,6 +371,23 @@ async function fetchAndStoreStrokes(db, id, token) {
     db.prepare('UPDATE workouts SET has_stroke_data = 1 WHERE id = ?').run(id);
   }
 
+  // Fetch intervals from the C2 detail endpoint if we don't have any yet.
+  // The bulk list endpoint omits intervals, so they're only available per-workout.
+  const hasIntervals = db.prepare(
+    'SELECT COUNT(*) as c FROM intervals WHERE workout_id = ?'
+  ).get(id).c > 0;
+
+  if (!hasIntervals) {
+    try {
+      const detail = await fetchC2Api(`/api/users/me/results/${id}`, token);
+      if (detail.intervals?.length > 0) {
+        writeIntervals(db, id, detail.intervals);
+      }
+    } catch {
+      // Non-fatal — intervals will be retried on next enrichment pass
+    }
+  }
+
   return { strokes: strokeData.length };
 }
 
@@ -440,6 +457,36 @@ export async function runStrokeEnrichment() {
   }
 }
 
+export async function runIntervalBackfill() {
+  const token = await getValidToken();
+  if (!token) return;
+
+  const db = getDb();
+  const workouts = db.prepare(`
+    SELECT w.id FROM workouts w
+    WHERE w.has_stroke_data = 1
+      AND NOT EXISTS (SELECT 1 FROM intervals WHERE workout_id = w.id)
+    ORDER BY w.date DESC LIMIT 10
+  `).all();
+
+  if (workouts.length === 0) return;
+  console.log(`Interval backfill: fetching intervals for ${workouts.length} workouts`);
+
+  for (const { id } of workouts) {
+    try {
+      const detail = await fetchC2Api(`/api/users/me/results/${id}`, token);
+      if (detail.intervals?.length > 0) {
+        writeIntervals(db, id, detail.intervals);
+        recomputeWorkoutAnalytics(id);
+        console.log(`  Workout ${id}: ${detail.intervals.length} intervals`);
+      }
+      await delay(1000);
+    } catch (err) {
+      console.error(`Interval backfill failed for workout ${id}:`, err);
+    }
+  }
+}
+
 let syncScheduleStarted = false;
 
 export function startSyncSchedule() {
@@ -458,6 +505,7 @@ export function startSyncSchedule() {
   cron.schedule('*/5 * * * *', () => {
     console.log('[cron] Running stroke enrichment');
     runStrokeEnrichment().catch(err => console.error('Stroke enrichment failed:', err));
+    runIntervalBackfill().catch(err => console.error('Interval backfill failed:', err));
   });
 
   console.log(`Sync scheduled: incremental every ${interval}min, stroke enrichment every 5min`);
