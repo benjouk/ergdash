@@ -9,6 +9,43 @@
   gap: 2px;
 }
 
+.calHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding-bottom: var(--space-2);
+}
+
+.calTitle {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--ink-2);
+  text-align: center;
+}
+
+.navButton {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--ink-2);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-2);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: border-color 150ms ease, color 150ms ease;
+}
+
+@media (hover: hover) {
+  .navButton:hover {
+    border-color: var(--accent);
+    color: var(--ink);
+  }
+}
+
 .weekdayRow,
 .weekRow {
   display: grid;
@@ -69,7 +106,7 @@
 
 .daySelected {
   border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
 }
 
 .dayNumber {
@@ -89,20 +126,20 @@
   padding-left: 5px;
 }
 
-.dayChips {
+.dayStatus {
   position: relative;
-  display: flex;
-  flex-direction: column;
+  display: inline-flex;
+  align-items: center;
   gap: 2px;
-  width: 100%;
   margin-top: auto;
+  padding-left: 5px;
+  padding-bottom: 2px;
 }
 
-.legend {
-  display: flex;
-  gap: var(--space-2);
-  justify-content: flex-end;
-  padding-top: var(--space-2);
+.dayCount {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  color: var(--ink-2);
 }
 
 @media (max-width: 767px) {

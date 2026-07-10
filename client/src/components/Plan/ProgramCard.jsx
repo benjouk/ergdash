@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CalendarDays, ChevronsRight, Pause, Play, CalendarCog, Trash2 } from 'lucide-react';
+import { CalendarDays, ChevronsRight, Pause, Play, CalendarCog, Settings2, Trash2 } from 'lucide-react';
 import { api } from '../../api.js';
 import { useToast } from '../../context/ToastContext.jsx';
 import { usePrefs } from '../../context/PrefsContext.jsx';
@@ -17,12 +17,13 @@ function weekFill(wk) {
   return `linear-gradient(to top, var(--positive) 0 ${a}%, var(--negative) ${a}% ${b}%, var(--surface-alt) ${b}% 100%)`;
 }
 
-// Active-program status and management: progress, pause/resume, shift, edit
-// training days, delete (type-to-confirm).
+// Active-program summary with its management actions (move schedule, pause/
+// resume, training days, type-to-confirm delete) behind a Manage disclosure.
 export default function ProgramCard({ program, onChanged }) {
   const toast = useToast();
   const { weekStart } = usePrefs();
   const [busy, setBusy] = useState(false);
+  const [manageOpen, setManageOpen] = useState(false);
   const [editDays, setEditDays] = useState(null); // array | null
   const [confirm, setConfirm] = useState(null); // '' | null
 
@@ -67,10 +68,7 @@ export default function ProgramCard({ program, onChanged }) {
           Week <strong>{Math.min(progress.current_week + 1, progress.total_weeks)}</strong> of {progress.total_weeks}
         </div>
         <div className={styles.summary}>
-          <span><b>{progress.sessions.completed}</b> done</span>
-          <span><b>{progress.sessions.missed}</b> missed</span>
-          <span><b>{progress.sessions.skipped}</b> skipped</span>
-          <span><b>{progress.sessions.upcoming}</b> to go</span>
+          <span><b>{progress.sessions.completed}</b> completed · <b>{progress.sessions.upcoming}</b> remaining</span>
         </div>
       </div>
 
@@ -85,55 +83,74 @@ export default function ProgramCard({ program, onChanged }) {
         ))}
       </div>
 
-      {editDays ? (
-        <div className={styles.editDays}>
-          <span className={styles.editLabel}>Training days ({program.training_days.length})</span>
-          <DayPicker value={editDays} onChange={setEditDays} weekStart={weekStart} max={program.training_days.length} />
-          <div className={styles.actions}>
-            <button type="button" className={`${btn.button} ${btn.buttonPrimary} ${btn.buttonSmall}`} onClick={saveDays} disabled={busy}>Save days</button>
-            <button type="button" className={`${btn.button} ${btn.buttonSmall}`} onClick={() => setEditDays(null)}>Cancel</button>
-          </div>
-        </div>
-      ) : confirm !== null ? (
-        <div className={styles.confirmRow}>
-          <span className={styles.editLabel}>Type DELETE to remove this program and its upcoming sessions</span>
-          <input
-            className={styles.confirmInput}
-            value={confirm}
-            placeholder="DELETE"
-            onChange={e => setConfirm(e.target.value)}
-          />
-          <button
-            type="button"
-            className={`${btn.button} ${btn.buttonDanger} ${btn.buttonSmall}`}
-            disabled={confirm !== 'DELETE' || busy}
-            onClick={doDelete}
-          >
-            <Trash2 size={13} /> Confirm
-          </button>
-          <button type="button" className={`${btn.button} ${btn.buttonSmall}`} onClick={() => setConfirm(null)}>Cancel</button>
-        </div>
-      ) : (
-        <div className={styles.actions}>
-          <button type="button" className={`${btn.button} ${btn.buttonSmall}`} onClick={() => run(api.shiftProgram(program.id, 1), 'Shifted a week')} disabled={busy}>
-            <ChevronsRight size={14} /> Shift 1 week
-          </button>
-          {paused ? (
-            <button type="button" className={`${btn.button} ${btn.buttonSmall}`} onClick={() => run(api.updateProgram(program.id, { status: 'active' }), 'Program resumed')} disabled={busy}>
-              <Play size={14} /> Resume
-            </button>
+      <div className={styles.actions}>
+        <button
+          type="button"
+          className={`${btn.button} ${btn.buttonSmall}`}
+          onClick={() => {
+            setManageOpen(open => !open);
+            setEditDays(null);
+            setConfirm(null);
+          }}
+          aria-expanded={manageOpen}
+        >
+          <Settings2 size={14} /> Manage plan
+        </button>
+      </div>
+
+      {manageOpen && (
+        <div className={styles.manage}>
+          {editDays ? (
+            <>
+              <span className={styles.editLabel}>Training days ({program.training_days.length})</span>
+              <DayPicker value={editDays} onChange={setEditDays} weekStart={weekStart} max={program.training_days.length} />
+              <div className={styles.actions}>
+                <button type="button" className={`${btn.button} ${btn.buttonPrimary} ${btn.buttonSmall}`} onClick={saveDays} disabled={busy}>Save days</button>
+                <button type="button" className={`${btn.button} ${btn.buttonSmall}`} onClick={() => setEditDays(null)}>Cancel</button>
+              </div>
+            </>
+          ) : confirm !== null ? (
+            <div className={styles.confirmRow}>
+              <span className={styles.editLabel}>Type DELETE to remove this program and its upcoming sessions</span>
+              <input
+                className={styles.confirmInput}
+                value={confirm}
+                placeholder="DELETE"
+                onChange={e => setConfirm(e.target.value)}
+              />
+              <button
+                type="button"
+                className={`${btn.button} ${btn.buttonDanger} ${btn.buttonSmall}`}
+                disabled={confirm !== 'DELETE' || busy}
+                onClick={doDelete}
+              >
+                <Trash2 size={13} /> Confirm
+              </button>
+              <button type="button" className={`${btn.button} ${btn.buttonSmall}`} onClick={() => setConfirm(null)}>Cancel</button>
+            </div>
           ) : (
-            <button type="button" className={`${btn.button} ${btn.buttonSmall}`} onClick={() => run(api.updateProgram(program.id, { status: 'paused' }), 'Program paused')} disabled={busy}>
-              <Pause size={14} /> Pause
-            </button>
+            <div className={styles.actions}>
+              <button type="button" className={`${btn.button} ${btn.buttonSmall}`} onClick={() => run(api.shiftProgram(program.id, 1), 'Schedule moved a week')} disabled={busy}>
+                <ChevronsRight size={14} /> Move schedule
+              </button>
+              {paused ? (
+                <button type="button" className={`${btn.button} ${btn.buttonSmall}`} onClick={() => run(api.updateProgram(program.id, { status: 'active' }), 'Program resumed')} disabled={busy}>
+                  <Play size={14} /> Resume
+                </button>
+              ) : (
+                <button type="button" className={`${btn.button} ${btn.buttonSmall}`} onClick={() => run(api.updateProgram(program.id, { status: 'paused' }), 'Program paused')} disabled={busy}>
+                  <Pause size={14} /> Pause
+                </button>
+              )}
+              <button type="button" className={`${btn.button} ${btn.buttonSmall}`} onClick={() => setEditDays(program.training_days)}>
+                <CalendarCog size={14} /> Training days
+              </button>
+              <span className={styles.spacer} />
+              <button type="button" className={`${btn.button} ${btn.buttonDanger} ${btn.buttonSmall}`} onClick={() => setConfirm('')}>
+                <Trash2 size={13} /> Delete program
+              </button>
+            </div>
           )}
-          <button type="button" className={`${btn.button} ${btn.buttonSmall}`} onClick={() => setEditDays(program.training_days)}>
-            <CalendarCog size={14} /> Edit days
-          </button>
-          <span className={styles.spacer} />
-          <button type="button" className={`${btn.button} ${btn.buttonDanger} ${btn.buttonSmall}`} onClick={() => setConfirm('')}>
-            <Trash2 size={13} /> Delete program
-          </button>
         </div>
       )}
     </div>

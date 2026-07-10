@@ -63,6 +63,34 @@ export function planSummary(plan, formatDistance) {
   return plan.type;
 }
 
+// The single adherence state that best summarises a day's plans, for
+// one-marker-per-day displays. Missed outranks everything (it needs
+// attention); skipped only wins when it's all there is.
+export function dominantAdherence(plans) {
+  for (const state of ['missed', 'planned', 'completed', 'skipped']) {
+    if (plans.some(p => p.adherence === state)) return state;
+  }
+  return null;
+}
+
+// Weekly totals for a list of ISO dates, from the maps Plan.jsx derives.
+export function weekTotals(days, plansByDay, metersByDay) {
+  let plannedMeters = 0;
+  let rowedMeters = 0;
+  let sessionsTotal = 0;
+  let sessionsDone = 0;
+  for (const day of days) {
+    for (const p of plansByDay.get(day) || []) {
+      sessionsTotal += 1;
+      if (p.adherence === 'completed') sessionsDone += 1;
+      plannedMeters += p.target_distance || 0;
+    }
+    const entry = metersByDay.map.get(day);
+    if (entry) rowedMeters += entry.meters;
+  }
+  return { plannedMeters, rowedMeters, sessionsTotal, sessionsDone };
+}
+
 export function formFromPlan(plan) {
   return {
     type: plan.type,

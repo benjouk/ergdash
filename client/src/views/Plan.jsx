@@ -1,11 +1,11 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import { api } from '../api.js';
 import { usePrefs } from '../context/PrefsContext.jsx';
 import { useUnits } from '../context/UnitsContext.jsx';
 import { monthGrid, shiftMonth, monthLabel } from '../utils/planCalendar.js';
 import MonthCalendar from '../components/Plan/MonthCalendar.jsx';
-import WeekStrip from '../components/Plan/WeekStrip.jsx';
+import WeekList from '../components/Plan/WeekList.jsx';
 import DayPanel from '../components/Plan/DayPanel.jsx';
 import ProgramCard from '../components/Plan/ProgramCard.jsx';
 import ProgramBrowser from '../components/Plan/ProgramBrowser.jsx';
@@ -16,10 +16,14 @@ function isoToday() {
 }
 
 export default function Plan() {
+  const [searchParams] = useSearchParams();
+  const paramDate = searchParams.get('date');
+  const initialDate = paramDate && /^\d{4}-\d{2}-\d{2}$/.test(paramDate) ? paramDate : isoToday();
+
   const today = isoToday();
   const [{ year, month }, setYearMonth] = useState(() => ({
-    year: Number(today.slice(0, 4)),
-    month: Number(today.slice(5, 7)) - 1,
+    year: Number(initialDate.slice(0, 4)),
+    month: Number(initialDate.slice(5, 7)) - 1,
   }));
   const { weekStart } = usePrefs();
   const { formatDistance, formatPace } = useUnits();
@@ -27,7 +31,7 @@ export default function Plan() {
   const [plans, setPlans] = useState(null);
   const [actualDays, setActualDays] = useState([]);
   const [programs, setPrograms] = useState([]);
-  const [selectedDate, setSelectedDate] = useState(today);
+  const [selectedDate, setSelectedDate] = useState(initialDate);
 
   const grid = useMemo(() => monthGrid(year, month, weekStart), [year, month, weekStart]);
 
@@ -76,56 +80,21 @@ export default function Plan() {
     setSelectedDate(today);
   };
 
+  // Keep the selection inside the fetched month so the day panel never shows
+  // a date whose plans/meters aren't loaded.
+  const shiftBy = (delta) => {
+    const next = shiftMonth(year, month, delta);
+    setYearMonth(next);
+    const firstOfMonth = `${next.year}-${String(next.month + 1).padStart(2, '0')}-01`;
+    setSelectedDate(today.slice(0, 7) === firstOfMonth.slice(0, 7) ? today : firstOfMonth);
+  };
+
   return (
     <div className={styles.plan}>
       <div className={styles.header}>
         <h2 className={styles.title}>Plan</h2>
-        <div className={styles.monthNav}>
-          <button
-            type="button"
-            className={styles.navButton}
-            aria-label="Previous month"
-            onClick={() => setYearMonth(shiftMonth(year, month, -1))}
-          >
-            <ChevronLeft size={16} />
-          </button>
-          <span className={styles.monthLabel}>{monthLabel(year, month)}</span>
-          <button
-            type="button"
-            className={styles.navButton}
-            aria-label="Next month"
-            onClick={() => setYearMonth(shiftMonth(year, month, 1))}
-          >
-            <ChevronRight size={16} />
-          </button>
-          <button type="button" className={styles.navButton} onClick={goToday}>Today</button>
-        </div>
+        <button type="button" className={styles.navButton} onClick={goToday}>Today</button>
       </div>
-
-      {activeProgram && (
-        <ProgramCard program={activeProgram} onChanged={load} />
-      )}
-
-      <MonthCalendar
-        grid={grid}
-        plansByDay={plansByDay}
-        metersByDay={metersByDay}
-        selectedDate={selectedDate}
-        today={today}
-        onSelectDate={setSelectedDate}
-        formatDistance={formatDistance}
-        weekStart={weekStart}
-      />
-
-      <WeekStrip
-        selectedDate={selectedDate}
-        weekStart={weekStart}
-        plansByDay={plansByDay}
-        metersByDay={metersByDay}
-        today={today}
-        onSelectDate={setSelectedDate}
-        formatDistance={formatDistance}
-      />
 
       <DayPanel
         date={selectedDate}
@@ -137,6 +106,33 @@ export default function Plan() {
         formatDistance={formatDistance}
         formatPace={formatPace}
       />
+
+      <WeekList
+        selectedDate={selectedDate}
+        weekStart={weekStart}
+        plansByDay={plansByDay}
+        metersByDay={metersByDay}
+        today={today}
+        onSelectDate={setSelectedDate}
+        formatDistance={formatDistance}
+      />
+
+      <MonthCalendar
+        grid={grid}
+        monthTitle={monthLabel(year, month)}
+        onShiftMonth={shiftBy}
+        plansByDay={plansByDay}
+        metersByDay={metersByDay}
+        selectedDate={selectedDate}
+        today={today}
+        onSelectDate={setSelectedDate}
+        formatDistance={formatDistance}
+        weekStart={weekStart}
+      />
+
+      {activeProgram && (
+        <ProgramCard program={activeProgram} onChanged={load} />
+      )}
 
       {!activeProgram && <ProgramBrowser onStarted={load} />}
     </div>

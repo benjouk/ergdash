@@ -153,6 +153,30 @@ async function findDemoPlan(id) {
   return plan;
 }
 
+async function findPlanForWorkout(plans, workoutId) {
+  const plan = plans.find(p => p.completed_workout_id === workoutId);
+  if (!plan) return null;
+  let programName = null;
+  if (plan.program_id) {
+    try {
+      const programs = await loadDemoPrograms();
+      const program = programs.find(p => p.id === plan.program_id);
+      if (program) programName = program.name;
+    } catch { /* ignore */ }
+  }
+  return {
+    id: plan.id,
+    date: plan.date,
+    type: plan.type,
+    target_distance: plan.target_distance,
+    target_duration_ms: plan.target_duration_ms,
+    match_type: plan.match_type,
+    program_id: plan.program_id || null,
+    program_week: plan.program_week ?? null,
+    program_name: programName,
+  };
+}
+
 function patchDemoPlan(id, fields) {
   const overlay = getPlanOverlay();
   overlay.patched[id] = { ...overlay.patched[id], ...fields };
@@ -367,7 +391,12 @@ async function handleGet(route, params) {
 
   if (route === '/api/workouts') {
     const all = await loadFixture((await loadManifest())['/api/workouts']);
-    return filterWorkouts(all.data.map(applyWorkoutOverlay), params);
+    const plans = await loadDemoPlans();
+    const workouts = await Promise.all(all.data.map(async w => {
+      const patched = applyWorkoutOverlay(w);
+      return { ...patched, plan: await findPlanForWorkout(plans, patched.id) };
+    }));
+    return filterWorkouts(workouts, params);
   }
 
   const workoutMatch = route.match(/^\/api\/workouts\/(\d+)$/);
@@ -377,7 +406,9 @@ async function handleGet(route, params) {
       if (!r.ok) throw new Error('Workout not found');
       return r.json();
     });
-    return applyWorkoutOverlay(detail);
+    const patched = applyWorkoutOverlay(detail);
+    const plans = await loadDemoPlans();
+    return { ...patched, plan: await findPlanForWorkout(plans, patched.id) };
   }
 
   if (route === '/api/stats/compare') {

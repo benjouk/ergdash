@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   planSummary, formFromPlan, formToPayload, EMPTY_FORM,
+  dominantAdherence, weekTotals,
 } from './planFormat.js';
 
 // Simple metric formatter stand-in (matches useUnits().formatDistance shape).
@@ -21,6 +22,53 @@ describe('planSummary', () => {
     expect(planSummary({ target_distance: 10000 }, fmtDist)).toBe('10km');
     expect(planSummary({ target_duration_ms: 1800000 }, fmtDist)).toBe('30:00');
     expect(planSummary({ type: 'other' }, fmtDist)).toBe('other');
+  });
+});
+
+describe('dominantAdherence', () => {
+  it('passes a single plan through', () => {
+    expect(dominantAdherence([{ adherence: 'completed' }])).toBe('completed');
+    expect(dominantAdherence([{ adherence: 'skipped' }])).toBe('skipped');
+  });
+
+  it('lets missed outrank completed', () => {
+    expect(dominantAdherence([
+      { adherence: 'completed' }, { adherence: 'missed' },
+    ])).toBe('missed');
+  });
+
+  it('lets planned outrank skipped and completed', () => {
+    expect(dominantAdherence([
+      { adherence: 'skipped' }, { adherence: 'planned' }, { adherence: 'completed' },
+    ])).toBe('planned');
+  });
+
+  it('returns null for an empty day', () => {
+    expect(dominantAdherence([])).toBeNull();
+  });
+});
+
+describe('weekTotals', () => {
+  it('sums sessions and meters across a mixed week', () => {
+    const days = ['2026-07-06', '2026-07-07', '2026-07-08'];
+    const plansByDay = new Map([
+      ['2026-07-06', [
+        { adherence: 'completed', target_distance: 8000 },
+        { adherence: 'skipped', target_distance: 2000 },
+      ]],
+      ['2026-07-08', [{ adherence: 'planned', target_distance: 10000 }]],
+    ]);
+    const metersByDay = { map: new Map([['2026-07-06', { meters: 8200 }]]) };
+    expect(weekTotals(days, plansByDay, metersByDay)).toEqual({
+      plannedMeters: 20000, rowedMeters: 8200, sessionsTotal: 3, sessionsDone: 1,
+    });
+  });
+
+  it('handles a week of rest days', () => {
+    const days = ['2026-07-06', '2026-07-07'];
+    expect(weekTotals(days, new Map(), { map: new Map() })).toEqual({
+      plannedMeters: 0, rowedMeters: 0, sessionsTotal: 0, sessionsDone: 0,
+    });
   });
 });
 

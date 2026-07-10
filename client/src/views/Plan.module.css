@@ -22,20 +22,6 @@
   margin: 0;
 }
 
-.monthNav {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.monthLabel {
-  font-family: var(--font-mono);
-  font-size: 0.85rem;
-  color: var(--ink-2);
-  min-width: 130px;
-  text-align: center;
-}
-
 .navButton {
   display: inline-flex;
   align-items: center;

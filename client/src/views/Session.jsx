@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   Area,
   AreaChart,
@@ -465,6 +465,17 @@ export default function Session() {
               <Lock size={13} />
               <span>Training Partners</span>
             </div>
+            {workout.plan && (
+              <Link to={`/plan?date=${workout.plan.date}`} className={styles.planLine}>
+                <CalendarDays size={13} />
+                <span>
+                  {workout.plan.program_name
+                    ? `${workout.plan.program_name} · Wk ${workout.plan.program_week + 1}`
+                    : `Planned ${workout.plan.type}`}
+                  {workout.plan.match_type === 'auto' ? ' (auto-matched)' : ''}
+                </span>
+              </Link>
+            )}
           </div>
 
           <div className={styles.heroBadges}>

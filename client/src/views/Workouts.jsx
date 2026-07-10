@@ -331,6 +331,7 @@ export default function Workouts() {
                 <td>
                   <span className={styles.badgeStack}>
                     {w.inferred_tag && <TagBadge tag={w.inferred_tag} />}
+                    {w.plan && <PlanBadge />}
                     <PBBadges distances={w.pb_distances} compact />
                   </span>
                 </td>
@@ -392,6 +393,7 @@ export default function Workouts() {
               <span className={styles.cardTopActions}>
                 <PBBadges distances={w.pb_distances} compact />
                 {w.inferred_tag && <TagBadge tag={w.inferred_tag} />}
+                {w.plan && <PlanBadge />}
                 <PinButton
                   pinned={w.pinned}
                   onClick={event => handleTogglePinned(event, w)}
@@ -453,6 +455,10 @@ function Th({ children, onClick }) {
 function TagBadge({ tag }) {
   const tagClass = styles[TAG_CLASS[tag]] || styles.tagOther;
   return <span className={`${styles.tag} ${tagClass}`}>{tag}</span>;
+}
+
+function PlanBadge() {
+  return <span className={`${styles.tag} ${styles.tagPlan}`}>planned</span>;
 }
 
 function PinButton({ pinned, onClick }) {
