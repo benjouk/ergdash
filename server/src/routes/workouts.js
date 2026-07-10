@@ -72,9 +72,21 @@ router.get('/', (req, res) => {
   const rows = db.prepare(`
     SELECT w.*, cm.fade_index, cm.consistency, cm.effort_score, cm.drag_delta,
            cm.distance_per_stroke, cm.watts_per_beat, cm.hr_drift_pct,
-           cm.rate_discipline, cm.hr_recovery_avg
+           cm.rate_discipline, cm.hr_recovery_avg,
+           pw.id as plan_id, pw.date as plan_date, pw.type as plan_type,
+           pw.target_distance as plan_target_distance,
+           pw.target_duration_ms as plan_target_duration_ms,
+           pw.match_type as plan_match_type,
+           pw.program_id as plan_program_id,
+           pw.program_week as plan_program_week,
+           prog.name as plan_program_name
     FROM workouts w
     LEFT JOIN computed_metrics cm ON w.id = cm.workout_id
+    LEFT JOIN planned_workouts pw ON pw.id = (
+      SELECT pw2.id FROM planned_workouts pw2
+      WHERE pw2.completed_workout_id = w.id LIMIT 1
+    )
+    LEFT JOIN programs prog ON prog.id = pw.program_id
     WHERE ${where}
     ORDER BY ${orderBy}
     LIMIT ? OFFSET ?
@@ -255,6 +267,17 @@ function formatWorkout(row) {
       rate_discipline: row.rate_discipline,
       hr_recovery_avg: row.hr_recovery_avg,
     },
+    plan: row.plan_id ? {
+      id: row.plan_id,
+      date: row.plan_date,
+      type: row.plan_type,
+      target_distance: row.plan_target_distance,
+      target_duration_ms: row.plan_target_duration_ms,
+      match_type: row.plan_match_type,
+      program_id: row.plan_program_id,
+      program_week: row.plan_program_week,
+      program_name: row.plan_program_name,
+    } : null,
   };
 }
 
@@ -284,9 +307,21 @@ function getWorkoutWithMetrics(db, id) {
   return db.prepare(`
     SELECT w.*, cm.fade_index, cm.consistency, cm.effort_score, cm.drag_delta,
            cm.distance_per_stroke, cm.watts_per_beat, cm.hr_drift_pct,
-           cm.rate_discipline, cm.hr_recovery_avg
+           cm.rate_discipline, cm.hr_recovery_avg,
+           pw.id as plan_id, pw.date as plan_date, pw.type as plan_type,
+           pw.target_distance as plan_target_distance,
+           pw.target_duration_ms as plan_target_duration_ms,
+           pw.match_type as plan_match_type,
+           pw.program_id as plan_program_id,
+           pw.program_week as plan_program_week,
+           prog.name as plan_program_name
     FROM workouts w
     LEFT JOIN computed_metrics cm ON w.id = cm.workout_id
+    LEFT JOIN planned_workouts pw ON pw.id = (
+      SELECT pw2.id FROM planned_workouts pw2
+      WHERE pw2.completed_workout_id = w.id LIMIT 1
+    )
+    LEFT JOIN programs prog ON prog.id = pw.program_id
     WHERE w.id = ?
   `).get(id);
 }

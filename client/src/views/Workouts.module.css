@@ -309,6 +309,11 @@
   background: var(--surface-alt);
 }
 
+.tagPlan {
+  color: var(--positive);
+  background: var(--positive-bg, var(--surface));
+}
+
 /* Mobile card list */
 .cardList {
   display: none;

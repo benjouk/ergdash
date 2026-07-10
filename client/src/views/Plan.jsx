@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { api } from '../api.js';
 import { usePrefs } from '../context/PrefsContext.jsx';
 import { useUnits } from '../context/UnitsContext.jsx';
@@ -15,10 +16,14 @@ function isoToday() {
 }
 
 export default function Plan() {
+  const [searchParams] = useSearchParams();
+  const paramDate = searchParams.get('date');
+  const initialDate = paramDate && /^\d{4}-\d{2}-\d{2}$/.test(paramDate) ? paramDate : isoToday();
+
   const today = isoToday();
   const [{ year, month }, setYearMonth] = useState(() => ({
-    year: Number(today.slice(0, 4)),
-    month: Number(today.slice(5, 7)) - 1,
+    year: Number(initialDate.slice(0, 4)),
+    month: Number(initialDate.slice(5, 7)) - 1,
   }));
   const { weekStart } = usePrefs();
   const { formatDistance, formatPace } = useUnits();
@@ -26,7 +31,7 @@ export default function Plan() {
   const [plans, setPlans] = useState(null);
   const [actualDays, setActualDays] = useState([]);
   const [programs, setPrograms] = useState([]);
-  const [selectedDate, setSelectedDate] = useState(today);
+  const [selectedDate, setSelectedDate] = useState(initialDate);
 
   const grid = useMemo(() => monthGrid(year, month, weekStart), [year, month, weekStart]);
 
