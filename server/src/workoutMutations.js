@@ -237,7 +237,11 @@ export function applyWorkoutCorrection(db, workout, fields) {
   const effDistance = fields.distance ?? workout.distance;
   const effTimeMs = fields.time_ms ?? workout.time_ms;
   const perfChanged = changedFields.includes('distance') || changedFields.includes('time_ms');
-  const dateChanged = changedFields.includes('date');
+  // date moves the workout in the fitness log; workout_type feeds tag
+  // classification (and PB history is tag-partitioned), so both need the
+  // full retag/reconcile pass below.
+  const classificationChanged = changedFields.includes('date')
+    || changedFields.includes('workout_type');
   const updates = { ...fields };
   if (perfChanged) {
     updates.pace_ms = computePaceMs(effTimeMs, effDistance);
@@ -266,7 +270,7 @@ export function applyWorkoutCorrection(db, workout, fields) {
   })();
 
   recomputeWorkoutAnalytics(workout.id);
-  if (perfChanged || dateChanged) {
+  if (perfChanged || classificationChanged) {
     tagAllWorkouts();
     reconcilePbDistances([workout.distance, effDistance]);
     computeFitnessLog();
@@ -317,7 +321,7 @@ export function revertWorkoutToC2(db, workout, fieldNames = null) {
   })();
 
   recomputeWorkoutAnalytics(workout.id);
-  if (perfChanged || targets.includes('date')) {
+  if (perfChanged || targets.includes('date') || targets.includes('workout_type')) {
     tagAllWorkouts();
     reconcilePbDistances([workout.distance, effDistance]);
     computeFitnessLog();

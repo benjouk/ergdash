@@ -13,7 +13,12 @@ import {
   insertNormalizedWorkout,
   withDerivedPace,
 } from '../importers/normalize.js';
-import { findDuplicate, computeMergeable, mergeIntoExisting } from '../importers/dedup.js';
+import {
+  findDuplicate,
+  computeMergeable,
+  mergeIntoExisting,
+  resolveMergeTarget,
+} from '../importers/dedup.js';
 import { runPostSyncAnalytics } from '../sync.js';
 
 const router = Router();
@@ -187,16 +192,16 @@ router.post(
         if (action === 'new') {
           created.push(insertNormalizedWorkout(db, normalized, fingerprint));
         } else {
-          const targetId = Number(row.target_id);
-          const target = Number.isInteger(targetId)
-            ? db.prepare('SELECT * FROM workouts WHERE id = ?').get(targetId)
-            : null;
-          if (!target) {
-            errors.push({ index, error: 'merge target not found' });
+          // Re-run duplicate detection rather than trusting the echoed
+          // target_id — merging must only ever hit the row this import
+          // actually duplicates.
+          const resolved = resolveMergeTarget(db, normalized, fingerprint, Number(row.target_id));
+          if (resolved.error) {
+            errors.push({ index, error: resolved.error });
             continue;
           }
-          mergeIntoExisting(db, target, normalized, fingerprint);
-          merged.push(target.id);
+          mergeIntoExisting(db, resolved.target, normalized, fingerprint);
+          merged.push(resolved.target.id);
         }
       } catch (err) {
         errors.push({ index, error: err.message });

@@ -105,6 +105,25 @@ export function findDuplicate(db, workout, fingerprint) {
   return result;
 }
 
+// Commit-time guard: the client's requested merge target must still be what
+// duplicate detection finds for this row. Without this, a crafted or stale
+// commit payload could merge an arbitrary imported row into any workout,
+// overwriting its missing fields/splits/strokes and stealing its
+// import fingerprint.
+export function resolveMergeTarget(db, workout, fingerprint, targetId) {
+  if (!Number.isInteger(targetId)) {
+    return { error: 'merge target not found' };
+  }
+  const found = findDuplicate(db, workout, fingerprint);
+  if (!found || found.status === 'already_imported') {
+    return { error: 'no duplicate detected for this row — import as new instead' };
+  }
+  if (found.match.id !== targetId) {
+    return { error: `merge target ${targetId} does not match the detected duplicate (${found.match.id})` };
+  }
+  return { target: found.match };
+}
+
 // Enrich-merge: fill only what the existing row is missing. Filled scalar
 // columns are recorded in edited_fields on c2 rows so the next sync doesn't
 // null them back out (and revert-to-C2 can undo the merge).

@@ -273,3 +273,19 @@ describe('validateWorkoutFields', () => {
     expect(bad.errors.join(' ')).toMatch(/heart_rate_max cannot be lower/);
   });
 });
+
+describe('workout_type corrections', () => {
+  it('re-runs tag classification when workout_type changes', () => {
+    insertWorkout(db, c2Workout());
+    // Force a stale tag; a workout_type edit must trigger the retag pass
+    // that corrects it (tag classification keys off rest data).
+    db.prepare("UPDATE workouts SET inferred_tag = 'interval' WHERE id = 100").run();
+
+    applyWorkoutCorrection(db, getWorkout(100), { workout_type: 'JustRow' });
+
+    const row = getWorkout(100);
+    expect(row.workout_type).toBe('JustRow');
+    expect(row.inferred_tag).toBe('endurance');
+    expect(JSON.parse(row.edited_fields)).toEqual(['workout_type']);
+  });
+});

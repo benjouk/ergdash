@@ -329,3 +329,42 @@ describe('mergeIntoExisting', () => {
     expect(db.prepare('SELECT COUNT(*) as c FROM intervals WHERE workout_id = 90000001').get().c).toBe(1);
   });
 });
+
+describe('resolveMergeTarget', () => {
+  function csvWorkout() {
+    const buffer = readFileSync(join(fixturesDir, 'concept2-export.csv'));
+    return parseCsv(buffer, 'concept2-export.csv').workouts[0];
+  }
+
+  it('accepts the target that duplicate detection actually finds', async () => {
+    const { resolveMergeTarget } = await import('../src/importers/dedup.js');
+    insertWorkout(db, c2Workout());
+
+    const resolved = resolveMergeTarget(db, csvWorkout(), 'gg:0', 90000001);
+    expect(resolved.error).toBeUndefined();
+    expect(resolved.target.id).toBe(90000001);
+  });
+
+  it('rejects a target_id that is not the detected duplicate', async () => {
+    const { resolveMergeTarget } = await import('../src/importers/dedup.js');
+    insertWorkout(db, c2Workout()); // the real duplicate
+    insertWorkout(db, c2Workout({ id: 90000009, date: '2023-01-01 06:00:00', distance: 6000, time: 15000 })); // unrelated victim
+
+    const resolved = resolveMergeTarget(db, csvWorkout(), 'gg:0', 90000009);
+    expect(resolved.error).toMatch(/does not match the detected duplicate/);
+    // Unrelated row untouched.
+    const victim = db.prepare('SELECT import_fingerprint, edited_fields FROM workouts WHERE id = 90000009').get();
+    expect(victim.import_fingerprint).toBeNull();
+    expect(victim.edited_fields).toBeNull();
+  });
+
+  it('rejects a merge when no duplicate exists at all', async () => {
+    const { resolveMergeTarget } = await import('../src/importers/dedup.js');
+    insertWorkout(db, c2Workout({ id: 90000009, date: '2023-01-01 06:00:00', distance: 6000, time: 15000 }));
+
+    const workout = csvWorkout();
+    workout.source_meta.c2_log_id = null;
+    const resolved = resolveMergeTarget(db, workout, 'gg:0', 90000009);
+    expect(resolved.error).toMatch(/no duplicate detected/);
+  });
+});
