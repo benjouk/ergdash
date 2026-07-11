@@ -22,9 +22,9 @@ async function request(path, options = {}) {
   return res.json();
 }
 
-async function uploadSqlite(path, file) {
+async function uploadRaw(path, file, demoMessage) {
   if (import.meta.env.VITE_DEMO === '1') {
-    throw new Error('Demo mode — run ErgDash self-hosted to restore a backup');
+    throw new Error(demoMessage);
   }
 
   const res = await fetch(path, {
@@ -52,11 +52,30 @@ export const api = {
 
   getWorkouts: (params = {}) => request(`/api/workouts?${new URLSearchParams(params)}`),
   getWorkout: (id) => request(`/api/workouts/${id}`),
+  createWorkout: (data) => request('/api/workouts', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
   updateWorkout: (id, data) => request(`/api/workouts/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(data),
   }),
+  deleteWorkout: (id) => request(`/api/workouts/${id}`, { method: 'DELETE' }),
+  revertWorkout: (id, fields = null) => request(`/api/workouts/${id}/revert`, {
+    method: 'POST',
+    body: JSON.stringify({ fields }),
+  }),
   enrichWorkout: (id) => request(`/api/workouts/${id}/enrich`, { method: 'POST' }),
+
+  previewImport: (file, format) => uploadRaw(
+    `/api/import/preview?format=${encodeURIComponent(format)}&filename=${encodeURIComponent(file.name)}`,
+    file,
+    'Demo mode — run ErgDash self-hosted to import workout files',
+  ),
+  commitImport: (payload) => request('/api/import/commit', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }),
 
   getSummary: (params = {}) => request(`/api/stats/summary?${new URLSearchParams(params)}`),
   getTrends: (params = {}) => request(`/api/stats/trends?${new URLSearchParams(params)}`),
@@ -128,7 +147,7 @@ export const api = {
     body: JSON.stringify(data),
   }),
   resetSettings: () => request('/api/settings/reset', { method: 'POST' }),
-  restoreDatabase: (file) => uploadSqlite('/api/admin/restore', file),
+  restoreDatabase: (file) => uploadRaw('/api/admin/restore', file, 'Demo mode — run ErgDash self-hosted to restore a backup'),
   disconnectAccount: () => request('/api/admin/disconnect', { method: 'POST' }),
   wipeLocalData: () => request('/api/admin/wipe', { method: 'POST' }),
 };

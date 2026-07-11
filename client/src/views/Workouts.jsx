@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Download, ChevronUp, ChevronDown, Pin, Search } from 'lucide-react';
+import { Download, ChevronUp, ChevronDown, Pin, Search, Plus, Upload } from 'lucide-react';
 import { api } from '../api.js';
 import { paceToWatts } from '../utils/ergMath.js';
 import { useUnits } from '../context/UnitsContext.jsx';
@@ -10,7 +10,11 @@ import { usePrefs } from '../context/PrefsContext.jsx';
 import Sparkline from '../components/Feed/Sparkline.jsx';
 import { RowSkeleton } from '../components/Skeleton/Skeleton.jsx';
 import PBBadges from '../components/PBBadge.jsx';
+import WorkoutForm from '../components/Import/WorkoutForm.jsx';
+import ImportPanel from '../components/Import/ImportPanel.jsx';
 import styles from './Workouts.module.css';
+
+const IS_DEMO = import.meta.env.VITE_DEMO === '1';
 
 const TAGS = ['', 'endurance', 'interval'];
 const DISTANCE_PRESETS = [
@@ -51,6 +55,8 @@ export default function Workouts() {
   const [distancePreset, setDistancePreset] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
+  // 'add' | 'import' | null — which inline panel is open above the list.
+  const [panel, setPanel] = useState(null);
   const navigate = useNavigate();
   const { formatPace, formatDistanceFull, formatDistance, formatTime } = useUnits();
   const { from, to } = useTimeRange();
@@ -227,6 +233,25 @@ export default function Workouts() {
       <div className={styles.header}>
         <h2 className={styles.title}>Workouts</h2>
         <div className={styles.actions}>
+          {/* Visible-but-disabled in the demo so the feature is discoverable. */}
+          <button
+            onClick={() => setPanel(prev => (prev === 'add' ? null : 'add'))}
+            className={styles.exportButton}
+            aria-expanded={panel === 'add'}
+            disabled={IS_DEMO}
+            title={IS_DEMO ? 'Demo mode — run ErgDash self-hosted to add workouts' : undefined}
+          >
+            <Plus size={14} /> Add
+          </button>
+          <button
+            onClick={() => setPanel(prev => (prev === 'import' ? null : 'import'))}
+            className={styles.exportButton}
+            aria-expanded={panel === 'import'}
+            disabled={IS_DEMO}
+            title={IS_DEMO ? 'Demo mode — run ErgDash self-hosted to import workout files' : undefined}
+          >
+            <Upload size={14} /> Import
+          </button>
           <button onClick={exportJson} className={styles.exportButton}>
             <Download size={14} /> JSON
           </button>
@@ -235,6 +260,19 @@ export default function Workouts() {
           </button>
         </div>
       </div>
+
+      {panel === 'add' && (
+        <WorkoutForm
+          onSaved={(saved) => { setPanel(null); navigate(`/session/${saved.id}`); }}
+          onCancel={() => setPanel(null)}
+        />
+      )}
+      {panel === 'import' && (
+        <ImportPanel
+          onImported={() => { setPanel(null); load(); }}
+          onClose={() => setPanel(null)}
+        />
+      )}
 
       <div className={styles.filters}>
         <label className={styles.searchBox}>
@@ -332,6 +370,7 @@ export default function Workouts() {
                   <span className={styles.badgeStack}>
                     {w.inferred_tag && <TagBadge tag={w.inferred_tag} />}
                     {w.plan && <PlanBadge />}
+                    <SourceBadge source={w.source} />
                     <PBBadges distances={w.pb_distances} compact />
                   </span>
                 </td>
@@ -394,6 +433,7 @@ export default function Workouts() {
                 <PBBadges distances={w.pb_distances} compact />
                 {w.inferred_tag && <TagBadge tag={w.inferred_tag} />}
                 {w.plan && <PlanBadge />}
+                <SourceBadge source={w.source} />
                 <PinButton
                   pinned={w.pinned}
                   onClick={event => handleTogglePinned(event, w)}
@@ -459,6 +499,12 @@ function TagBadge({ tag }) {
 
 function PlanBadge() {
   return <span className={`${styles.tag} ${styles.tagPlan}`}>planned</span>;
+}
+
+// Marks rows that didn't come from Concept2 sync.
+function SourceBadge({ source }) {
+  if (!source || source === 'c2') return null;
+  return <span className={`${styles.tag} ${styles.tagOther}`}>{source}</span>;
 }
 
 function PinButton({ pinned, onClick }) {

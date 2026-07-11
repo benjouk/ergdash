@@ -30,6 +30,9 @@ import {
   Zap,
   GitCompare,
   ChevronDown,
+  Pencil,
+  RotateCcw,
+  Trash2,
 } from 'lucide-react';
 import { api } from '../api.js';
 import { AXIS_TICK } from '../styles/chartTheme.js';
@@ -45,6 +48,7 @@ import ChartInfo from '../components/Charts/ChartInfo.jsx';
 import RateVsPaceScatter from '../components/Charts/RateVsPaceScatter.jsx';
 import { useIsMobile, niceTicksFromZero } from '../components/Charts/useChartData.js';
 import ZoneBar from '../components/Stats/ZoneBar.jsx';
+import WorkoutForm from '../components/Import/WorkoutForm.jsx';
 import styles from './Session.module.css';
 
 export default function Session() {
@@ -66,6 +70,10 @@ export default function Session() {
   const [pinSaving, setPinSaving] = useState(false);
   const [notesDraft, setNotesDraft] = useState('');
   const [notesSaving, setNotesSaving] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [reverting, setReverting] = useState(false);
+  const [deleteArmed, setDeleteArmed] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const { units, formatPace, formatDistance, formatDistanceFull, formatTime } = useUnits();
   const toast = useToast();
   const [compareMenuOpen, setCompareMenuOpen] = useState(false);
@@ -88,7 +96,9 @@ export default function Session() {
         if (!mounted) return;
         setWorkout(currentWorkout);
 
-        if (!currentWorkout.strokes?.length && !currentWorkout.pace_profile?.length) {
+        // Manual/imported workouts have no Concept2 stroke stream to fetch.
+        if (!currentWorkout.strokes?.length && !currentWorkout.pace_profile?.length
+            && currentWorkout.source === 'c2') {
           setEnriching(true);
           api.enrichWorkout(id)
             .then(() => api.getWorkout(id))
@@ -192,6 +202,50 @@ export default function Session() {
     }
   }, [pinSaving, toast, workout]);
 
+  // Full refetch after edit/revert so derived metrics/PBs reflect the change.
+  const reloadWorkout = useCallback(async () => {
+    try {
+      const fresh = await api.getWorkout(id);
+      setWorkout(fresh);
+    } catch (err) {
+      toast.error(err.message || 'Could not reload session');
+    }
+  }, [id, toast]);
+
+  const handleRevert = useCallback(async () => {
+    if (!workout || reverting) return;
+    setReverting(true);
+    try {
+      const result = await api.revertWorkout(workout.id);
+      toast.success(result.reverted_fields?.length
+        ? `Restored Concept2 values for ${result.reverted_fields.join(', ')}`
+        : 'Nothing to revert');
+      await reloadWorkout();
+    } catch (err) {
+      toast.error(err.message || 'Could not revert workout');
+    } finally {
+      setReverting(false);
+    }
+  }, [reverting, reloadWorkout, toast, workout]);
+
+  const handleDelete = useCallback(async () => {
+    if (!workout || deleting) return;
+    if (!deleteArmed) {
+      setDeleteArmed(true);
+      return;
+    }
+    setDeleting(true);
+    try {
+      await api.deleteWorkout(workout.id);
+      toast.success('Workout deleted');
+      navigate('/workouts');
+    } catch (err) {
+      toast.error(err.message || 'Could not delete workout');
+      setDeleting(false);
+      setDeleteArmed(false);
+    }
+  }, [deleteArmed, deleting, navigate, toast, workout]);
+
   const handleSaveNotes = useCallback(async () => {
     if (!workout || notesSaving) return;
 
@@ -206,6 +260,13 @@ export default function Session() {
       setNotesSaving(false);
     }
   }, [notesDraft, notesSaving, toast, workout]);
+
+  // Disarm the two-step delete if the second click never comes.
+  useEffect(() => {
+    if (!deleteArmed) return undefined;
+    const timeout = window.setTimeout(() => setDeleteArmed(false), 4000);
+    return () => window.clearTimeout(timeout);
+  }, [deleteArmed]);
 
   const handleCompare = useCallback((comparisonWorkoutId) => {
     setCompareMenuOpen(false);
@@ -448,8 +509,50 @@ export default function Session() {
           >
             <Pin size={15} fill={workout.pinned ? 'currentColor' : 'none'} />
           </button>
+          <button
+            type="button"
+            onClick={() => setEditing(open => !open)}
+            className={`${styles.iconButton} ${editing ? styles.iconButtonActive : ''}`}
+            title="Edit result"
+            aria-label="Edit result"
+            aria-expanded={editing}
+          >
+            <Pencil size={15} />
+          </button>
+          {workout.source === 'c2' && workout.edited_fields?.length > 0 && (
+            <button
+              type="button"
+              onClick={handleRevert}
+              disabled={reverting}
+              className={styles.iconButton}
+              title={`Revert to Concept2 data (${workout.edited_fields.join(', ')})`}
+              aria-label="Revert to Concept2 data"
+            >
+              {reverting ? <Loader2 size={15} className={styles.spinner} /> : <RotateCcw size={15} />}
+            </button>
+          )}
+          {workout.source !== 'c2' && (
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={deleting}
+              className={`${styles.iconButton} ${deleteArmed ? styles.iconButtonActive : ''}`}
+              title={deleteArmed ? 'Click again to confirm deletion' : 'Delete workout'}
+              aria-label={deleteArmed ? 'Click again to confirm deletion' : 'Delete workout'}
+            >
+              {deleting ? <Loader2 size={15} className={styles.spinner} /> : <Trash2 size={15} />}
+            </button>
+          )}
         </div>
       </div>
+
+      {editing && (
+        <WorkoutForm
+          workout={workout}
+          onSaved={() => { setEditing(false); reloadWorkout(); }}
+          onCancel={() => setEditing(false)}
+        />
+      )}
 
       <header className={styles.hero}>
         <div className={styles.titleRow}>
@@ -483,6 +586,19 @@ export default function Session() {
             {tag && (
               <span className={`${styles.tag} ${isInterval ? styles.tagInterval : ''}`}>
                 {tag}
+              </span>
+            )}
+            {workout.source && workout.source !== 'c2' && (
+              <span className={styles.tag} title="Not synced from Concept2">
+                {workout.source}
+              </span>
+            )}
+            {workout.edited_fields?.length > 0 && (
+              <span
+                className={styles.tag}
+                title={`Corrected fields: ${workout.edited_fields.join(', ')}`}
+              >
+                edited
               </span>
             )}
           </div>

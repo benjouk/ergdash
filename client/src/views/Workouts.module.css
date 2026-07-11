@@ -45,6 +45,18 @@
   border-color: var(--accent);
 }
 
+.exportButton:disabled {
+  cursor: not-allowed;
+  color: var(--ink-3);
+  background: var(--surface-alt);
+  opacity: 0.7;
+}
+
+.exportButton:disabled:hover {
+  color: var(--ink-3);
+  border-color: var(--rule);
+}
+
 .filters {
   display: flex;
   gap: var(--space-2);

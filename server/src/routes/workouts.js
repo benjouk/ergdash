@@ -2,6 +2,15 @@ import { Router } from 'express';
 import { getDb } from '../db.js';
 import { enrichSingleWorkout } from '../sync.js';
 import { buildWorkoutInsight } from '../insights.js';
+import { parseEditedFields } from '../workoutFields.js';
+import { getUserInfo } from '../auth.js';
+import {
+  createManualWorkout,
+  validateWorkoutFields,
+  applyWorkoutCorrection,
+  revertWorkoutToC2,
+  deleteUserWorkout,
+} from '../workoutMutations.js';
 import {
   validateDateRange,
   validatePaginationParams,
@@ -115,6 +124,25 @@ router.get('/', (req, res) => {
   });
 });
 
+// Create a manual workout (rows not in the Concept2 Logbook). Gets a
+// negative id so it can never collide with a synced result.
+router.post('/', (req, res) => {
+  const db = getDb();
+  const result = createManualWorkout(req.body || {}, getUserInfo()?.id ?? 0);
+  if (result.errors) {
+    return res.status(400).json({ error: 'Validation failed', details: result.errors });
+  }
+
+  const workout = getWorkoutWithMetrics(db, result.id);
+  const summary = normalizeWorkoutTag(workout.inferred_tag) === 'interval'
+    ? computeIntervalSummary(db, result.id) : null;
+  res.status(201).json({
+    ...formatWorkout(workout, summary),
+    pb_distances: getCurrentPbDistances(db, result.id),
+    warnings: result.warnings,
+  });
+});
+
 router.patch('/:id', (req, res) => {
   const db = getDb();
   const id = Number(req.params.id);
@@ -127,6 +155,8 @@ router.patch('/:id', (req, res) => {
     return res.status(400).json({ error: 'Invalid workout id' });
   }
 
+  // pinned/notes are user-owned columns on every workout; they update
+  // directly and never count as corrections.
   if (Object.prototype.hasOwnProperty.call(body, 'pinned')) {
     if (typeof body.pinned !== 'boolean') {
       errors.push('pinned must be a boolean');
@@ -145,20 +175,31 @@ router.patch('/:id', (req, res) => {
     }
   }
 
+  const { fields, errors: fieldErrors } = validateWorkoutFields(body);
+  errors.push(...fieldErrors);
+
   if (errors.length > 0) {
     return res.status(400).json({ error: 'Validation failed', details: errors });
   }
 
-  if (updates.length === 0) {
+  if (updates.length === 0 && Object.keys(fields).length === 0) {
     return res.status(400).json({ error: 'No valid fields provided' });
   }
 
-  const exists = db.prepare('SELECT id FROM workouts WHERE id = ?').get(id);
-  if (!exists) {
+  const existing = db.prepare('SELECT * FROM workouts WHERE id = ?').get(id);
+  if (!existing) {
     return res.status(404).json({ error: 'Workout not found' });
   }
 
-  db.prepare(`UPDATE workouts SET ${updates.join(', ')} WHERE id = ?`).run(...params, id);
+  if (updates.length > 0) {
+    db.prepare(`UPDATE workouts SET ${updates.join(', ')} WHERE id = ?`).run(...params, id);
+  }
+  if (Object.keys(fields).length > 0) {
+    // Corrections: tracked in edited_fields on c2 rows (so sync preserves
+    // them) and trigger pace/PB/analytics recomputes.
+    applyWorkoutCorrection(db, existing, fields);
+  }
+
   const workout = getWorkoutWithMetrics(db, id);
   const patchSummary = normalizeWorkoutTag(workout.inferred_tag) === 'interval'
     ? computeIntervalSummary(db, id) : null;
@@ -167,6 +208,62 @@ router.patch('/:id', (req, res) => {
     ...formatWorkout(workout, patchSummary),
     pb_distances: getCurrentPbDistances(db, id),
   });
+});
+
+// Restore Concept2 values from raw_json for the named fields (or every
+// overridden field when the body names none).
+router.post('/:id/revert', (req, res) => {
+  const db = getDb();
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) {
+    return res.status(400).json({ error: 'Invalid workout id' });
+  }
+
+  const fields = req.body?.fields;
+  if (fields !== undefined && fields !== null
+      && (!Array.isArray(fields) || fields.some(f => typeof f !== 'string'))) {
+    return res.status(400).json({ error: 'fields must be an array of field names' });
+  }
+
+  const existing = db.prepare('SELECT * FROM workouts WHERE id = ?').get(id);
+  if (!existing) {
+    return res.status(404).json({ error: 'Workout not found' });
+  }
+
+  const result = revertWorkoutToC2(db, existing, fields ?? null);
+  if (result.error) {
+    return res.status(400).json({ error: result.error });
+  }
+
+  const workout = getWorkoutWithMetrics(db, id);
+  const summary = normalizeWorkoutTag(workout.inferred_tag) === 'interval'
+    ? computeIntervalSummary(db, id) : null;
+  res.json({
+    ...formatWorkout(workout, summary),
+    pb_distances: getCurrentPbDistances(db, id),
+    reverted_fields: result.revertedFields,
+  });
+});
+
+// Delete a manual/imported workout. C2-synced rows are refused: the next
+// sync would just re-create them.
+router.delete('/:id', (req, res) => {
+  const db = getDb();
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) {
+    return res.status(400).json({ error: 'Invalid workout id' });
+  }
+
+  const existing = db.prepare('SELECT * FROM workouts WHERE id = ?').get(id);
+  if (!existing) {
+    return res.status(404).json({ error: 'Workout not found' });
+  }
+
+  const result = deleteUserWorkout(db, existing);
+  if (result.error) {
+    return res.status(403).json({ error: result.error });
+  }
+  res.json({ ok: true });
 });
 
 router.get('/:id', (req, res) => {
@@ -263,6 +360,8 @@ function formatWorkout(row, intervalSummary = null) {
     comments: row.comments,
     pinned: !!row.pinned,
     notes: row.notes,
+    source: row.source || 'c2',
+    edited_fields: parseEditedFields(row.edited_fields),
     pb_distances: [],
     has_stroke_data: !!row.has_stroke_data,
     metrics: {
@@ -419,6 +518,13 @@ function getPaceProfile(db, workoutId) {
 
 router.post('/:id/enrich', async (req, res) => {
   const id = Number(req.params.id);
+  const row = getDb().prepare('SELECT source FROM workouts WHERE id = ?').get(id);
+  if (!row) {
+    return res.status(404).json({ error: 'Workout not found' });
+  }
+  if (row.source !== 'c2') {
+    return res.status(400).json({ error: 'Only Concept2-synced workouts can be enriched' });
+  }
   try {
     const result = await enrichSingleWorkout(id);
     res.json(result);
