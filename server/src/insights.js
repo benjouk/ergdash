@@ -75,7 +75,7 @@ export function buildWeeklyInsights(input = {}) {
 
   // Nothing rowed this week — say so plainly rather than inventing a trend.
   if (weeklyMeters <= 0 && sessionsThisWeek <= 0) {
-    out.push(insight('volume', 'watch', 'No rows logged in the last 7 days — time to get back on the erg.'));
+    out.push(insight('volume', 'watch', 'No rows logged in the last 7 days. Time to get back on the erg.'));
     return out;
   }
 
@@ -83,9 +83,9 @@ export function buildWeeklyInsights(input = {}) {
   if (prevWeeklyMeters > 0) {
     const change = (weeklyMeters - prevWeeklyMeters) / prevWeeklyMeters;
     if (change >= VOLUME_UP_PCT) {
-      out.push(insight('volume', 'positive', `${km(weeklyMeters)} this week — up ${pct(change)} on last week.`));
+      out.push(insight('volume', 'positive', `${km(weeklyMeters)} this week, up ${pct(change)} on last week.`));
     } else if (change <= VOLUME_DOWN_PCT) {
-      out.push(insight('volume', 'watch', `${km(weeklyMeters)} this week — down ${pct(change)} on last week.`));
+      out.push(insight('volume', 'watch', `${km(weeklyMeters)} this week, down ${pct(change)} on last week.`));
     } else {
       out.push(insight('volume', 'neutral', `${km(weeklyMeters)} this week, in line with last week.`));
     }
@@ -106,26 +106,26 @@ export function buildWeeklyInsights(input = {}) {
   // 3. Fitness (CTL) direction over the week.
   if (fitnessDelta7d != null) {
     if (fitnessDelta7d >= FITNESS_MOVE) {
-      out.push(insight('fitness', 'positive', `Fitness ${signed(fitnessDelta7d)} over the past week — the work is building.`));
+      out.push(insight('fitness', 'positive', `Fitness ${signed(fitnessDelta7d)} over the past week. The work is building.`));
     } else if (fitnessDelta7d <= -FITNESS_MOVE) {
-      out.push(insight('fitness', 'watch', `Fitness ${signed(fitnessDelta7d)} over the past week — volume has eased off.`));
+      out.push(insight('fitness', 'watch', `Fitness ${signed(fitnessDelta7d)} over the past week. Volume has eased off.`));
     }
   }
 
   // 4. Form / readiness (TSB = fitness − fatigue).
   if (form != null) {
     if (form >= FORM_FRESH) {
-      out.push(insight('form', 'positive', `Form is fresh (${signed(form)}) — a good window for a 2k or hard test.`));
+      out.push(insight('form', 'positive', `Form is fresh (${signed(form)}), a good window for a 2k or hard test.`));
     } else if (form <= FORM_TIRED) {
-      out.push(insight('form', 'watch', `Fatigue is elevated (form ${signed(form)}) — favour easy sessions for a few days.`));
+      out.push(insight('form', 'watch', `Fatigue is elevated (form ${signed(form)}). Favour easy sessions for a few days.`));
     } else {
-      out.push(insight('form', 'neutral', `Form is balanced (${signed(form)}) — steady training is landing well.`));
+      out.push(insight('form', 'neutral', `Form is balanced (${signed(form)}). Steady training is landing well.`));
     }
   }
 
   // 5. Consistency streak.
   if (streakWeeks >= 2) {
-    out.push(insight('streak', 'positive', `${streakWeeks}-week rowing streak — consistency is your biggest asset.`));
+    out.push(insight('streak', 'positive', `${streakWeeks}-week rowing streak. Consistency is your biggest asset.`));
   }
 
   return out;
@@ -162,18 +162,18 @@ export function buildWorkoutInsight(workout = {}, baseline = {}, session = {}) {
   ) {
     const hrGap = medianHr - workout.heart_rate_avg;
     if (hrGap >= WORKOUT_HR_BPM) {
-      out.push(insight('hr', 'positive', `HR ~${Math.round(hrGap)} bpm lower than usual at this pace — a good aerobic sign.`));
+      out.push(insight('hr', 'positive', `HR ~${Math.round(hrGap)} bpm lower than usual at this pace, a good aerobic sign.`));
     } else if (hrGap <= -WORKOUT_HR_BPM) {
-      out.push(insight('hr', 'watch', `HR ~${Math.round(-hrGap)} bpm higher than usual at this pace — tired or working hard.`));
+      out.push(insight('hr', 'watch', `HR ~${Math.round(-hrGap)} bpm higher than usual at this pace. You may be tired or working hard.`));
     }
   }
 
   // Aerobic decoupling over the piece (endurance rows only).
   if (tag === 'endurance' && driftPct != null) {
     if (driftPct <= HR_DRIFT_LOW) {
-      out.push(insight('drift', 'positive', `Only ${driftPct.toFixed(0)}% HR drift — strong aerobic control throughout.`));
+      out.push(insight('drift', 'positive', `Only ${driftPct.toFixed(0)}% HR drift, showing strong aerobic control throughout.`));
     } else if (driftPct >= HR_DRIFT_HIGH) {
-      out.push(insight('drift', 'watch', `${driftPct.toFixed(0)}% HR drift — effort crept up in the back half.`));
+      out.push(insight('drift', 'watch', `${driftPct.toFixed(0)}% HR drift. Effort crept up in the back half.`));
     }
   }
 
@@ -201,11 +201,11 @@ function buildIntervalInsights(session = {}) {
   const fastestText = `rep ${fastestRep} fastest at ${fmtPace(fastest)}`;
 
   if (spreadS <= REP_SPREAD_TIGHT_S) {
-    out.push(insight('reps', 'positive', `${workReps.length} reps within ${spreadS.toFixed(1)} s/500m — even set, ${fastestText}.`));
+    out.push(insight('reps', 'positive', `${workReps.length} reps within ${spreadS.toFixed(1)} s/500m, an even set with ${fastestText}.`));
   } else if (fastestRep === workReps.length) {
-    out.push(insight('reps', 'positive', `Finished strongest — ${fastestText}.`));
+    out.push(insight('reps', 'positive', `Finished strongest, with ${fastestText}.`));
   } else if (spreadS >= REP_SPREAD_WIDE_S) {
-    out.push(insight('reps', 'watch', `${spreadS.toFixed(1)} s/500m between fastest and slowest rep — pacing drifted (${fastestText}).`));
+    out.push(insight('reps', 'watch', `${spreadS.toFixed(1)} s/500m between fastest and slowest rep. Pacing drifted (${fastestText}).`));
   } else {
     out.push(insight('reps', 'neutral', `${capitalize(fastestText)}.`));
   }
@@ -228,9 +228,9 @@ function buildIntervalInsights(session = {}) {
   if (drops.length >= 2) {
     const avgDrop = drops.reduce((sum, drop) => sum + drop, 0) / drops.length;
     if (avgDrop >= RECOVERY_GOOD_BPM) {
-      out.push(insight('recovery', 'positive', `HR dropped ~${Math.round(avgDrop)} bpm between reps — recovering well in the rests.`));
+      out.push(insight('recovery', 'positive', `HR dropped ~${Math.round(avgDrop)} bpm between reps, recovering well in the rests.`));
     } else if (avgDrop <= RECOVERY_POOR_BPM) {
-      out.push(insight('recovery', 'watch', `HR recovered only ~${Math.round(avgDrop)} bpm between reps — the rests are short for this effort.`));
+      out.push(insight('recovery', 'watch', `HR recovered only ~${Math.round(avgDrop)} bpm between reps. The rests are short for this effort.`));
     }
   }
 
