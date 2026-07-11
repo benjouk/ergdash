@@ -406,3 +406,44 @@ describe('spoofed c2_log_id', () => {
     expect(found.matched_on).toEqual(['log_id']);
   });
 });
+
+describe('spoofed c2_log_id with matching distance/time', () => {
+  function csvWorkout() {
+    const buffer = readFileSync(join(fixturesDir, 'concept2-export.csv'));
+    return parseCsv(buffer, 'concept2-export.csv').workouts[0]; // 5000m / 20:00 on 2024-03-01
+  }
+
+  it('ignores a log id naming a different-day workout even when distance/time agree', () => {
+    // Victim: identical 5000m / 20:00 piece, months earlier.
+    insertWorkout(db, c2Workout({ id: 90000009, date: '2023-11-14 06:30:00' }));
+
+    const workout = csvWorkout();
+    workout.source_meta.c2_log_id = 90000009; // spoofed
+
+    expect(findDuplicate(db, workout, 'ii:0')).toBeNull();
+  });
+
+  it('rejects the corresponding merge commit', async () => {
+    const { resolveMergeTarget } = await import('../src/importers/dedup.js');
+    insertWorkout(db, c2Workout({ id: 90000009, date: '2023-11-14 06:30:00' }));
+
+    const workout = csvWorkout();
+    workout.source_meta.c2_log_id = 90000009;
+
+    const resolved = resolveMergeTarget(db, workout, 'ii:0', 90000009);
+    expect(resolved.error).toMatch(/no duplicate detected/);
+    const victim = db.prepare('SELECT import_fingerprint, edited_fields FROM workouts WHERE id = 90000009').get();
+    expect(victim.import_fingerprint).toBeNull();
+    expect(victim.edited_fields).toBeNull();
+  });
+
+  it('still matches a legitimate log id when only the clock representation drifts', () => {
+    // Same day, start times an hour apart (e.g. timezone representation drift
+    // between the CSV export and the API payload).
+    insertWorkout(db, c2Workout({ date: '2024-03-01 07:30:00' }));
+    const found = findDuplicate(db, csvWorkout(), 'ii:0');
+    expect(found.status).toBe('exact');
+    expect(found.matched_on).toEqual(['log_id']);
+    expect(found.match.id).toBe(90000001);
+  });
+});

@@ -67,12 +67,18 @@ export function findDuplicate(db, workout, fingerprint) {
     const byId = db.prepare('SELECT * FROM workouts WHERE id = ?').get(logId);
     // The log id is client-supplied (parsed from the file, then round-tripped
     // through the preview), so it only counts as identity when the row's own
-    // numbers corroborate it — otherwise a crafted payload could name any
-    // workout id and merge into it.
+    // numbers corroborate it — distance, time, AND when it happened. Erg
+    // training repeats distances and times week after week, so without the
+    // temporal check a crafted payload could name any workout id that shares
+    // a common distance/time and merge into it.
     if (byId
         && distanceMatches(workout.distance, byId.distance)
         && timeMatches(workout.time_ms, byId.time_ms)) {
-      return { status: 'exact', match: byId, matched_on: ['log_id'] };
+      const delta = startDeltaSeconds(workout.date, byId.date);
+      const sameDay = byId.date?.slice(0, 10) === workout.date.slice(0, 10);
+      if ((delta !== null && delta <= START_TOLERANCE_S) || sameDay) {
+        return { status: 'exact', match: byId, matched_on: ['log_id'] };
+      }
     }
   }
 
