@@ -1,0 +1,137 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px dashed var(--rule);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-4);
+}
+
+.picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.pickerActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.fileInput {
+  font-size: 0.8rem;
+  color: var(--ink-2);
+}
+
+.hint {
+  font-size: 0.75rem;
+  color: var(--ink-3);
+  margin: 0;
+}
+
+.previewHeader {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.table th {
+  text-align: left;
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+  padding: var(--space-1) var(--space-2);
+  border-bottom: 1px solid var(--rule);
+}
+
+.table td {
+  padding: var(--space-2);
+  border-bottom: 1px solid var(--rule);
+  color: var(--ink-2);
+}
+
+.row {
+  cursor: pointer;
+}
+
+.detailRow td {
+  background: var(--surface-alt);
+}
+
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: 0.75rem;
+}
+
+.warning {
+  color: var(--warn, #b7791f);
+}
+
+.badge {
+  display: inline-block;
+  padding: 1px var(--space-2);
+  border-radius: 999px;
+  font-size: 0.68rem;
+  white-space: nowrap;
+  border: 1px solid var(--rule);
+}
+
+.badgeNew {
+  color: var(--positive, #2f855a);
+  border-color: currentColor;
+}
+
+.badgeMerge,
+.badgeLikely {
+  color: var(--accent);
+  border-color: currentColor;
+}
+
+.badgeSkip {
+  color: var(--ink-3);
+}
+
+.badgeInvalid {
+  color: var(--negative);
+  border-color: currentColor;
+}
+
+.actionSelect {
+  color: var(--ink);
+  background: var(--surface-alt);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  font-size: 0.72rem;
+  padding: var(--space-1) var(--space-2);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.footerActions {
+  display: flex;
+  gap: var(--space-2);
+}

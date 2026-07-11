@@ -176,3 +176,76 @@ describe('selectPendingStrokeWorkouts', () => {
       .toEqual([25, 24, 23, 22, 21, 20, 19, 18, 17, 16]);
   });
 });
+
+describe('insertWorkout with user overrides', () => {
+  it('skips columns listed in edited_fields but updates the rest and raw_json', () => {
+    insertWorkout(db, c2Workout());
+    db.prepare("UPDATE workouts SET heart_rate_avg = 155, edited_fields = ? WHERE id = 1")
+      .run(JSON.stringify(['heart_rate_avg']));
+
+    insertWorkout(db, c2Workout({
+      heart_rate: { average: 149, max: 168 },
+      drag_factor: 130,
+    }));
+
+    const row = db.prepare('SELECT heart_rate_avg, heart_rate_max, drag_factor, raw_json FROM workouts WHERE id = 1').get();
+    expect(row.heart_rate_avg).toBe(155); // user override survives
+    expect(row.heart_rate_max).toBe(168); // non-overridden fields update
+    expect(row.drag_factor).toBe(130);
+    expect(JSON.parse(row.raw_json).heart_rate.average).toBe(149); // pristine C2 copy kept
+  });
+
+  it('does not wipe strokes when the changed field is overridden', () => {
+    insertWorkout(db, c2Workout());
+    db.prepare(
+      'INSERT INTO strokes (workout_id, stroke_number, time_s, distance_m, pace_ms) VALUES (1, 0, 3.0, 12, 120000)'
+    ).run();
+    db.prepare("UPDATE workouts SET has_stroke_data = 1, distance = 2100, pace_ms = 114286, edited_fields = ? WHERE id = 1")
+      .run(JSON.stringify(['distance']));
+
+    // C2 changes the distance, but the user's corrected distance wins.
+    insertWorkout(db, c2Workout({ distance: 2050 }));
+
+    const row = db.prepare('SELECT distance, has_stroke_data FROM workouts WHERE id = 1').get();
+    expect(row.distance).toBe(2100);
+    expect(row.has_stroke_data).toBe(1);
+    expect(db.prepare('SELECT COUNT(*) as c FROM strokes WHERE workout_id = 1').get().c).toBe(1);
+  });
+
+  it('still wipes strokes when a non-overridden performance field changes', () => {
+    insertWorkout(db, c2Workout());
+    db.prepare(
+      'INSERT INTO strokes (workout_id, stroke_number, time_s, distance_m, pace_ms) VALUES (1, 0, 3.0, 12, 120000)'
+    ).run();
+    db.prepare("UPDATE workouts SET has_stroke_data = 1, edited_fields = ? WHERE id = 1")
+      .run(JSON.stringify(['heart_rate_avg']));
+
+    insertWorkout(db, c2Workout({ distance: 2100 }));
+
+    expect(db.prepare('SELECT COUNT(*) as c FROM strokes WHERE workout_id = 1').get().c).toBe(0);
+    expect(db.prepare('SELECT distance FROM workouts WHERE id = 1').get().distance).toBe(2100);
+  });
+
+  it('never touches manual or imported rows', () => {
+    db.prepare(`
+      INSERT INTO workouts (id, user_id, date, type, workout_type, distance, time_ms, source, synced_at)
+      VALUES (-1, 0, '2024-01-01 08:00:00', 'rower', 'JustRow', 2000, 480000, 'manual', datetime('now'))
+    `).run();
+
+    // A (hypothetical) C2 payload with the same id must be ignored.
+    const result = insertWorkout(db, c2Workout({ id: -1, distance: 9999 }));
+    expect(result).toBeNull();
+    expect(db.prepare('SELECT distance FROM workouts WHERE id = -1').get().distance).toBe(2000);
+  });
+
+  it('excludes non-c2 rows from the enrichment queue', () => {
+    insertWorkout(db, c2Workout({ id: 5 }));
+    db.prepare(`
+      INSERT INTO workouts (id, user_id, date, type, workout_type, distance, time_ms, source, synced_at)
+      VALUES (-1, 0, '2024-01-02 08:00:00', 'rower', 'JustRow', 2000, 480000, 'manual', datetime('now'))
+    `).run();
+
+    const pending = selectPendingStrokeWorkouts(db, 10).map(row => row.id);
+    expect(pending).toEqual([5]);
+  });
+});

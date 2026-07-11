@@ -14,6 +14,7 @@ import {
 } from './analytics.js';
 import { detectNewPbs, reconcilePbDistances } from './pbDetection.js';
 import { matchNewWorkouts } from './planMatching.js';
+import { parseEditedFields, computePaceMs } from './workoutFields.js';
 
 let syncInProgress = false;
 
@@ -35,8 +36,11 @@ function getSyncStateValue(key) {
 export function getSyncStatus() {
   const db = getDb();
   const workoutCount = db.prepare('SELECT COUNT(*) as count FROM workouts').get().count;
-  const enrichedCount = db.prepare('SELECT COUNT(*) as count FROM workouts WHERE has_stroke_data = 1').get().count;
-  const remaining = workoutCount - enrichedCount;
+  // Enrichment only applies to Concept2-synced rows; manual/imported workouts
+  // have no stroke stream to fetch and must not skew the progress numbers.
+  const c2Count = db.prepare("SELECT COUNT(*) as count FROM workouts WHERE source = 'c2'").get().count;
+  const enrichedCount = db.prepare("SELECT COUNT(*) as count FROM workouts WHERE source = 'c2' AND has_stroke_data = 1").get().count;
+  const remaining = c2Count - enrichedCount;
 
   // Estimate based on 10 workouts per 5 minutes (1 req/sec + processing)
   const estimatedSecondsRemaining = remaining > 0 ? Math.ceil((remaining / 10) * 300) : 0;
@@ -47,7 +51,7 @@ export function getSyncStatus() {
     total_workouts: workoutCount,
     enriched_workouts: enrichedCount,
     remaining_workouts: remaining,
-    enrichment_progress: workoutCount > 0 ? Math.round((enrichedCount / workoutCount) * 100) : 100,
+    enrichment_progress: c2Count > 0 ? Math.round((enrichedCount / c2Count) * 100) : 100,
     estimated_seconds_remaining: estimatedSecondsRemaining,
     sync_progress: getSyncStateValue('sync_progress'),
   };
@@ -180,7 +184,7 @@ function inferIntervalsFromStrokes(db, workoutId) {
   return intervals;
 }
 
-function writeIntervals(db, workoutId, intervals) {
+export function writeIntervals(db, workoutId, intervals) {
   db.prepare('DELETE FROM intervals WHERE workout_id = ?').run(workoutId);
   if (!intervals || intervals.length === 0) return;
 
@@ -205,62 +209,80 @@ function writeIntervals(db, workoutId, intervals) {
   });
 }
 
+// Map a Concept2 API result object onto our workouts columns. Shared by sync
+// updates and the revert-to-Concept2 endpoint so both apply the same
+// conversions (C2 times are in tenths of seconds).
+export function c2ColumnValues(workout) {
+  const timeMs = workout.time ? Math.round(workout.time * 100) : 0;
+  return {
+    user_id: workout.user_id ?? null,
+    date: workout.date ?? null,
+    timezone: workout.timezone ?? null,
+    type: workout.type || 'rower',
+    workout_type: workout.workout_type || 'FixedDistanceSplits',
+    distance: workout.distance ?? null,
+    time_ms: timeMs,
+    stroke_rate: workout.stroke_rate ?? null,
+    stroke_count: workout.stroke_count ?? null,
+    calories: workout.calories_total ?? null,
+    heart_rate_avg: workout.heart_rate?.average || null,
+    heart_rate_max: workout.heart_rate?.max || null,
+    drag_factor: workout.drag_factor ?? null,
+    comments: workout.comments ?? null,
+    rest_distance: workout.rest_distance || null,
+    rest_time_ms: workout.rest_time ? Math.round(workout.rest_time * 100) : null,
+  };
+}
+
 // Returns { id, inserted, affectedDistances } — inserted is true only for
 // brand-new workouts, so callers (e.g. PB detection) don't treat updates as
 // new results. affectedDistances lists distances whose PB history may need
 // reconciling because this update changed a C2-owned performance field.
 export function insertWorkout(db, workout) {
   const rawJson = JSON.stringify(workout);
-  const existing = db.prepare('SELECT raw_json, distance, pace_ms, time_ms FROM workouts WHERE id = ?').get(workout.id);
+  const existing = db.prepare(
+    'SELECT raw_json, distance, pace_ms, time_ms, source, edited_fields FROM workouts WHERE id = ?'
+  ).get(workout.id);
+  // Manual/imported rows are user-owned; sync must never touch them. (IDs
+  // can't actually collide — non-C2 rows use negative IDs — but be explicit.)
+  if (existing && existing.source !== 'c2') {
+    return null;
+  }
   if (existing && existing.raw_json === rawJson) {
     return null;
   }
 
-  const timeMs = workout.time ? Math.round(workout.time * 100) : 0;
-  const paceMs = (timeMs > 0 && workout.distance > 0)
-    ? Math.round((timeMs / workout.distance) * 500)
-    : null;
-
-  const fields = [
-    workout.user_id,
-    workout.date,
-    workout.timezone,
-    workout.type || 'rower',
-    workout.workout_type || 'FixedDistanceSplits',
-    workout.distance,
-    timeMs,
-    paceMs,
-    workout.stroke_rate,
-    workout.stroke_count,
-    workout.calories_total,
-    workout.heart_rate?.average || null,
-    workout.heart_rate?.max || null,
-    workout.drag_factor,
-    workout.comments,
-    workout.rest_distance || null,
-    workout.rest_time ? Math.round(workout.rest_time * 100) : null,
-    rawJson,
-  ];
+  const cols = c2ColumnValues(workout);
+  const paceMs = computePaceMs(cols.time_ms, cols.distance);
 
   if (existing) {
     // pinned/notes are user-owned columns; sync must never overwrite them.
+    // Columns the user has corrected (edited_fields) are skipped too, so the
+    // effective distance/time — and the pace/stroke-wipe decisions derived
+    // from them — use the stored value wherever an override exists.
+    const edited = parseEditedFields(existing.edited_fields);
+    const effDistance = edited.includes('distance') ? existing.distance : cols.distance;
+    const effTimeMs = edited.includes('time_ms') ? existing.time_ms : cols.time_ms;
+    const effPaceMs = computePaceMs(effTimeMs, effDistance);
+
+    const applied = Object.fromEntries(
+      Object.entries(cols).filter(([name]) => !edited.includes(name))
+    );
+    applied.pace_ms = effPaceMs;
+    applied.raw_json = rawJson;
+
+    const setClause = Object.keys(applied).map(name => `${name} = ?`).join(', ');
     db.prepare(`
-      UPDATE workouts SET
-        user_id = ?, date = ?, timezone = ?, type = ?, workout_type = ?,
-        distance = ?, time_ms = ?, pace_ms = ?, stroke_rate = ?, stroke_count = ?,
-        calories = ?, heart_rate_avg = ?, heart_rate_max = ?, drag_factor = ?,
-        comments = ?, rest_distance = ?, rest_time_ms = ?, raw_json = ?,
-        synced_at = datetime('now')
-      WHERE id = ?
-    `).run(...fields, workout.id);
+      UPDATE workouts SET ${setClause}, synced_at = datetime('now') WHERE id = ?
+    `).run(...Object.values(applied), workout.id);
     const c2Intervals = extractC2Intervals(workout);
     if (c2Intervals.length > 0) {
       writeIntervals(db, workout.id, expandC2Intervals(c2Intervals));
     }
 
-    const perfChanged = existing.distance !== workout.distance
-      || existing.pace_ms !== paceMs
-      || existing.time_ms !== timeMs;
+    const perfChanged = existing.distance !== effDistance
+      || existing.pace_ms !== effPaceMs
+      || existing.time_ms !== effTimeMs;
     if (perfChanged) {
       // A corrected result invalidates the per-stroke data too. Wipe it and
       // reset the flag so the enrichment cron (which picks has_stroke_data = 0
@@ -268,7 +290,7 @@ export function insertWorkout(db, workout) {
       db.prepare('DELETE FROM strokes WHERE workout_id = ?').run(workout.id);
       db.prepare('UPDATE workouts SET has_stroke_data = 0 WHERE id = ?').run(workout.id);
     }
-    const affectedDistances = perfChanged ? [existing.distance, workout.distance] : [];
+    const affectedDistances = perfChanged ? [existing.distance, effDistance] : [];
     return { id: workout.id, inserted: false, affectedDistances };
   }
 
@@ -284,7 +306,12 @@ export function insertWorkout(db, workout) {
       ?, ?, ?, ?,
       ?, ?, ?, ?, datetime('now')
     )
-  `).run(workout.id, ...fields);
+  `).run(
+    workout.id, cols.user_id, cols.date, cols.timezone, cols.type, cols.workout_type,
+    cols.distance, cols.time_ms, paceMs, cols.stroke_rate, cols.stroke_count,
+    cols.calories, cols.heart_rate_avg, cols.heart_rate_max, cols.drag_factor,
+    cols.comments, cols.rest_distance, cols.rest_time_ms, rawJson,
+  );
   const c2Intervals = extractC2Intervals(workout);
   const intervals = c2Intervals.length > 0
     ? expandC2Intervals(c2Intervals)
@@ -427,7 +454,7 @@ export async function runIncrementalSync() {
   }
 }
 
-function runPostSyncAnalytics(insertedWorkoutIds = [], updatedWorkoutIds = [], affectedPbDistances = []) {
+export function runPostSyncAnalytics(insertedWorkoutIds = [], updatedWorkoutIds = [], affectedPbDistances = []) {
   try {
     tagAllWorkouts();
     computeAllMetrics();
@@ -547,7 +574,7 @@ export async function enrichSingleWorkout(id) {
 
 // Stroke-derived metrics are version-cached, so freshly enriched workouts
 // must be recomputed explicitly.
-function recomputeWorkoutAnalytics(id) {
+export function recomputeWorkoutAnalytics(id) {
   try {
     computeMetricsForWorkout(id);
     computeZoneTimesForWorkout(id);
@@ -562,6 +589,7 @@ export function resetStrokeFlags() {
   const updated = db.prepare(`
     UPDATE workouts SET has_stroke_data = 0
     WHERE has_stroke_data = 1
+    AND source = 'c2'
     AND id NOT IN (SELECT DISTINCT workout_id FROM strokes)
   `).run();
   if (updated.changes > 0) {
@@ -574,7 +602,7 @@ export async function runStrokeEnrichment() {
   if (!token) return;
 
   const db = getDb();
-  const remaining = db.prepare('SELECT COUNT(*) as c FROM workouts WHERE has_stroke_data = 0').get().c;
+  const remaining = db.prepare("SELECT COUNT(*) as c FROM workouts WHERE has_stroke_data = 0 AND source = 'c2'").get().c;
   if (remaining === 0) return;
 
   const workouts = selectPendingStrokeWorkouts(db, 10);
@@ -609,7 +637,7 @@ export function selectPendingStrokeWorkouts(db, limit = 10) {
   if (Number.isInteger(cursor)) {
     workouts = db.prepare(`
       SELECT id FROM workouts
-      WHERE has_stroke_data = 0 AND id < ?
+      WHERE has_stroke_data = 0 AND source = 'c2' AND id < ?
       ORDER BY id DESC LIMIT ?
     `).all(cursor, boundedLimit);
   }
@@ -617,7 +645,7 @@ export function selectPendingStrokeWorkouts(db, limit = 10) {
   if (workouts.length === 0) {
     workouts = db.prepare(`
       SELECT id FROM workouts
-      WHERE has_stroke_data = 0
+      WHERE has_stroke_data = 0 AND source = 'c2'
       ORDER BY id DESC LIMIT ?
     `).all(boundedLimit);
   }
@@ -630,6 +658,7 @@ export async function runIntervalBackfill() {
   const workouts = db.prepare(`
     SELECT w.id, w.raw_json FROM workouts w
     WHERE w.has_stroke_data = 1
+      AND w.source = 'c2'
       AND NOT EXISTS (SELECT 1 FROM intervals WHERE workout_id = w.id)
     ORDER BY w.date DESC LIMIT 10
   `).all();

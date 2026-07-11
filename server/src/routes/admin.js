@@ -22,16 +22,13 @@ export const EXPORT_TABLES = [
   'planned_workouts',
   'settings',
 ];
+// Date-global derived tables rebuilt from scratch after a wipe (pb_history
+// backfills on the next PB detection pass, fitness_log on the next sync).
+// Per-workout child tables aren't listed: deleting the c2 workout rows
+// cascades to them, which leaves manual/imported workouts' data intact.
 export const WIPE_TABLES = [
   'pb_history',
-  'interval_recoveries',
-  'best_efforts',
-  'hr_zone_time',
-  'computed_metrics',
-  'strokes',
-  'intervals',
   'fitness_log',
-  'workouts',
 ];
 const SYNC_CURSOR_KEYS = [
   'last_sync_completed',
@@ -39,20 +36,26 @@ const SYNC_CURSOR_KEYS = [
   'last_enriched_workout_id',
 ];
 
+// Wipes Concept2-synced data ahead of a fresh full sync. Manual and imported
+// workouts are user-entered — a resync can't restore them — so they survive,
+// along with their intervals/strokes/metrics (cascade only fires for the
+// deleted c2 rows).
 export function wipeWorkoutData(db) {
   db.transaction(() => {
     // Workout FKs are SET NULL on deletion, but completion is a property of
-    // the link. Reset linked plans first so the fresh sync can match them.
+    // the link. Reset plans linked to c2 workouts so the fresh sync can match
+    // them again; plans matched to surviving manual workouts stay completed.
     db.prepare(`
       UPDATE planned_workouts
       SET completed_workout_id = NULL, status = 'planned', match_type = NULL,
           updated_at = datetime('now')
-      WHERE completed_workout_id IS NOT NULL
+      WHERE completed_workout_id IN (SELECT id FROM workouts WHERE source = 'c2')
     `).run();
 
     for (const table of WIPE_TABLES) {
       db.prepare(`DELETE FROM ${table}`).run();
     }
+    db.prepare("DELETE FROM workouts WHERE source = 'c2'").run();
     db.prepare(`DELETE FROM sync_state WHERE key IN (${SYNC_CURSOR_KEYS.map(() => '?').join(', ')})`).run(...SYNC_CURSOR_KEYS);
     db.prepare("INSERT OR REPLACE INTO sync_state (key, value, updated_at) VALUES ('sync_status', 'idle', datetime('now'))").run();
   })();

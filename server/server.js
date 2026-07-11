@@ -32,6 +32,7 @@ import adminRouter from './src/routes/admin.js';
 import goalsRouter from './src/routes/goals.js';
 import plansRouter from './src/routes/plans.js';
 import programsRouter from './src/routes/programs.js';
+import importRouter from './src/routes/import.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = parseInt(process.env.PORT || '3000', 10);
@@ -67,7 +68,13 @@ app.use(helmet({
 app.use(cors({ origin: validateCorsOriginConfig(), credentials: true }));
 app.use(compression());
 app.use(morgan('short'));
-app.use(express.json());
+// Import routes parse their own bodies (raw file uploads and multi-MB commit
+// payloads); the default 100kb JSON parser must not run for them.
+const jsonParser = express.json();
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api/import')) return next();
+  return jsonParser(req, res, next);
+});
 app.use(sameOriginWriteGuard);
 
 app.use('/health', healthRouter);
@@ -93,6 +100,7 @@ app.use('/api/admin', requireAuth, adminRouter);
 app.use('/api/goals', requireAuth, goalsRouter);
 app.use('/api/plans', requireAuth, plansRouter);
 app.use('/api/programs', requireAuth, programsRouter);
+app.use('/api/import', requireAuth, importRouter);
 
 const distPath = join(__dirname, 'dist');
 app.use(express.static(distPath));
