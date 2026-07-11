@@ -370,6 +370,129 @@ function GoalsSection() {
   );
 }
 
+function ProfilesSection() {
+  const { profiles, activeProfile, switchProfile, checkAuth } = useAuth();
+  const toast = useToast();
+  const [renamingId, setRenamingId] = useState(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [busyId, setBusyId] = useState(null);
+
+  const startRename = (profile) => {
+    setRenamingId(profile.id);
+    setRenameValue(profile.name);
+  };
+
+  const saveRename = async (id) => {
+    const name = renameValue.trim();
+    if (!name) return setRenamingId(null);
+    try {
+      await api.renameProfile(id, name);
+      toast.success('Profile renamed');
+      setRenamingId(null);
+      checkAuth();
+    } catch (err) {
+      toast.error(err.message || 'Rename failed');
+    }
+  };
+
+  const disconnect = async (profile) => {
+    if (!window.confirm(`Disconnect ${profile.name} from Concept2? Their data stays; syncing stops until reconnected.`)) return;
+    setBusyId(profile.id);
+    try {
+      await api.disconnectProfile(profile.id);
+      toast.success(`${profile.name} disconnected`);
+      checkAuth();
+    } catch (err) {
+      toast.error(err.message || 'Disconnect failed');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const remove = async (profile) => {
+    if (!window.confirm(`Delete ${profile.name} and ALL their workouts, PBs, goals and plans? This cannot be undone.`)) return;
+    setBusyId(profile.id);
+    try {
+      await api.deleteProfile(profile.id);
+      toast.success(`${profile.name} deleted`);
+      if (activeProfile?.id === profile.id) {
+        switchProfile('');
+      } else {
+        checkAuth();
+      }
+    } catch (err) {
+      toast.error(err.message || 'Delete failed');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <div className={styles.section}>
+      <h3 className={styles.sectionTitle}>Profiles</h3>
+      {profiles.map(profile => (
+        <div key={profile.id} className={styles.row}>
+          <div>
+            {renamingId === profile.id ? (
+              <input
+                className={styles.textInput || ''}
+                value={renameValue}
+                autoFocus
+                onChange={e => setRenameValue(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') saveRename(profile.id);
+                  if (e.key === 'Escape') setRenamingId(null);
+                }}
+                onBlur={() => saveRename(profile.id)}
+                aria-label="Profile name"
+              />
+            ) : (
+              <div className={styles.label}>
+                {profile.name}
+                {activeProfile?.id === profile.id ? ' (active)' : ''}
+              </div>
+            )}
+            <div className={styles.subtext}>
+              {profile.connected
+                ? `Connected as ${profile.user?.first_name || ''} ${profile.user?.last_name || ''}`.trim()
+                : 'Not connected to Concept2'}
+            </div>
+          </div>
+          <div className={styles.rowActions || ''} style={{ display: 'flex', gap: '8px' }}>
+            <button className={styles.button} onClick={() => startRename(profile)} disabled={busyId === profile.id}>
+              Rename
+            </button>
+            {profile.connected ? (
+              <button className={styles.button} onClick={() => disconnect(profile)} disabled={busyId === profile.id}>
+                Disconnect
+              </button>
+            ) : (
+              <a href={`/auth/login?profile=${profile.id}`} className={styles.button}>Reconnect</a>
+            )}
+            <button
+              className={styles.buttonDanger}
+              onClick={() => remove(profile)}
+              disabled={busyId === profile.id || profiles.length === 1}
+              title={profiles.length === 1 ? 'The last profile cannot be deleted' : undefined}
+            >
+              <Trash2 size={14} /> Delete
+            </button>
+          </div>
+        </div>
+      ))}
+      <div className={styles.row}>
+        <div>
+          <div className={styles.label}>Add a household member</div>
+          <div className={styles.subtext}>They sign in with their own Concept2 Logbook account.</div>
+        </div>
+        <a href="/auth/login?profile=new" className={`${styles.button} ${styles.buttonPrimary}`}>
+          <Plus size={14} /> Add profile
+        </a>
+      </div>
+    </div>
+  );
+}
+
 function formatSyncTime(isoString) {
   if (!isoString) return 'Never';
   const date = new Date(isoString);
@@ -609,22 +732,22 @@ export default function Settings() {
 
       <HrZonesSection />
 
-      <div className={styles.section}>
-        <h3 className={styles.sectionTitle}>Concept2 Connection</h3>
-        <div className={styles.row}>
-          <div>
-            <div className={styles.label}>Status</div>
-            <div className={styles.subtext}>
-              {user ? `Connected as ${user.first_name} ${user.last_name}` : 'Not connected'}
+      {isDemo ? (
+        <div className={styles.section}>
+          <h3 className={styles.sectionTitle}>Concept2 Connection</h3>
+          <div className={styles.row}>
+            <div>
+              <div className={styles.label}>Status</div>
+              <div className={styles.subtext}>
+                {user ? `Connected as ${user.first_name} ${user.last_name}` : 'Not connected'}
+              </div>
             </div>
+            <span className={styles.mono}>Demo</span>
           </div>
-          {user ? (
-            <span className={styles.mono}>Connected</span>
-          ) : (
-            <a href="/auth/login" className={`${styles.button} ${styles.buttonPrimary}`}>Connect</a>
-          )}
         </div>
-      </div>
+      ) : (
+        <ProfilesSection />
+      )}
 
       <div className={styles.section}>
         <h3 className={styles.sectionTitle}>Sync</h3>

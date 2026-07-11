@@ -381,7 +381,22 @@ function parsePath(path) {
 async function handleGet(route, params) {
   if (route === '/auth/status') {
     const fixture = await lookupFixture(route, {});
-    return fixture;
+    // The live server returns a profiles array; synthesize one demo profile
+    // so the switcher and Settings render consistently.
+    const user = fixture.user || null;
+    const profiles = fixture.profiles || [{
+      id: 1,
+      name: user?.first_name || 'Demo Rower',
+      connected: true,
+      user,
+    }];
+    return { ...fixture, profiles };
+  }
+
+  if (route === '/api/profiles') {
+    const status = await lookupFixture('/auth/status', {});
+    const user = status.user || null;
+    return [{ id: 1, name: user?.first_name || 'Demo Rower', connected: true, user }];
   }
 
   if (route === '/api/settings') {

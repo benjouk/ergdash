@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Calculator, Sun, Moon, CalendarRange, ChevronDown } from 'lucide-react';
+import { Calculator, Sun, Moon, CalendarRange, ChevronDown, UserPlus } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext.jsx';
+import { useAuth } from '../../context/AuthContext.jsx';
 import { useSync } from '../../context/SyncContext.jsx';
 import { useUnits } from '../../context/UnitsContext.jsx';
 import { useTimeRange } from '../../context/TimeRangeContext.jsx';
@@ -9,8 +10,21 @@ import { api } from '../../api.js';
 import PaceTrace from './PaceTrace.jsx';
 import styles from './Ticker.module.css';
 
+function initialsOf(name) {
+  return String(name || '?')
+    .split(/\s+/)
+    .map(part => part[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+}
+
 export default function Ticker() {
   const { toggleTheme, theme } = useTheme();
+  const { profiles, activeProfile, switchProfile } = useAuth();
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const profileMenuRef = useRef(null);
   const { syncStatus } = useSync();
   const { formatPace, formatDistanceFull } = useUnits();
   const { rangeKey, setRange, from, to, PRESETS, describeRange } = useTimeRange();
@@ -57,6 +71,26 @@ export default function Ticker() {
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [rangeMenuOpen]);
+
+  useEffect(() => {
+    if (!profileMenuOpen) return;
+
+    const handlePointerDown = (event) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target)) {
+        setProfileMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') setProfileMenuOpen(false);
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [profileMenuOpen]);
 
   const isSyncing = syncStatus?.status === 'syncing';
 
@@ -146,6 +180,51 @@ export default function Ticker() {
       </nav>
 
       <div className={`${styles.syncDot} ${isSyncing ? styles.syncDotSyncing : ''}`} title={isSyncing ? 'Syncing...' : 'Up to date'} />
+
+      {activeProfile && (
+        <div className={styles.profileWrapper} ref={profileMenuRef}>
+          <button
+            type="button"
+            className={styles.profileButton}
+            onClick={() => setProfileMenuOpen(open => !open)}
+            aria-haspopup="listbox"
+            aria-expanded={profileMenuOpen}
+            title={`Profile: ${activeProfile.name}`}
+          >
+            <span className={styles.profileInitials}>{initialsOf(activeProfile.name)}</span>
+            <span className={styles.profileName}>{activeProfile.name}</span>
+            <ChevronDown size={12} className={styles.rangeChevron} />
+          </button>
+          {profileMenuOpen && (
+            <ul className={styles.profileMenu} role="listbox">
+              {profiles.map(profile => (
+                <li key={profile.id} role="option" aria-selected={profile.id === activeProfile.id}>
+                  <button
+                    type="button"
+                    className={`${styles.profileOption} ${profile.id === activeProfile.id ? styles.profileOptionActive : ''}`}
+                    onClick={() => {
+                      setProfileMenuOpen(false);
+                      if (profile.id !== activeProfile.id) switchProfile(profile.id);
+                    }}
+                  >
+                    <span className={styles.profileInitials}>{initialsOf(profile.name)}</span>
+                    <span>
+                      {profile.name}
+                      {!profile.connected && <span className={styles.profileBadge}> · not connected</span>}
+                    </span>
+                  </button>
+                </li>
+              ))}
+              <li>
+                <a href="/auth/login?profile=new" className={styles.profileOption}>
+                  <UserPlus size={13} aria-hidden="true" />
+                  <span>Add profile…</span>
+                </a>
+              </li>
+            </ul>
+          )}
+        </div>
+      )}
 
       <button className={styles.themeToggle} onClick={toggleTheme} title="Toggle theme">
         {theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
