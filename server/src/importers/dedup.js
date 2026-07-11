@@ -60,15 +60,21 @@ export function findDuplicate(db, workout, fingerprint) {
     }
   }
 
+  if (!workout.date || !workout.distance || !workout.time_ms) return null;
+
   const logId = workout.source_meta?.c2_log_id;
   if (logId) {
     const byId = db.prepare('SELECT * FROM workouts WHERE id = ?').get(logId);
-    if (byId) {
+    // The log id is client-supplied (parsed from the file, then round-tripped
+    // through the preview), so it only counts as identity when the row's own
+    // numbers corroborate it — otherwise a crafted payload could name any
+    // workout id and merge into it.
+    if (byId
+        && distanceMatches(workout.distance, byId.distance)
+        && timeMatches(workout.time_ms, byId.time_ms)) {
       return { status: 'exact', match: byId, matched_on: ['log_id'] };
     }
   }
-
-  if (!workout.date || !workout.distance || !workout.time_ms) return null;
 
   const day = workout.date.slice(0, 10);
   const candidates = db.prepare(`
