@@ -233,24 +233,25 @@ export default function Workouts() {
       <div className={styles.header}>
         <h2 className={styles.title}>Workouts</h2>
         <div className={styles.actions}>
-          {!IS_DEMO && (
-            <>
-              <button
-                onClick={() => setPanel(prev => (prev === 'add' ? null : 'add'))}
-                className={styles.exportButton}
-                aria-expanded={panel === 'add'}
-              >
-                <Plus size={14} /> Add
-              </button>
-              <button
-                onClick={() => setPanel(prev => (prev === 'import' ? null : 'import'))}
-                className={styles.exportButton}
-                aria-expanded={panel === 'import'}
-              >
-                <Upload size={14} /> Import
-              </button>
-            </>
-          )}
+          {/* Visible-but-disabled in the demo so the feature is discoverable. */}
+          <button
+            onClick={() => setPanel(prev => (prev === 'add' ? null : 'add'))}
+            className={styles.exportButton}
+            aria-expanded={panel === 'add'}
+            disabled={IS_DEMO}
+            title={IS_DEMO ? 'Demo mode — run ErgDash self-hosted to add workouts' : undefined}
+          >
+            <Plus size={14} /> Add
+          </button>
+          <button
+            onClick={() => setPanel(prev => (prev === 'import' ? null : 'import'))}
+            className={styles.exportButton}
+            aria-expanded={panel === 'import'}
+            disabled={IS_DEMO}
+            title={IS_DEMO ? 'Demo mode — run ErgDash self-hosted to import workout files' : undefined}
+          >
+            <Upload size={14} /> Import
+          </button>
           <button onClick={exportJson} className={styles.exportButton}>
             <Download size={14} /> JSON
           </button>
