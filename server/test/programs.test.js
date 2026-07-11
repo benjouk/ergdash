@@ -25,8 +25,8 @@ function nextMonday(fromMs) {
 
 function insertWorkout({ id, date, distance, timeMs }) {
   db.prepare(`
-    INSERT INTO workouts (id, user_id, date, type, workout_type, distance, time_ms, pace_ms, synced_at)
-    VALUES (?, 1, ?, 'rower', 'FixedDistanceSplits', ?, ?, ?, datetime('now'))
+    INSERT INTO workouts (id, profile_id, user_id, date, type, workout_type, distance, time_ms, pace_ms, synced_at)
+    VALUES (?, 1, 1, ?, 'rower', 'FixedDistanceSplits', ?, ?, ?, datetime('now'))
   `).run(id, date, distance, timeMs, Math.round((timeMs / distance) * 500));
 }
 
@@ -51,9 +51,11 @@ beforeEach(async () => {
   ({ getDb, closeDb } = dbModule);
   dbModule.initDb();
   db = getDb();
+  db.prepare("INSERT INTO profiles (id, name) VALUES (1, 'Test')").run();
 
   const app = express();
   app.use(express.json());
+  app.use((req, res, next) => { req.profileId = 1; next(); });
   app.use('/api/programs', programsRouter);
   app.use('/api/plans', plansRouter);
   await new Promise(resolve => { server = app.listen(0, resolve); });

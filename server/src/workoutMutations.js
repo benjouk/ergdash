@@ -197,6 +197,7 @@ export function insertUserWorkout(db, {
   notes = null,
   importFingerprint = null,
   userId = null,
+  profileId,
 }) {
   const paceMs = computePaceMs(fields.time_ms, fields.distance);
   let id;
@@ -204,13 +205,13 @@ export function insertUserWorkout(db, {
     id = allocateManualId(db);
     db.prepare(`
       INSERT INTO workouts (
-        id, user_id, date, timezone, type, workout_type,
+        id, profile_id, user_id, date, timezone, type, workout_type,
         distance, time_ms, pace_ms, stroke_rate, stroke_count,
         calories, heart_rate_avg, heart_rate_max, drag_factor,
         comments, notes, source, import_fingerprint, raw_json, synced_at
-      ) VALUES (?, ?, ?, NULL, 'rower', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, datetime('now'))
+      ) VALUES (?, ?, ?, ?, NULL, 'rower', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, datetime('now'))
     `).run(
-      id, userId ?? 0, fields.date,
+      id, profileId, userId ?? 0, fields.date,
       fields.workout_type || 'JustRow',
       fields.distance, fields.time_ms, paceMs,
       fields.stroke_rate ?? null, fields.stroke_count ?? null,
@@ -271,10 +272,10 @@ export function applyWorkoutCorrection(db, workout, fields) {
 
   recomputeWorkoutAnalytics(workout.id);
   if (perfChanged || classificationChanged) {
-    tagAllWorkouts();
-    reconcilePbDistances([workout.distance, effDistance]);
-    computeFitnessLog();
-    computePredictions();
+    tagAllWorkouts(workout.profile_id);
+    reconcilePbDistances(workout.profile_id, [workout.distance, effDistance]);
+    computeFitnessLog(workout.profile_id);
+    computePredictions(workout.profile_id);
   }
 
   return { workoutId: workout.id, changedFields, perfChanged };
@@ -322,10 +323,10 @@ export function revertWorkoutToC2(db, workout, fieldNames = null) {
 
   recomputeWorkoutAnalytics(workout.id);
   if (perfChanged || targets.includes('date') || targets.includes('workout_type')) {
-    tagAllWorkouts();
-    reconcilePbDistances([workout.distance, effDistance]);
-    computeFitnessLog();
-    computePredictions();
+    tagAllWorkouts(workout.profile_id);
+    reconcilePbDistances(workout.profile_id, [workout.distance, effDistance]);
+    computeFitnessLog(workout.profile_id);
+    computePredictions(workout.profile_id);
   }
 
   return { workoutId: workout.id, revertedFields: targets };
@@ -351,16 +352,16 @@ export function deleteUserWorkout(db, workout) {
     db.prepare('DELETE FROM workouts WHERE id = ?').run(workout.id);
   })();
 
-  reconcilePbDistances([workout.distance]);
-  computeFitnessLog();
-  computePredictions();
+  reconcilePbDistances(workout.profile_id, [workout.distance]);
+  computeFitnessLog(workout.profile_id);
+  computePredictions(workout.profile_id);
 
   return { ok: true };
 }
 
 // Full create path for POST /api/workouts: validate, insert, run the same
 // post-insert analytics chain sync uses (PB detection, plan matching, etc.).
-export function createManualWorkout(body, userId) {
+export function createManualWorkout(body, profileId) {
   const { fields, errors: fieldErrors } = validateWorkoutFields(body, { requireCore: true });
   const { intervals, errors: intervalErrors } = validateIntervals(body);
   const errors = [...fieldErrors, ...intervalErrors];
@@ -373,15 +374,17 @@ export function createManualWorkout(body, userId) {
   if (errors.length > 0) return { errors };
 
   const db = getDb();
+  const c2UserId = db.prepare('SELECT c2_user_id FROM profiles WHERE id = ?').get(profileId)?.c2_user_id;
   const id = insertUserWorkout(db, {
     fields,
     intervals,
     source: 'manual',
     notes: typeof body.notes === 'string' ? body.notes : null,
-    userId,
+    userId: c2UserId ?? 0,
+    profileId,
   });
 
-  runPostSyncAnalytics([id], [], []);
+  runPostSyncAnalytics(profileId, [id], [], []);
 
   return { id, warnings: intervalWarnings(fields, intervals) };
 }

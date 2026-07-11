@@ -81,7 +81,7 @@ router.post(
 
       let duplicate = null;
       if (validation.ok) {
-        const found = findDuplicate(db, normalized, rowFingerprint(fingerprintBase, index));
+        const found = findDuplicate(db, normalized, rowFingerprint(fingerprintBase, index), req.profileId);
         if (found) {
           const mergeable = found.status === 'already_imported'
             ? null
@@ -175,8 +175,8 @@ router.post(
       const fingerprint = rowFingerprint(fingerprintBase, index);
       try {
         const already = db.prepare(
-          'SELECT id FROM workouts WHERE import_fingerprint = ?'
-        ).get(fingerprint);
+          'SELECT id FROM workouts WHERE import_fingerprint = ? AND profile_id = ?'
+        ).get(fingerprint, req.profileId);
         if (already) {
           errors.push({ index, error: `already imported (workout ${already.id})` });
           continue;
@@ -190,12 +190,12 @@ router.post(
         }
 
         if (action === 'new') {
-          created.push(insertNormalizedWorkout(db, normalized, fingerprint));
+          created.push(insertNormalizedWorkout(db, normalized, fingerprint, req.profileId));
         } else {
           // Re-run duplicate detection rather than trusting the echoed
           // target_id — merging must only ever hit the row this import
           // actually duplicates.
-          const resolved = resolveMergeTarget(db, normalized, fingerprint, Number(row.target_id));
+          const resolved = resolveMergeTarget(db, normalized, fingerprint, Number(row.target_id), req.profileId);
           if (resolved.error) {
             errors.push({ index, error: resolved.error });
             continue;
@@ -209,7 +209,7 @@ router.post(
     }
 
     if (created.length > 0 || merged.length > 0) {
-      runPostSyncAnalytics(created, merged, []);
+      runPostSyncAnalytics(req.profileId, created, merged, []);
     }
 
     res.json({ created, merged, skipped, errors });

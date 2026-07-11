@@ -3,7 +3,6 @@ import { getDb } from '../db.js';
 import { enrichSingleWorkout } from '../sync.js';
 import { buildWorkoutInsight } from '../insights.js';
 import { parseEditedFields } from '../workoutFields.js';
-import { getUserInfo } from '../auth.js';
 import {
   createManualWorkout,
   validateWorkoutFields,
@@ -48,8 +47,8 @@ router.get('/', (req, res) => {
     sort = 'date_desc', limit = '20', offset = '0',
   } = req.query;
 
-  const conditions = ['1=1'];
-  const params = [];
+  const conditions = ['w.profile_id = ?'];
+  const params = [req.profileId];
 
   if (from) { conditions.push('w.date >= ?'); params.push(from); }
   if (to) { conditions.push('w.date <= ?'); params.push(to); }
@@ -128,7 +127,7 @@ router.get('/', (req, res) => {
 // negative id so it can never collide with a synced result.
 router.post('/', (req, res) => {
   const db = getDb();
-  const result = createManualWorkout(req.body || {}, getUserInfo()?.id ?? 0);
+  const result = createManualWorkout(req.body || {}, req.profileId);
   if (result.errors) {
     return res.status(400).json({ error: 'Validation failed', details: result.errors });
   }
@@ -187,7 +186,7 @@ router.patch('/:id', (req, res) => {
   }
 
   const existing = db.prepare('SELECT * FROM workouts WHERE id = ?').get(id);
-  if (!existing) {
+  if (!existing || existing.profile_id !== req.profileId) {
     return res.status(404).json({ error: 'Workout not found' });
   }
 
@@ -226,7 +225,7 @@ router.post('/:id/revert', (req, res) => {
   }
 
   const existing = db.prepare('SELECT * FROM workouts WHERE id = ?').get(id);
-  if (!existing) {
+  if (!existing || existing.profile_id !== req.profileId) {
     return res.status(404).json({ error: 'Workout not found' });
   }
 
@@ -255,7 +254,7 @@ router.delete('/:id', (req, res) => {
   }
 
   const existing = db.prepare('SELECT * FROM workouts WHERE id = ?').get(id);
-  if (!existing) {
+  if (!existing || existing.profile_id !== req.profileId) {
     return res.status(404).json({ error: 'Workout not found' });
   }
 
@@ -272,7 +271,7 @@ router.get('/:id', (req, res) => {
 
   const workout = getWorkoutWithMetrics(db, id);
 
-  if (!workout) {
+  if (!workout || workout.profile_id !== req.profileId) {
     return res.status(404).json({ error: 'Workout not found' });
   }
 
@@ -319,13 +318,13 @@ function getTagBaseline(db, workout) {
 
   const paces = db.prepare(`
     SELECT pace_ms FROM workouts
-    WHERE type = 'rower' AND pace_ms > 0 AND id != ? AND ${tagCondition}
-  `).all(workout.id).map(r => r.pace_ms);
+    WHERE type = 'rower' AND pace_ms > 0 AND id != ? AND profile_id = ? AND ${tagCondition}
+  `).all(workout.id, workout.profile_id).map(r => r.pace_ms);
 
   const hrs = db.prepare(`
     SELECT heart_rate_avg FROM workouts
-    WHERE type = 'rower' AND heart_rate_avg > 0 AND id != ? AND ${tagCondition}
-  `).all(workout.id).map(r => r.heart_rate_avg);
+    WHERE type = 'rower' AND heart_rate_avg > 0 AND id != ? AND profile_id = ? AND ${tagCondition}
+  `).all(workout.id, workout.profile_id).map(r => r.heart_rate_avg);
 
   return { medianPaceMs: median(paces), medianHr: median(hrs) };
 }
@@ -398,6 +397,7 @@ function getCurrentPbDistances(db, workoutId) {
         SELECT MIN(current.pace_ms)
         FROM pb_history current
         WHERE current.distance = ph.distance AND current.tag = ph.tag
+          AND current.profile_id = ph.profile_id
       )
     ORDER BY ph.distance ASC
   `).all(workoutId).map(row => row.distance);
@@ -518,8 +518,8 @@ function getPaceProfile(db, workoutId) {
 
 router.post('/:id/enrich', async (req, res) => {
   const id = Number(req.params.id);
-  const row = getDb().prepare('SELECT source FROM workouts WHERE id = ?').get(id);
-  if (!row) {
+  const row = getDb().prepare('SELECT source, profile_id FROM workouts WHERE id = ?').get(id);
+  if (!row || row.profile_id !== req.profileId) {
     return res.status(404).json({ error: 'Workout not found' });
   }
   if (row.source !== 'c2') {

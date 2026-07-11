@@ -35,39 +35,39 @@ export function computePbProgression(workouts) {
   return events;
 }
 
-export function backfillPbHistory() {
+export function backfillPbHistory(profileId) {
   const db = getDb();
-  const existing = db.prepare('SELECT COUNT(*) as count FROM pb_history').get().count;
+  const existing = db.prepare('SELECT COUNT(*) as count FROM pb_history WHERE profile_id = ?').get(profileId).count;
   if (existing > 0) return [];
 
   const workouts = db.prepare(`
     SELECT id, date, distance, pace_ms, time_ms, inferred_tag
     FROM workouts
-    WHERE type = 'rower'
+    WHERE type = 'rower' AND profile_id = ?
     ORDER BY date ASC, id ASC
-  `).all();
+  `).all(profileId);
 
   const events = computePbProgression(workouts);
-  insertPbEvents(db, events);
+  insertPbEvents(db, profileId, events);
 
   if (events.length > 0) {
     db.prepare(
-      "INSERT OR IGNORE INTO settings (key, value) VALUES ('pb_last_seen_at', ?)"
-    ).run(new Date().toISOString());
-    console.log(`Backfilled ${events.length} PB history events`);
+      "INSERT OR IGNORE INTO settings (profile_id, key, value) VALUES (?, 'pb_last_seen_at', ?)"
+    ).run(profileId, new Date().toISOString());
+    console.log(`Backfilled ${events.length} PB history events for profile ${profileId}`);
   }
 
   return events;
 }
 
-export function detectNewPbs(workoutIds) {
+export function detectNewPbs(profileId, workoutIds) {
   const ids = [...new Set((workoutIds || []).map(Number).filter(Number.isInteger))];
   if (ids.length === 0) return [];
 
   const db = getDb();
-  const existing = db.prepare('SELECT COUNT(*) as count FROM pb_history').get().count;
+  const existing = db.prepare('SELECT COUNT(*) as count FROM pb_history WHERE profile_id = ?').get(profileId).count;
   if (existing === 0) {
-    const events = backfillPbHistory();
+    const events = backfillPbHistory(profileId);
     const idSet = new Set(ids);
     return events.filter(event => idSet.has(event.workout_id));
   }
@@ -77,11 +77,12 @@ export function detectNewPbs(workoutIds) {
     SELECT id, date, distance, pace_ms, time_ms, inferred_tag
     FROM workouts
     WHERE type = 'rower'
+      AND profile_id = ?
       AND id IN (${placeholders})
       AND distance IN (${STANDARD_PB_DISTANCES.map(() => '?').join(',')})
       AND pace_ms > 0
     ORDER BY date ASC, id ASC
-  `).all(...ids, ...STANDARD_PB_DISTANCES);
+  `).all(profileId, ...ids, ...STANDARD_PB_DISTANCES);
 
   if (workouts.length === 0) return [];
 
@@ -91,10 +92,11 @@ export function detectNewPbs(workoutIds) {
     SELECT distance, pace_ms, inferred_tag
     FROM workouts
     WHERE type = 'rower'
+      AND profile_id = ?
       AND distance IN (${distancePlaceholders})
       AND id NOT IN (${placeholders})
       AND pace_ms > 0
-  `).all(...distances, ...ids);
+  `).all(profileId, ...distances, ...ids);
 
   // Notifications compare against the best result that existed before this
   // batch arrived. The history itself is rebuilt chronologically below so a
@@ -125,11 +127,11 @@ export function detectNewPbs(workoutIds) {
     }
   }
 
-  reconcilePbDistances(distances);
+  reconcilePbDistances(profileId, distances);
   return events;
 }
 
-export function reconcilePbDistances(distances) {
+export function reconcilePbDistances(profileId, distances) {
   const targets = [...new Set((distances || []).filter(d => STANDARD_DISTANCE_SET.has(d)))];
   if (targets.length === 0) return [];
 
@@ -139,31 +141,32 @@ export function reconcilePbDistances(distances) {
   const workouts = db.prepare(`
     SELECT id, date, distance, pace_ms, time_ms, inferred_tag
     FROM workouts
-    WHERE type = 'rower' AND distance IN (${placeholders}) AND pace_ms > 0
+    WHERE type = 'rower' AND profile_id = ? AND distance IN (${placeholders}) AND pace_ms > 0
     ORDER BY date ASC, id ASC
-  `).all(...targets);
+  `).all(profileId, ...targets);
 
   const events = computePbProgression(workouts);
 
   db.transaction(() => {
-    db.prepare(`DELETE FROM pb_history WHERE distance IN (${placeholders})`).run(...targets);
-    insertPbEvents(db, events);
+    db.prepare(`DELETE FROM pb_history WHERE profile_id = ? AND distance IN (${placeholders})`).run(profileId, ...targets);
+    insertPbEvents(db, profileId, events);
   })();
 
   return events;
 }
 
-function insertPbEvents(db, events) {
+function insertPbEvents(db, profileId, events) {
   if (events.length === 0) return;
 
   const insert = db.prepare(`
-    INSERT INTO pb_history (workout_id, distance, pace_ms, time_ms, achieved_at, tag)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO pb_history (profile_id, workout_id, distance, pace_ms, time_ms, achieved_at, tag)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `);
 
   db.transaction(() => {
     for (const event of events) {
       insert.run(
+        profileId,
         event.workout_id,
         event.distance,
         event.pace_ms,

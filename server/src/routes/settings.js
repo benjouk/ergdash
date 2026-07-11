@@ -1,12 +1,12 @@
 import { Router } from 'express';
-import { getDb, seedDefaults } from '../db.js';
+import { getDb, seedDefaultSettings } from '../db.js';
 import { recomputeAllZoneTimes } from '../analytics.js';
 
 const router = Router();
 
 router.get('/', (req, res) => {
   const db = getDb();
-  const rows = db.prepare('SELECT key, value FROM settings').all();
+  const rows = db.prepare('SELECT key, value FROM settings WHERE profile_id = ?').all(req.profileId);
   const settings = {};
   for (const { key, value } of rows) {
     settings[key] = value;
@@ -111,7 +111,7 @@ function validateSetting(key, value) {
 router.patch('/', (req, res) => {
   const db = getDb();
   const upsert = db.prepare(
-    'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)'
+    'INSERT OR REPLACE INTO settings (profile_id, key, value) VALUES (?, ?, ?)'
   );
 
   const updates = {};
@@ -132,14 +132,14 @@ router.patch('/', (req, res) => {
 
   db.transaction(() => {
     for (const [key, value] of Object.entries(updates)) {
-      upsert.run(key, value);
+      upsert.run(req.profileId, key, value);
     }
   })();
 
-  // Zone-model edits invalidate all cached zone times; the dataset is small
-  // enough (single user) to recompute synchronously.
+  // Zone-model edits invalidate the profile's cached zone times; the dataset
+  // is small enough to recompute synchronously.
   if ('max_hr' in updates || 'hr_zones' in updates) {
-    recomputeAllZoneTimes();
+    recomputeAllZoneTimes(req.profileId);
   }
 
   res.json(updates);
@@ -147,8 +147,8 @@ router.patch('/', (req, res) => {
 
 router.post('/reset', (req, res) => {
   const db = getDb();
-  db.prepare('DELETE FROM settings').run();
-  seedDefaults(db);
+  db.prepare('DELETE FROM settings WHERE profile_id = ?').run(req.profileId);
+  seedDefaultSettings(db, req.profileId);
   res.json({ ok: true });
 });
 

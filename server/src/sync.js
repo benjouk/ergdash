@@ -1,6 +1,6 @@
 import cron from 'node-cron';
 import { getDb } from './db.js';
-import { getValidToken, fetchC2Api } from './auth.js';
+import { getValidToken, fetchC2Api, listProfiles } from './auth.js';
 import {
   tagAllWorkouts,
   computeAllMetrics,
@@ -16,44 +16,51 @@ import { detectNewPbs, reconcilePbDistances } from './pbDetection.js';
 import { matchNewWorkouts } from './planMatching.js';
 import { parseEditedFields, computePaceMs } from './workoutFields.js';
 
-let syncInProgress = false;
+// Per-profile sync locks. Sync state is namespaced per profile in sync_state
+// under profile:{id}:* keys.
+const syncingProfiles = new Set();
 
-export function isSyncInProgress() {
-  return syncInProgress;
+export function isSyncInProgress(profileId) {
+  return profileId == null ? syncingProfiles.size > 0 : syncingProfiles.has(profileId);
 }
 
-function setSyncState(key, value) {
-  const db = getDb();
-  db.prepare("INSERT OR REPLACE INTO sync_state (key, value, updated_at) VALUES (?, ?, datetime('now'))").run(key, value);
+function connectedProfileIds() {
+  return listProfiles().filter(p => p.connected).map(p => p.id);
 }
 
-function getSyncStateValue(key) {
+function setSyncState(profileId, key, value) {
   const db = getDb();
-  const row = db.prepare("SELECT value FROM sync_state WHERE key = ?").get(key);
+  db.prepare("INSERT OR REPLACE INTO sync_state (key, value, updated_at) VALUES (?, ?, datetime('now'))")
+    .run(`profile:${profileId}:${key}`, value);
+}
+
+function getSyncStateValue(profileId, key) {
+  const db = getDb();
+  const row = db.prepare('SELECT value FROM sync_state WHERE key = ?').get(`profile:${profileId}:${key}`);
   return row?.value || null;
 }
 
-export function getSyncStatus() {
+export function getSyncStatus(profileId) {
   const db = getDb();
-  const workoutCount = db.prepare('SELECT COUNT(*) as count FROM workouts').get().count;
+  const workoutCount = db.prepare('SELECT COUNT(*) as count FROM workouts WHERE profile_id = ?').get(profileId).count;
   // Enrichment only applies to Concept2-synced rows; manual/imported workouts
   // have no stroke stream to fetch and must not skew the progress numbers.
-  const c2Count = db.prepare("SELECT COUNT(*) as count FROM workouts WHERE source = 'c2'").get().count;
-  const enrichedCount = db.prepare("SELECT COUNT(*) as count FROM workouts WHERE source = 'c2' AND has_stroke_data = 1").get().count;
+  const c2Count = db.prepare("SELECT COUNT(*) as count FROM workouts WHERE source = 'c2' AND profile_id = ?").get(profileId).count;
+  const enrichedCount = db.prepare("SELECT COUNT(*) as count FROM workouts WHERE source = 'c2' AND has_stroke_data = 1 AND profile_id = ?").get(profileId).count;
   const remaining = c2Count - enrichedCount;
 
   // Estimate based on 10 workouts per 5 minutes (1 req/sec + processing)
   const estimatedSecondsRemaining = remaining > 0 ? Math.ceil((remaining / 10) * 300) : 0;
 
   return {
-    status: getSyncStateValue('sync_status') || 'idle',
-    last_completed: getSyncStateValue('last_sync_completed'),
+    status: getSyncStateValue(profileId, 'sync_status') || 'idle',
+    last_completed: getSyncStateValue(profileId, 'last_sync_completed'),
     total_workouts: workoutCount,
     enriched_workouts: enrichedCount,
     remaining_workouts: remaining,
     enrichment_progress: c2Count > 0 ? Math.round((enrichedCount / c2Count) * 100) : 100,
     estimated_seconds_remaining: estimatedSecondsRemaining,
-    sync_progress: getSyncStateValue('sync_progress'),
+    sync_progress: getSyncStateValue(profileId, 'sync_progress'),
   };
 }
 
@@ -238,14 +245,19 @@ export function c2ColumnValues(workout) {
 // brand-new workouts, so callers (e.g. PB detection) don't treat updates as
 // new results. affectedDistances lists distances whose PB history may need
 // reconciling because this update changed a C2-owned performance field.
-export function insertWorkout(db, workout) {
+export function insertWorkout(db, workout, profileId) {
   const rawJson = JSON.stringify(workout);
   const existing = db.prepare(
-    'SELECT raw_json, distance, pace_ms, time_ms, source, edited_fields FROM workouts WHERE id = ?'
+    'SELECT raw_json, distance, pace_ms, time_ms, source, edited_fields, profile_id FROM workouts WHERE id = ?'
   ).get(workout.id);
   // Manual/imported rows are user-owned; sync must never touch them. (IDs
   // can't actually collide — non-C2 rows use negative IDs — but be explicit.)
   if (existing && existing.source !== 'c2') {
+    return null;
+  }
+  // C2 result ids are globally unique, so a row owned by another profile
+  // should never match — but never let one profile's sync rewrite another's.
+  if (existing && existing.profile_id !== profileId) {
     return null;
   }
   if (existing && existing.raw_json === rawJson) {
@@ -296,18 +308,18 @@ export function insertWorkout(db, workout) {
 
   db.prepare(`
     INSERT INTO workouts (
-      id, user_id, date, timezone, type, workout_type,
+      id, profile_id, user_id, date, timezone, type, workout_type,
       distance, time_ms, pace_ms, stroke_rate, stroke_count,
       calories, heart_rate_avg, heart_rate_max, drag_factor,
       comments, rest_distance, rest_time_ms, raw_json, synced_at
     ) VALUES (
-      ?, ?, ?, ?, ?, ?,
+      ?, ?, ?, ?, ?, ?, ?,
       ?, ?, ?, ?, ?,
       ?, ?, ?, ?,
       ?, ?, ?, ?, datetime('now')
     )
   `).run(
-    workout.id, cols.user_id, cols.date, cols.timezone, cols.type, cols.workout_type,
+    workout.id, profileId, cols.user_id, cols.date, cols.timezone, cols.type, cols.workout_type,
     cols.distance, cols.time_ms, paceMs, cols.stroke_rate, cols.stroke_count,
     cols.calories, cols.heart_rate_avg, cols.heart_rate_max, cols.drag_factor,
     cols.comments, cols.rest_distance, cols.rest_time_ms, rawJson,
@@ -320,16 +332,16 @@ export function insertWorkout(db, workout) {
   return { id: workout.id, inserted: true };
 }
 
-export async function runFullSync() {
-  if (syncInProgress) return;
-  syncInProgress = true;
-  setSyncState('sync_status', 'syncing');
-  setSyncState('sync_progress', '0');
+export async function runFullSync(profileId) {
+  if (syncingProfiles.has(profileId)) return;
+  syncingProfiles.add(profileId);
+  setSyncState(profileId, 'sync_status', 'syncing');
+  setSyncState(profileId, 'sync_progress', '0');
 
   try {
-    const token = await getValidToken();
+    const token = await getValidToken(profileId);
     if (!token) {
-      setSyncState('sync_status', 'error');
+      setSyncState(profileId, 'sync_status', 'error');
       return;
     }
 
@@ -348,7 +360,7 @@ export async function runFullSync() {
 
       db.transaction(() => {
         for (const workout of results) {
-          const result = insertWorkout(db, workout);
+          const result = insertWorkout(db, workout, profileId);
           if (!result) continue;
           if (result.inserted) {
             insertedWorkoutIds.push(result.id);
@@ -360,7 +372,7 @@ export async function runFullSync() {
       })();
 
       totalSynced += results.length;
-      setSyncState('sync_progress', String(totalSynced));
+      setSyncState(profileId, 'sync_progress', String(totalSynced));
 
       const meta = data.meta;
       if (meta && meta.pagination && page >= meta.pagination.last_page) break;
@@ -370,32 +382,32 @@ export async function runFullSync() {
       await delay(200);
     }
 
-    console.log(`Full sync complete: ${totalSynced} workouts synced`);
-    runPostSyncAnalytics(insertedWorkoutIds, updatedWorkoutIds, affectedPbDistances);
-    setSyncState('last_sync_completed', new Date().toISOString());
-    setSyncState('sync_status', 'idle');
+    console.log(`Full sync complete for profile ${profileId}: ${totalSynced} workouts synced`);
+    runPostSyncAnalytics(profileId, insertedWorkoutIds, updatedWorkoutIds, affectedPbDistances);
+    setSyncState(profileId, 'last_sync_completed', new Date().toISOString());
+    setSyncState(profileId, 'sync_status', 'idle');
   } catch (err) {
     console.error('Full sync error:', err);
-    setSyncState('sync_status', 'error');
+    setSyncState(profileId, 'sync_status', 'error');
   } finally {
-    syncInProgress = false;
+    syncingProfiles.delete(profileId);
   }
 }
 
-export async function runIncrementalSync() {
-  if (syncInProgress) return;
-  syncInProgress = true;
+export async function runIncrementalSync(profileId) {
+  if (syncingProfiles.has(profileId)) return;
+  syncingProfiles.add(profileId);
 
   try {
-    const token = await getValidToken();
+    const token = await getValidToken(profileId);
     if (!token) return;
 
     const db = getDb();
-    const lastSync = getSyncStateValue('last_sync_completed');
+    const lastSync = getSyncStateValue(profileId, 'last_sync_completed');
     const insertedWorkoutIds = [];
     const updatedWorkoutIds = [];
     const affectedPbDistances = [];
-    setSyncState('sync_status', 'syncing');
+    setSyncState(profileId, 'sync_status', 'syncing');
 
     // Concept2 filters `from` by workout date, not upload/update time, so a
     // late-uploaded or edited older workout can fall outside a tight cursor.
@@ -419,7 +431,7 @@ export async function runIncrementalSync() {
 
       db.transaction(() => {
         for (const workout of results) {
-          const result = insertWorkout(db, workout);
+          const result = insertWorkout(db, workout, profileId);
           if (!result) continue;
           if (result.inserted) {
             insertedWorkoutIds.push(result.id);
@@ -440,28 +452,28 @@ export async function runIncrementalSync() {
     }
 
     if (totalFetched > 0) {
-      console.log(`Incremental sync: ${totalFetched} workouts scanned, ${insertedWorkoutIds.length} new, ${updatedWorkoutIds.length} updated`);
-      runPostSyncAnalytics(insertedWorkoutIds, updatedWorkoutIds, affectedPbDistances);
+      console.log(`Incremental sync (profile ${profileId}): ${totalFetched} workouts scanned, ${insertedWorkoutIds.length} new, ${updatedWorkoutIds.length} updated`);
+      runPostSyncAnalytics(profileId, insertedWorkoutIds, updatedWorkoutIds, affectedPbDistances);
     }
 
-    setSyncState('last_sync_completed', new Date().toISOString());
-    setSyncState('sync_status', 'idle');
+    setSyncState(profileId, 'last_sync_completed', new Date().toISOString());
+    setSyncState(profileId, 'sync_status', 'idle');
   } catch (err) {
     console.error('Incremental sync error:', err);
-    setSyncState('sync_status', 'error');
+    setSyncState(profileId, 'sync_status', 'error');
   } finally {
-    syncInProgress = false;
+    syncingProfiles.delete(profileId);
   }
 }
 
-export function runPostSyncAnalytics(insertedWorkoutIds = [], updatedWorkoutIds = [], affectedPbDistances = []) {
+export function runPostSyncAnalytics(profileId, insertedWorkoutIds = [], updatedWorkoutIds = [], affectedPbDistances = []) {
   try {
-    tagAllWorkouts();
-    computeAllMetrics();
-    computeFitnessLog();
-    computePredictions();
-    computeAllZoneTimes();
-    computeAllBestEfforts();
+    tagAllWorkouts(profileId);
+    computeAllMetrics(profileId);
+    computeFitnessLog(profileId);
+    computePredictions(profileId);
+    computeAllZoneTimes(profileId);
+    computeAllBestEfforts(profileId);
     // computeAllX() above are cache-gated on existing rows, so changed
     // workouts (which already have stale rows) need an explicit recompute.
     for (const id of updatedWorkoutIds) {
@@ -471,9 +483,9 @@ export function runPostSyncAnalytics(insertedWorkoutIds = [], updatedWorkoutIds 
     // or restore PBs at that distance, so rebuild pb_history for it rather
     // than relying on detectNewPbs (which only looks at new workouts).
     if (affectedPbDistances.length > 0) {
-      reconcilePbDistances(affectedPbDistances);
+      reconcilePbDistances(profileId, affectedPbDistances);
     }
-    const newPbs = detectNewPbs(insertedWorkoutIds);
+    const newPbs = detectNewPbs(profileId, insertedWorkoutIds);
     if (newPbs.length > 0) {
       console.log(`Detected ${newPbs.length} new PB${newPbs.length === 1 ? '' : 's'}`);
     }
@@ -559,10 +571,13 @@ async function fetchAndStoreStrokes(db, id, token) {
 }
 
 export async function enrichSingleWorkout(id) {
-  const token = await getValidToken();
+  const db = getDb();
+  // The workout row knows its owner; use that profile's token.
+  const owner = db.prepare('SELECT profile_id FROM workouts WHERE id = ?').get(id);
+  if (!owner) throw new Error('Workout not found');
+  const token = await getValidToken(owner.profile_id);
   if (!token) throw new Error('Not authenticated');
 
-  const db = getDb();
   db.prepare('DELETE FROM strokes WHERE workout_id = ?').run(id);
   db.prepare('UPDATE workouts SET has_stroke_data = 0 WHERE id = ?').run(id);
 
@@ -597,28 +612,30 @@ export function resetStrokeFlags() {
   }
 }
 
-export async function runStrokeEnrichment() {
-  const token = await getValidToken();
+export async function runStrokeEnrichment(profileId) {
+  const token = await getValidToken(profileId);
   if (!token) return;
 
   const db = getDb();
-  const remaining = db.prepare("SELECT COUNT(*) as c FROM workouts WHERE has_stroke_data = 0 AND source = 'c2'").get().c;
+  const remaining = db.prepare(
+    "SELECT COUNT(*) as c FROM workouts WHERE has_stroke_data = 0 AND source = 'c2' AND profile_id = ?"
+  ).get(profileId).c;
   if (remaining === 0) return;
 
-  const workouts = selectPendingStrokeWorkouts(db, 10);
+  const workouts = selectPendingStrokeWorkouts(db, profileId, 10);
 
-  console.log(`Stroke enrichment: processing ${workouts.length} of ${remaining} remaining`);
+  console.log(`Stroke enrichment (profile ${profileId}): processing ${workouts.length} of ${remaining} remaining`);
 
   for (const { id } of workouts) {
     try {
       const result = await fetchAndStoreStrokes(db, id, token);
       recomputeWorkoutAnalytics(id);
       console.log(`  Workout ${id}: ${result.strokes} strokes`);
-      setSyncState('last_enriched_workout_id', String(id));
+      setSyncState(profileId, 'last_enriched_workout_id', String(id));
       await delay(1000);
     } catch (err) {
       console.error(`Stroke enrichment failed for workout ${id}:`, err);
-      setSyncState('last_enriched_workout_id', String(id));
+      setSyncState(profileId, 'last_enriched_workout_id', String(id));
     }
   }
 }
@@ -626,10 +643,10 @@ export async function runStrokeEnrichment() {
 // Walk the pending set by ID and wrap after reaching the end. Workouts with
 // no available stroke stream are retried on later passes without pinning the
 // queue to the same newest ten rows forever.
-export function selectPendingStrokeWorkouts(db, limit = 10) {
+export function selectPendingStrokeWorkouts(db, profileId, limit = 10) {
   const cursorRow = db.prepare(
-    "SELECT value FROM sync_state WHERE key = 'last_enriched_workout_id'"
-  ).get();
+    'SELECT value FROM sync_state WHERE key = ?'
+  ).get(`profile:${profileId}:last_enriched_workout_id`);
   const cursor = Number(cursorRow?.value);
   const boundedLimit = Math.max(1, Math.min(100, Number(limit) || 10));
   let workouts = [];
@@ -637,34 +654,35 @@ export function selectPendingStrokeWorkouts(db, limit = 10) {
   if (Number.isInteger(cursor)) {
     workouts = db.prepare(`
       SELECT id FROM workouts
-      WHERE has_stroke_data = 0 AND source = 'c2' AND id < ?
+      WHERE has_stroke_data = 0 AND source = 'c2' AND profile_id = ? AND id < ?
       ORDER BY id DESC LIMIT ?
-    `).all(cursor, boundedLimit);
+    `).all(profileId, cursor, boundedLimit);
   }
 
   if (workouts.length === 0) {
     workouts = db.prepare(`
       SELECT id FROM workouts
-      WHERE has_stroke_data = 0 AND source = 'c2'
+      WHERE has_stroke_data = 0 AND source = 'c2' AND profile_id = ?
       ORDER BY id DESC LIMIT ?
-    `).all(boundedLimit);
+    `).all(profileId, boundedLimit);
   }
 
   return workouts;
 }
 
-export async function runIntervalBackfill() {
+export async function runIntervalBackfill(profileId) {
   const db = getDb();
   const workouts = db.prepare(`
     SELECT w.id, w.raw_json FROM workouts w
     WHERE w.has_stroke_data = 1
       AND w.source = 'c2'
+      AND w.profile_id = ?
       AND NOT EXISTS (SELECT 1 FROM intervals WHERE workout_id = w.id)
     ORDER BY w.date DESC LIMIT 10
-  `).all();
+  `).all(profileId);
 
   if (workouts.length === 0) return;
-  console.log(`Interval backfill: processing ${workouts.length} workouts`);
+  console.log(`Interval backfill (profile ${profileId}): processing ${workouts.length} workouts`);
 
   for (const { id, raw_json } of workouts) {
     try {
@@ -678,7 +696,7 @@ export async function runIntervalBackfill() {
         }
       }
       if (intervals.length === 0) {
-        const token = await getValidToken();
+        const token = await getValidToken(profileId);
         if (token) intervals = await fetchIntervalsFromC2(id, token);
       }
       if (intervals.length === 0) {
@@ -705,15 +723,21 @@ export function startSyncSchedule() {
 
   const interval = parseInt(process.env.SYNC_INTERVAL_MINUTES || '15', 10);
 
-  cron.schedule(`*/${interval} * * * *`, () => {
+  // Profiles run sequentially: they share one Concept2 OAuth app and its
+  // rate budget, so parallel per-profile syncs would double the request rate.
+  cron.schedule(`*/${interval} * * * *`, async () => {
     console.log('[cron] Running incremental sync');
-    runIncrementalSync().catch(err => console.error('Scheduled sync failed:', err));
+    for (const profileId of connectedProfileIds()) {
+      await runIncrementalSync(profileId).catch(err => console.error('Scheduled sync failed:', err));
+    }
   });
 
-  cron.schedule('*/5 * * * *', () => {
+  cron.schedule('*/5 * * * *', async () => {
     console.log('[cron] Running stroke enrichment');
-    runStrokeEnrichment().catch(err => console.error('Stroke enrichment failed:', err));
-    runIntervalBackfill().catch(err => console.error('Interval backfill failed:', err));
+    for (const profileId of connectedProfileIds()) {
+      await runStrokeEnrichment(profileId).catch(err => console.error('Stroke enrichment failed:', err));
+      await runIntervalBackfill(profileId).catch(err => console.error('Interval backfill failed:', err));
+    }
   });
 
   console.log(`Sync scheduled: incremental every ${interval}min, stroke enrichment every 5min`);

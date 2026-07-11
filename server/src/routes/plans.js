@@ -72,10 +72,10 @@ router.get('/adherence', (req, res) => {
            SUM(CASE WHEN p.status = 'completed' THEN COALESCE(w.distance, 0) ELSE 0 END) as actual_meters
     FROM planned_workouts p
     LEFT JOIN workouts w ON w.id = p.completed_workout_id
-    WHERE p.date >= ? AND p.date < ?
+    WHERE p.profile_id = ? AND p.date >= ? AND p.date < ?
     GROUP BY week
     ORDER BY week_start
-  `).all(from, todayStr);
+  `).all(req.profileId, from, todayStr);
 
   res.json({ weeks: rows });
 });
@@ -84,11 +84,11 @@ router.get('/', (req, res) => {
   const db = getDb();
   const { from, to } = req.query;
 
-  const conditions = [];
-  const params = [];
+  const conditions = ['p.profile_id = ?'];
+  const params = [req.profileId];
   if (from) { conditions.push('p.date >= ?'); params.push(from.slice(0, 10)); }
   if (to) { conditions.push('p.date < ?'); params.push(to.slice(0, 10)); }
-  const where = conditions.length ? ` WHERE ${conditions.join(' AND ')}` : '';
+  const where = ` WHERE ${conditions.join(' AND ')}`;
 
   const rows = db.prepare(`${PLAN_SELECT}${where} ORDER BY p.date, p.id`).all(...params);
   const todayStr = today();
@@ -249,12 +249,13 @@ router.post('/', (req, res) => {
   }
 
   const insert = db.prepare(`
-    INSERT INTO planned_workouts (date, type, target_distance, target_duration_ms, target_pace_ms, target_rate,
+    INSERT INTO planned_workouts (profile_id, date, type, target_distance, target_duration_ms, target_pace_ms, target_rate,
                                   interval_reps, interval_distance, interval_duration_ms, interval_rest_ms, notes)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   const ids = db.transaction(() => expandRepeatDates(fields.date, repeatWeeks).map(date =>
     insert.run(
+      req.profileId,
       date,
       fields.type ?? 'steady',
       fields.target_distance ?? null,
@@ -287,7 +288,7 @@ router.patch('/:id', (req, res) => {
   }
 
   const existing = db.prepare('SELECT * FROM planned_workouts WHERE id = ?').get(id);
-  if (!existing) {
+  if (!existing || existing.profile_id !== req.profileId) {
     return res.status(404).json({ error: 'Plan not found' });
   }
 
@@ -349,11 +350,13 @@ router.post('/:id/match', (req, res) => {
   }
 
   const plan = db.prepare('SELECT * FROM planned_workouts WHERE id = ?').get(id);
-  if (!plan) {
+  if (!plan || plan.profile_id !== req.profileId) {
     return res.status(404).json({ error: 'Plan not found' });
   }
 
-  const workout = db.prepare("SELECT id, date FROM workouts WHERE id = ? AND type = 'rower'").get(workoutId);
+  // Same-profile invariant: a plan may only link to its own profile's workout.
+  const workout = db.prepare("SELECT id, date FROM workouts WHERE id = ? AND type = 'rower' AND profile_id = ?")
+    .get(workoutId, req.profileId);
   if (!workout) {
     return res.status(404).json({ error: 'Workout not found' });
   }
@@ -393,7 +396,7 @@ router.delete('/:id/match', (req, res) => {
   }
 
   const plan = db.prepare('SELECT * FROM planned_workouts WHERE id = ?').get(id);
-  if (!plan) {
+  if (!plan || plan.profile_id !== req.profileId) {
     return res.status(404).json({ error: 'Plan not found' });
   }
 
@@ -414,7 +417,7 @@ router.delete('/:id', (req, res) => {
     return res.status(400).json({ error: 'Invalid plan id' });
   }
 
-  const result = db.prepare('DELETE FROM planned_workouts WHERE id = ?').run(id);
+  const result = db.prepare('DELETE FROM planned_workouts WHERE id = ? AND profile_id = ?').run(id, req.profileId);
   if (result.changes === 0) {
     return res.status(404).json({ error: 'Plan not found' });
   }

@@ -25,7 +25,9 @@ export function initDb() {
   db.pragma('busy_timeout = 5000');
 
   runMigrations(db);
-  seedDefaults(db);
+  for (const { id } of db.prepare('SELECT id FROM profiles').all()) {
+    seedDefaultSettings(db, id);
+  }
 
   return db;
 }
@@ -67,18 +69,18 @@ function runMigrations(db) {
   }
 }
 
-export function seedDefaults(db) {
+export function seedDefaultSettings(db, profileId) {
   const insert = db.prepare(
-    'INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)'
+    'INSERT OR IGNORE INTO settings (profile_id, key, value) VALUES (?, ?, ?)'
   );
   db.transaction(() => {
-    insert.run('theme', 'system');
-    insert.run('units', 'pace');
-    insert.run('sync_interval', '15');
-    insert.run('default_landing', '/');
-    insert.run('feed_limit', '50');
-    insert.run('week_start', 'monday');
-    insert.run('date_format', 'day-month');
+    insert.run(profileId, 'theme', 'system');
+    insert.run(profileId, 'units', 'pace');
+    insert.run(profileId, 'sync_interval', '15');
+    insert.run(profileId, 'default_landing', '/');
+    insert.run(profileId, 'feed_limit', '50');
+    insert.run(profileId, 'week_start', 'monday');
+    insert.run(profileId, 'date_format', 'day-month');
   })();
 }
 

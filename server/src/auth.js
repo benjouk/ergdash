@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { getDb } from './db.js';
+import { getDb, seedDefaultSettings } from './db.js';
 
 const C2_API_BASE = process.env.C2_API_BASE || 'https://log.concept2.com';
 const C2_CLIENT_ID = process.env.C2_CLIENT_ID || '';
@@ -112,10 +112,21 @@ function cookieOptions(maxAgeSeconds) {
   return parts.join('; ');
 }
 
-export function getAuthorizationUrl() {
+const OAUTH_STATE_TTL_MINUTES = 10;
+
+export function pruneExpiredOauthStates() {
+  getDb().prepare(
+    `DELETE FROM sync_state WHERE key LIKE 'oauth_state:%' AND updated_at < datetime('now', '-${OAUTH_STATE_TTL_MINUTES} minutes')`
+  ).run();
+}
+
+// intent: { profileId } to reconnect an existing profile, { newName } to
+// create one from the connecting account. Stored per-state so concurrent
+// connect flows don't clobber each other.
+export function getAuthorizationUrl(intent = {}) {
   const state = crypto.randomBytes(16).toString('hex');
-  const db = getDb();
-  db.prepare("INSERT OR REPLACE INTO sync_state (key, value, updated_at) VALUES ('oauth_state', ?, datetime('now'))").run(state);
+  pruneExpiredOauthStates();
+  upsertSyncState(`oauth_state:${state}`, JSON.stringify(intent));
 
   const params = new URLSearchParams({
     client_id: C2_CLIENT_ID,
@@ -163,43 +174,51 @@ export async function refreshAccessToken(refreshToken) {
   return resp.json();
 }
 
-export function storeTokens(tokens) {
+export function consumeOauthState(state) {
+  if (!state || !/^[0-9a-f]{32}$/.test(state)) return null;
   const db = getDb();
-  const upsert = db.prepare(
-    "INSERT OR REPLACE INTO sync_state (key, value, updated_at) VALUES (?, ?, datetime('now'))"
-  );
+  pruneExpiredOauthStates();
+  const row = db.prepare('SELECT value FROM sync_state WHERE key = ?').get(`oauth_state:${state}`);
+  if (!row) return null;
+  db.prepare('DELETE FROM sync_state WHERE key = ?').run(`oauth_state:${state}`);
+  try {
+    return JSON.parse(row.value) || {};
+  } catch {
+    return {};
+  }
+}
+
+export function storeTokens(profileId, tokens) {
+  const db = getDb();
   db.transaction(() => {
     if (tokens.access_token) {
-      upsert.run('access_token', encryptSecret(tokens.access_token));
+      db.prepare('UPDATE profiles SET access_token = ? WHERE id = ?')
+        .run(encryptSecret(tokens.access_token), profileId);
     }
     if (tokens.refresh_token) {
-      upsert.run('refresh_token', encryptSecret(tokens.refresh_token));
+      db.prepare('UPDATE profiles SET refresh_token = ? WHERE id = ?')
+        .run(encryptSecret(tokens.refresh_token), profileId);
     }
-    upsert.run('token_expires_at', new Date(Date.now() + (tokens.expires_in || 3600) * 1000).toISOString());
+    db.prepare('UPDATE profiles SET token_expires_at = ? WHERE id = ?')
+      .run(new Date(Date.now() + (tokens.expires_in || 3600) * 1000).toISOString(), profileId);
   })();
 }
 
-export async function getValidToken() {
+export async function getValidToken(profileId) {
   const db = getDb();
-  const tokenRow = db.prepare("SELECT value FROM sync_state WHERE key = 'access_token'").get();
-  const expiresRow = db.prepare("SELECT value FROM sync_state WHERE key = 'token_expires_at'").get();
-  const refreshRow = db.prepare("SELECT value FROM sync_state WHERE key = 'refresh_token'").get();
+  const profile = db.prepare(
+    'SELECT access_token, refresh_token, token_expires_at FROM profiles WHERE id = ?'
+  ).get(profileId);
 
-  if (!tokenRow) return null;
+  if (!profile?.access_token) return null;
 
-  const accessToken = decryptSecret(tokenRow.value);
-  const refreshToken = decryptSecret(refreshRow?.value);
-  if (accessToken && !tokenRow.value.startsWith(ENCRYPTED_PREFIX)) {
-    upsertSyncState('access_token', encryptSecret(accessToken));
-  }
-  if (refreshToken && refreshRow && !refreshRow.value.startsWith(ENCRYPTED_PREFIX)) {
-    upsertSyncState('refresh_token', encryptSecret(refreshToken));
-  }
-  const expiresAt = new Date(expiresRow?.value || 0);
+  const accessToken = decryptSecret(profile.access_token);
+  const refreshToken = decryptSecret(profile.refresh_token);
+  const expiresAt = new Date(profile.token_expires_at || 0);
   if (expiresAt < new Date(Date.now() + 5 * 60 * 1000) && refreshToken) {
     try {
       const newTokens = await refreshAccessToken(refreshToken);
-      storeTokens(newTokens);
+      storeTokens(profileId, newTokens);
       return newTokens.access_token;
     } catch {
       return accessToken;
@@ -222,9 +241,9 @@ export async function fetchC2Api(path, accessToken) {
   return resp.json();
 }
 
-export function isAuthenticated() {
+export function hasConnectedProfile() {
   const db = getDb();
-  const row = db.prepare("SELECT value FROM sync_state WHERE key = 'access_token'").get();
+  const row = db.prepare('SELECT 1 FROM profiles WHERE access_token IS NOT NULL LIMIT 1').get();
   return !!row;
 }
 
@@ -271,17 +290,82 @@ export function clearAuthSession(req, res) {
   res.setHeader('Set-Cookie', `${AUTH_COOKIE}=; ${cookieOptions(0)}`);
 }
 
-export function getUserInfo() {
+export function getUserInfo(profileId) {
   const db = getDb();
-  const row = db.prepare("SELECT value FROM sync_state WHERE key = 'user_info'").get();
-  return row ? JSON.parse(row.value) : null;
+  const row = db.prepare('SELECT user_info FROM profiles WHERE id = ?').get(profileId);
+  return row?.user_info ? JSON.parse(row.user_info) : null;
 }
 
-export function clearAuth() {
+// Disconnects a profile from Concept2. Data and the browser session are kept.
+export function clearAuth(profileId) {
+  getDb().prepare(
+    'UPDATE profiles SET access_token = NULL, refresh_token = NULL, token_expires_at = NULL, user_info = NULL WHERE id = ?'
+  ).run(profileId);
+}
+
+export function listProfiles() {
   const db = getDb();
-  const del = db.prepare("DELETE FROM sync_state WHERE key IN ('access_token', 'refresh_token', 'token_expires_at', 'user_info', 'oauth_state')");
+  return db.prepare(
+    'SELECT id, name, c2_user_id, user_info, access_token IS NOT NULL AS connected FROM profiles ORDER BY id'
+  ).all().map((row) => ({
+    id: row.id,
+    name: row.name,
+    connected: !!row.connected,
+    user: row.user_info ? JSON.parse(row.user_info) : null,
+  }));
+}
+
+export function getProfile(profileId) {
+  return getDb().prepare('SELECT * FROM profiles WHERE id = ?').get(profileId) || null;
+}
+
+export function getProfileByC2UserId(c2UserId) {
+  if (c2UserId == null) return null;
+  return getDb().prepare('SELECT * FROM profiles WHERE c2_user_id = ?').get(c2UserId) || null;
+}
+
+export function createProfile(name) {
+  const db = getDb();
+  const { lastInsertRowid } = db.prepare('INSERT INTO profiles (name) VALUES (?)')
+    .run(String(name || 'Athlete').slice(0, 60));
+  seedDefaultSettings(db, lastInsertRowid);
+  return getProfile(lastInsertRowid);
+}
+
+export function renameProfile(profileId, name) {
+  const trimmed = String(name || '').trim().slice(0, 60);
+  if (!trimmed) return getProfile(profileId);
+  getDb().prepare('UPDATE profiles SET name = ? WHERE id = ?').run(trimmed, profileId);
+  return getProfile(profileId);
+}
+
+export function setProfileIdentity(profileId, userInfo) {
+  getDb().prepare('UPDATE profiles SET c2_user_id = ?, user_info = ? WHERE id = ?')
+    .run(userInfo?.id ?? null, userInfo ? JSON.stringify(userInfo) : null, profileId);
+}
+
+// No FK CASCADE on the app-enforced profile_id columns, so cascade here.
+export function deleteProfile(profileId) {
+  const db = getDb();
   db.transaction(() => {
-    del.run();
-    db.prepare('DELETE FROM sessions').run();
+    const workoutIds = db.prepare('SELECT id FROM workouts WHERE profile_id = ?').all(profileId).map(r => r.id);
+    const delChild = (table) => {
+      const stmt = db.prepare(`DELETE FROM ${table} WHERE workout_id = ?`);
+      for (const id of workoutIds) stmt.run(id);
+    };
+    db.prepare('UPDATE planned_workouts SET completed_workout_id = NULL WHERE profile_id = ?').run(profileId);
+    for (const table of ['strokes', 'intervals', 'computed_metrics', 'hr_zone_time', 'best_efforts', 'interval_recoveries']) {
+      delChild(table);
+    }
+    db.prepare('DELETE FROM pb_history WHERE profile_id = ?').run(profileId);
+    db.prepare('DELETE FROM workouts WHERE profile_id = ?').run(profileId);
+    db.prepare('DELETE FROM planned_workouts WHERE profile_id = ?').run(profileId);
+    db.prepare('DELETE FROM programs WHERE profile_id = ?').run(profileId);
+    db.prepare('DELETE FROM goals WHERE profile_id = ?').run(profileId);
+    db.prepare('DELETE FROM fitness_log WHERE profile_id = ?').run(profileId);
+    db.prepare('DELETE FROM predictions WHERE profile_id = ?').run(profileId);
+    db.prepare('DELETE FROM settings WHERE profile_id = ?').run(profileId);
+    db.prepare("DELETE FROM sync_state WHERE key LIKE ?").run(`profile:${profileId}:%`);
+    db.prepare('DELETE FROM profiles WHERE id = ?').run(profileId);
   })();
 }

@@ -1,4 +1,4 @@
-import { initDb, getDb } from './db.js';
+import { initDb, getDb, seedDefaultSettings } from './db.js';
 import { computeMetricsForWorkout, computeFitnessLog, tagAllWorkouts, computePredictions } from './analytics.js';
 import { generateProgramSessions, resolveDurationWeeks, weekOfDate } from './programGenerator.js';
 import { getPreset } from './programPresets.js';
@@ -261,25 +261,25 @@ function sessionDate(date, isDouble = false) {
 // Sample goals so dev mode exercises the goal overlays: a weekly and a
 // season volume target plus a 2k performance target pegged just under the
 // seeded best, with a race six weeks out.
-function seedGoals(db) {
-  const count = db.prepare('SELECT COUNT(*) as c FROM goals').get().c;
+function seedGoals(db, profileId) {
+  const count = db.prepare('SELECT COUNT(*) as c FROM goals WHERE profile_id = ?').get(profileId).c;
   if (count > 0) return;
 
   const insertGoal = db.prepare(`
-    INSERT INTO goals (kind, period, target_meters, distance, target_time_ms, race_date, label)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO goals (profile_id, kind, period, target_meters, distance, target_time_ms, race_date, label)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
-  insertGoal.run('volume', 'weekly', 60000, null, null, null, null);
-  insertGoal.run('volume', 'season', 1500000, null, null, null, null);
+  insertGoal.run(profileId, 'volume', 'weekly', 60000, null, null, null, null);
+  insertGoal.run(profileId, 'volume', 'season', 1500000, null, null, null, null);
 
   const best2k = db.prepare(`
     SELECT MIN(time_ms) as t FROM workouts
-    WHERE type = 'rower' AND distance = 2000 AND pace_ms > 0
-  `).get().t;
+    WHERE type = 'rower' AND profile_id = ? AND distance = 2000 AND pace_ms > 0
+  `).get(profileId).t;
   if (best2k) {
     const raceDate = new Date(Date.now() + 42 * 86400000).toISOString().slice(0, 10);
-    insertGoal.run('performance', null, null, 2000, best2k - 15000, raceDate, 'Race day 2k');
+    insertGoal.run(profileId, 'performance', null, null, 2000, best2k - 15000, raceDate, 'Race day 2k');
   }
 
   console.log('Seeded sample goals');
@@ -291,8 +291,8 @@ function seedGoals(db) {
 // A mid-flight Pete Plan so the dev/demo calendar shows a real program with
 // matched history. Seeded before the ad-hoc plans so it claims its own
 // completed sessions first.
-function seedProgram(db) {
-  if (db.prepare('SELECT COUNT(*) as c FROM programs').get().c > 0) return;
+function seedProgram(db, profileId) {
+  if (db.prepare('SELECT COUNT(*) as c FROM programs WHERE profile_id = ?').get(profileId).c > 0) return;
 
   const preset = getPreset('pete-plan');
   const trainingDays = [0, 1, 2, 4, 5]; // Mon, Tue, Wed, Fri, Sat
@@ -302,27 +302,27 @@ function seedProgram(db) {
   const gen = generateProgramSessions(preset, { startDate, trainingDays, durationWeeks });
 
   const insertProgram = db.prepare(`
-    INSERT INTO programs (preset_id, name, start_date, duration_weeks, training_days, race_date)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO programs (profile_id, preset_id, name, start_date, duration_weeks, training_days, race_date)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `);
   const insertSession = db.prepare(`
     INSERT INTO planned_workouts (
-      date, type, target_distance, target_duration_ms, target_pace_ms, target_rate,
+      profile_id, date, type, target_distance, target_duration_ms, target_pace_ms, target_rate,
       interval_reps, interval_distance, interval_duration_ms, interval_rest_ms, notes,
       program_id, program_week, program_slot
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   const todayStr = new Date().toISOString().slice(0, 10);
 
   const ids = [];
   db.transaction(() => {
     const pid = insertProgram.run(
-      preset.id, preset.name, gen.startDate, gen.durationWeeks, JSON.stringify(trainingDays), null,
+      profileId, preset.id, preset.name, gen.startDate, gen.durationWeeks, JSON.stringify(trainingDays), null,
     ).lastInsertRowid;
     for (const s of gen.sessions) {
       const f = deriveIntervalTotals({ ...s });
       ids.push(insertSession.run(
-        s.date, s.type, f.target_distance ?? null, f.target_duration_ms ?? null,
+        profileId, s.date, s.type, f.target_distance ?? null, f.target_duration_ms ?? null,
         s.target_pace_ms ?? null, s.target_rate ?? null,
         s.interval_reps ?? null, s.interval_distance ?? null,
         s.interval_duration_ms ?? null, s.interval_rest_ms ?? null, s.notes ?? null,
@@ -338,9 +338,9 @@ function seedProgram(db) {
   console.log('Seeded training program (Pete Plan)');
 }
 
-function seedPlannedWorkouts(db) {
+function seedPlannedWorkouts(db, profileId) {
   // Count only ad-hoc plans; the program seed above already inserted its rows.
-  const count = db.prepare('SELECT COUNT(*) as c FROM planned_workouts WHERE program_id IS NULL').get().c;
+  const count = db.prepare('SELECT COUNT(*) as c FROM planned_workouts WHERE program_id IS NULL AND profile_id = ?').get(profileId).c;
   if (count > 0) return;
 
   const fourWeeksAgo = new Date(Date.now() - 28 * 86400000).toISOString().slice(0, 10);
@@ -348,9 +348,9 @@ function seedPlannedWorkouts(db) {
     SELECT w.id, date(w.date) as day, w.distance, w.pace_ms,
            EXISTS(SELECT 1 FROM intervals i WHERE i.workout_id = w.id) as has_intervals
     FROM workouts w
-    WHERE w.type = 'rower' AND w.date >= ?
+    WHERE w.type = 'rower' AND w.profile_id = ? AND w.date >= ?
     ORDER BY w.date
-  `).all(fourWeeksAgo);
+  `).all(profileId, fourWeeksAgo);
 
   const byDay = new Map();
   for (const w of recent) {
@@ -359,9 +359,9 @@ function seedPlannedWorkouts(db) {
 
   const insertPlan = db.prepare(`
     INSERT INTO planned_workouts (
-      date, type, target_distance, target_duration_ms, target_pace_ms,
+      profile_id, date, type, target_distance, target_duration_ms, target_pace_ms,
       target_rate, notes, completed_workout_id, match_type, status
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   db.transaction(() => {
@@ -372,9 +372,9 @@ function seedPlannedWorkouts(db) {
       if (db.prepare('SELECT 1 FROM planned_workouts WHERE completed_workout_id = ?').get(w.id)) continue;
       const type = w.has_intervals ? 'intervals' : 'steady';
       if (roll < 0.9) {
-        insertPlan.run(day, type, w.distance, null, w.pace_ms, null, null, w.id, 'auto', 'completed');
+        insertPlan.run(profileId, day, type, w.distance, null, w.pace_ms, null, null, w.id, 'auto', 'completed');
       } else {
-        insertPlan.run(day, type, w.distance, null, null, null, null, null, null, 'skipped');
+        insertPlan.run(profileId, day, type, w.distance, null, null, null, null, null, null, 'skipped');
       }
     }
 
@@ -384,7 +384,7 @@ function seedPlannedWorkouts(db) {
     for (let daysAgo = 2; daysAgo <= 27 && missedAdded < 3; daysAgo++) {
       const day = new Date(Date.now() - daysAgo * 86400000).toISOString().slice(0, 10);
       if (!byDay.has(day)) {
-        insertPlan.run(day, 'steady', 8000, null, null, null, null, null, null, 'planned');
+        insertPlan.run(profileId, day, 'steady', 8000, null, null, null, null, null, null, 'planned');
         missedAdded++;
         daysAgo += 6;
       }
@@ -400,21 +400,32 @@ function seedPlannedWorkouts(db) {
     ];
     for (const [daysAhead, type, dist, dur, pace, rate, notes] of futures) {
       const day = new Date(Date.now() + daysAhead * 86400000).toISOString().slice(0, 10);
-      insertPlan.run(day, type, dist, dur, pace, rate, notes, null, null, 'planned');
+      insertPlan.run(profileId, day, type, dist, dur, pace, rate, notes, null, null, 'planned');
     }
   })();
 
   console.log('Seeded planned workouts');
 }
 
+// The demo dataset belongs to a dedicated demo profile so multi-profile code
+// paths behave identically in dev and production.
+function ensureDemoProfile(db) {
+  const existing = db.prepare("SELECT id FROM profiles WHERE name = 'Demo Rower'").get();
+  if (existing) return existing.id;
+  const { lastInsertRowid } = db.prepare("INSERT INTO profiles (name) VALUES ('Demo Rower')").run();
+  seedDefaultSettings(db, lastInsertRowid);
+  return lastInsertRowid;
+}
+
 export function seedDatabase() {
   const db = getDb();
-  const count = db.prepare('SELECT COUNT(*) as c FROM workouts').get().c;
+  const profileId = ensureDemoProfile(db);
+  const count = db.prepare('SELECT COUNT(*) as c FROM workouts WHERE profile_id = ?').get(profileId).c;
   if (count > 0) {
     console.log(`Database already has ${count} workouts, skipping seed`);
-    seedGoals(db);
-    seedProgram(db);
-    seedPlannedWorkouts(db);
+    seedGoals(db, profileId);
+    seedProgram(db, profileId);
+    seedPlannedWorkouts(db, profileId);
     return;
   }
 
@@ -423,12 +434,12 @@ export function seedDatabase() {
 
   const insertWorkout = db.prepare(`
     INSERT OR IGNORE INTO workouts (
-      id, user_id, date, type, workout_type,
+      id, profile_id, user_id, date, type, workout_type,
       distance, time_ms, pace_ms, stroke_rate, stroke_count,
       calories, heart_rate_avg, heart_rate_max, drag_factor,
       rest_time_ms, rest_distance,
       has_stroke_data, synced_at
-    ) VALUES (?, 1, ?, 'rower', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    ) VALUES (?, ?, 1, ?, 'rower', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
   `);
 
   const insertInterval = db.prepare(`
@@ -448,7 +459,7 @@ export function seedDatabase() {
   db.transaction(() => {
     for (const w of workouts) {
       insertWorkout.run(
-        w.id, w.date, w.workoutType,
+        w.id, profileId, w.date, w.workoutType,
         w.distance, w.timeMs, w.paceMs, w.strokeRate, w.strokeCount,
         w.calories, w.hrAvg, w.hrMax, w.dragFactor,
         w.restTimeMs || null, w.restDistance || null,
@@ -477,13 +488,13 @@ export function seedDatabase() {
 
   console.log(`Seeded ${workouts.length} workouts`);
 
-  tagAllWorkouts();
+  tagAllWorkouts(profileId);
   console.log('Tagged all workouts');
 
-  computeFitnessLog();
+  computeFitnessLog(profileId);
   console.log('Computed fitness log');
 
-  computePredictions();
+  computePredictions(profileId);
   console.log('Computed predictions');
 
   for (const w of workouts) {
@@ -493,9 +504,9 @@ export function seedDatabase() {
   }
   console.log('Computed workout metrics');
 
-  seedGoals(db);
-  seedProgram(db);
-  seedPlannedWorkouts(db);
+  seedGoals(db, profileId);
+  seedProgram(db, profileId);
+  seedPlannedWorkouts(db, profileId);
 }
 
 // Demo data must be an explicit opt-in. NODE_ENV alone is too broad: local

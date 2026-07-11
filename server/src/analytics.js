@@ -19,8 +19,8 @@ export const METRICS_VERSION = 2;
 
 const MIN_DRIFT_DURATION_MS = 15 * 60 * 1000;
 
-function getRateBandTolerance(db) {
-  const row = db.prepare("SELECT value FROM settings WHERE key = 'rate_band_tolerance'").get();
+function getRateBandTolerance(db, profileId) {
+  const row = db.prepare("SELECT value FROM settings WHERE profile_id = ? AND key = 'rate_band_tolerance'").get(profileId);
   const tolerance = row ? Number(row.value) : NaN;
   return Number.isFinite(tolerance) && tolerance > 0 ? tolerance : 2;
 }
@@ -56,11 +56,11 @@ export function computeMetricsForWorkout(workoutId) {
 
   if (workout.pace_ms && workout.pace_ms > 0) {
     const userBests = db.prepare(
-      'SELECT MIN(pace_ms) as best FROM workouts WHERE distance = ? AND pace_ms > 0'
-    ).get(workout.distance);
+      'SELECT MIN(pace_ms) as best FROM workouts WHERE distance = ? AND pace_ms > 0 AND profile_id = ?'
+    ).get(workout.distance, workout.profile_id);
     const userAvgRate = db.prepare(
-      'SELECT AVG(stroke_rate) as avg_rate FROM workouts WHERE stroke_rate > 0'
-    ).get();
+      'SELECT AVG(stroke_rate) as avg_rate FROM workouts WHERE stroke_rate > 0 AND profile_id = ?'
+    ).get(workout.profile_id);
 
     const pacePct = userBests?.best ? Math.min(100, (userBests.best / workout.pace_ms) * 100) : 50;
     const ratePct = userAvgRate?.avg_rate && workout.stroke_rate
@@ -74,8 +74,8 @@ export function computeMetricsForWorkout(workoutId) {
 
   if (workout.drag_factor) {
     const rollingAvg = db.prepare(
-      'SELECT AVG(drag_factor) as avg_drag FROM (SELECT drag_factor FROM workouts WHERE drag_factor > 0 ORDER BY date DESC LIMIT 30)'
-    ).get();
+      'SELECT AVG(drag_factor) as avg_drag FROM (SELECT drag_factor FROM workouts WHERE drag_factor > 0 AND profile_id = ? ORDER BY date DESC LIMIT 30)'
+    ).get(workout.profile_id);
     if (rollingAvg?.avg_drag) {
       dragDelta = workout.drag_factor - rollingAvg.avg_drag;
     }
@@ -93,7 +93,7 @@ export function computeMetricsForWorkout(workoutId) {
     ? hrDrift(strokes)
     : null;
 
-  const tolerance = getRateBandTolerance(db);
+  const tolerance = getRateBandTolerance(db, workout.profile_id);
   const rateSegments = isInterval && intervals.length > 0
     ? segmentStrokesByIntervals(strokes, intervals).workSegments
     : [strokes];
@@ -128,13 +128,13 @@ export function computeMetricsForWorkout(workoutId) {
   })();
 }
 
-export function computeAllMetrics() {
+export function computeAllMetrics(profileId) {
   const db = getDb();
   const workouts = db.prepare(`
     SELECT w.id FROM workouts w
     LEFT JOIN computed_metrics cm ON w.id = cm.workout_id
-    WHERE cm.id IS NULL OR COALESCE(cm.metrics_version, 0) < ?
-  `).all(METRICS_VERSION);
+    WHERE w.profile_id = ? AND (cm.id IS NULL OR COALESCE(cm.metrics_version, 0) < ?)
+  `).all(profileId, METRICS_VERSION);
 
   for (const { id } of workouts) {
     computeMetricsForWorkout(id);
@@ -147,13 +147,13 @@ export function computeAllMetrics() {
 
 export function computeZoneTimesForWorkout(workoutId, zoneModel) {
   const db = getDb();
-  const model = zoneModel ?? getZoneModel(db);
-  if (!model) return;
-
   const workout = db.prepare(
-    'SELECT id, time_ms, heart_rate_avg, has_stroke_data FROM workouts WHERE id = ?'
+    'SELECT id, profile_id, time_ms, heart_rate_avg, has_stroke_data FROM workouts WHERE id = ?'
   ).get(workoutId);
   if (!workout) return;
+
+  const model = zoneModel ?? getZoneModel(db, workout.profile_id);
+  if (!model) return;
 
   let times = null;
   let source = 'strokes';
@@ -185,17 +185,18 @@ export function computeZoneTimesForWorkout(workoutId, zoneModel) {
   })();
 }
 
-export function computeAllZoneTimes() {
+export function computeAllZoneTimes(profileId) {
   const db = getDb();
-  const model = getZoneModel(db);
+  const model = getZoneModel(db, profileId);
   if (!model) return;
 
   const workouts = db.prepare(`
     SELECT w.id FROM workouts w
     LEFT JOIN (SELECT DISTINCT workout_id FROM hr_zone_time) zt ON w.id = zt.workout_id
     WHERE zt.workout_id IS NULL
+      AND w.profile_id = ?
       AND (w.has_stroke_data = 1 OR w.heart_rate_avg > 0)
-  `).all();
+  `).all(profileId);
 
   for (const { id } of workouts) {
     computeZoneTimesForWorkout(id, model);
@@ -203,12 +204,14 @@ export function computeAllZoneTimes() {
 }
 
 // Full recompute — called when the zone model itself changes (max HR or
-// thresholds edited in Settings). Single-user data is small enough to do
+// thresholds edited in Settings). Household data is small enough to do
 // synchronously.
-export function recomputeAllZoneTimes() {
+export function recomputeAllZoneTimes(profileId) {
   const db = getDb();
-  db.prepare('DELETE FROM hr_zone_time').run();
-  computeAllZoneTimes();
+  db.prepare(
+    'DELETE FROM hr_zone_time WHERE workout_id IN (SELECT id FROM workouts WHERE profile_id = ?)'
+  ).run(profileId);
+  computeAllZoneTimes(profileId);
 }
 
 export function computeBestEffortsForWorkout(workoutId) {
@@ -232,40 +235,40 @@ export function computeBestEffortsForWorkout(workoutId) {
   })();
 }
 
-export function computeAllBestEfforts() {
+export function computeAllBestEfforts(profileId) {
   const db = getDb();
   const workouts = db.prepare(`
     SELECT w.id FROM workouts w
     LEFT JOIN (SELECT DISTINCT workout_id FROM best_efforts) be ON w.id = be.workout_id
-    WHERE be.workout_id IS NULL AND w.has_stroke_data = 1
-  `).all();
+    WHERE be.workout_id IS NULL AND w.has_stroke_data = 1 AND w.profile_id = ?
+  `).all(profileId);
 
   for (const { id } of workouts) {
     computeBestEffortsForWorkout(id);
   }
 }
 
-export function computePredictions() {
+export function computePredictions(profileId) {
   const db = getDb();
   const standardDistances = [2000, 5000, 6000, 10000, 21097];
   const upsert = db.prepare(`
     INSERT OR REPLACE INTO predictions (
-      distance, predicted_time, confidence, window_start, window_end, computed_at
-    ) VALUES (?, ?, ?, ?, ?, datetime('now'))
+      profile_id, distance, predicted_time, confidence, window_start, window_end, computed_at
+    ) VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
   `);
-  const clear = db.prepare('DELETE FROM predictions WHERE distance = ?');
+  const clear = db.prepare('DELETE FROM predictions WHERE profile_id = ? AND distance = ?');
 
   db.transaction(() => {
     for (const distance of standardDistances) {
       const rows = db.prepare(`
         SELECT date, time_ms, pace_ms
         FROM workouts
-        WHERE type = 'rower' AND distance = ? AND pace_ms > 0
+        WHERE type = 'rower' AND distance = ? AND pace_ms > 0 AND profile_id = ?
         ORDER BY date ASC
-      `).all(distance);
+      `).all(distance, profileId);
 
       if (rows.length < 5) {
-        clear.run(distance);
+        clear.run(profileId, distance);
         continue;
       }
 
@@ -297,6 +300,7 @@ export function computePredictions() {
       }
 
       upsert.run(
+        profileId,
         distance,
         Math.round((distance / 500) * predictedPace),
         regression.confidence,
@@ -307,12 +311,12 @@ export function computePredictions() {
   })();
 }
 
-export function computeFitnessLog() {
+export function computeFitnessLog(profileId) {
   const db = getDb();
   const workouts = db.prepare(`
     SELECT date, distance, time_ms, pace_ms, stroke_rate
-    FROM workouts WHERE type = 'rower' ORDER BY date ASC
-  `).all();
+    FROM workouts WHERE type = 'rower' AND profile_id = ? ORDER BY date ASC
+  `).all(profileId);
 
   if (workouts.length === 0) return;
 
@@ -331,8 +335,8 @@ export function computeFitnessLog() {
   const atlDecay = 1 - Math.exp(-1 / 7);
 
   const upsert = db.prepare(`
-    INSERT OR REPLACE INTO fitness_log (date, fitness, fatigue, form, computed_at)
-    VALUES (?, ?, ?, ?, datetime('now'))
+    INSERT OR REPLACE INTO fitness_log (profile_id, date, fitness, fatigue, form, computed_at)
+    VALUES (?, ?, ?, ?, ?, datetime('now'))
   `);
 
   const entries = [];
@@ -349,7 +353,7 @@ export function computeFitnessLog() {
 
   db.transaction(() => {
     for (const [date, f, a, form] of entries) {
-      upsert.run(date, f, a, form);
+      upsert.run(profileId, date, f, a, form);
     }
   })();
 }
@@ -372,10 +376,10 @@ function estimateTrainingLoad(workout) {
 // Consecutive weeks (ending at the most recent active week) with at least one
 // row. Weeks are keyed by their Monday date so the count survives year
 // boundaries, which strftime('%W') arithmetic does not.
-export function computeWeekStreak(db) {
+export function computeWeekStreak(db, profileId) {
   const days = db.prepare(`
-    SELECT DISTINCT date(date) as d FROM workouts WHERE type = 'rower'
-  `).all();
+    SELECT DISTINCT date(date) as d FROM workouts WHERE type = 'rower' AND profile_id = ?
+  `).all(profileId);
   if (days.length === 0) return 0;
 
   const mondays = new Set();
@@ -413,11 +417,11 @@ export function inferWorkoutTag(workout) {
   return 'endurance';
 }
 
-export function tagAllWorkouts() {
+export function tagAllWorkouts(profileId) {
   const db = getDb();
   const workouts = db.prepare(
-    'SELECT id, distance, time_ms, workout_type, rest_time_ms, rest_distance FROM workouts'
-  ).all();
+    'SELECT id, distance, time_ms, workout_type, rest_time_ms, rest_distance FROM workouts WHERE profile_id = ?'
+  ).all(profileId);
 
   const update = db.prepare('UPDATE workouts SET inferred_tag = ? WHERE id = ?');
   db.transaction(() => {

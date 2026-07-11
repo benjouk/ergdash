@@ -19,6 +19,7 @@ beforeEach(async () => {
   ({ closeDb } = dbModule);
   ({ EXPORT_TABLES, wipeWorkoutData } = adminModule);
   db = dbModule.initDb();
+  db.prepare("INSERT INTO profiles (id, name) VALUES (1, 'Test')").run();
 });
 
 afterEach(() => {
@@ -37,16 +38,16 @@ describe('admin data operations', () => {
   it('resets completed plan links before deleting workouts for a fresh sync', () => {
     db.prepare(`
       INSERT INTO workouts
-        (id, user_id, date, type, workout_type, distance, time_ms, synced_at)
-      VALUES (1, 1, '2026-01-01T08:00:00', 'rower', 'test', 2000, 480000, datetime('now'))
+        (id, profile_id, user_id, date, type, workout_type, distance, time_ms, synced_at)
+      VALUES (1, 1, 1, '2026-01-01T08:00:00', 'rower', 'test', 2000, 480000, datetime('now'))
     `).run();
     db.prepare(`
       INSERT INTO planned_workouts
-        (date, type, target_distance, completed_workout_id, match_type, status)
-      VALUES ('2026-01-01', 'test', 2000, 1, 'manual', 'completed')
+        (profile_id, date, type, target_distance, completed_workout_id, match_type, status)
+      VALUES (1, '2026-01-01', 'test', 2000, 1, 'manual', 'completed')
     `).run();
 
-    wipeWorkoutData(db);
+    wipeWorkoutData(db, 1);
 
     expect(db.prepare('SELECT COUNT(*) AS count FROM workouts').get().count).toBe(0);
     expect(db.prepare(`

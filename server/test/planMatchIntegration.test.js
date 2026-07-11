@@ -23,6 +23,7 @@ beforeEach(async () => {
 
   initDb();
   db = getDb();
+  db.prepare("INSERT INTO profiles (id, name) VALUES (1, 'Test')").run();
 });
 
 afterEach(() => {
@@ -33,17 +34,17 @@ afterEach(() => {
 
 function insertWorkoutRow({ id, date, distance, timeMs, tag = null }) {
   db.prepare(`
-    INSERT INTO workouts (id, user_id, date, type, workout_type, inferred_tag,
+    INSERT INTO workouts (id, profile_id, user_id, date, type, workout_type, inferred_tag,
                           distance, time_ms, pace_ms, synced_at)
-    VALUES (?, 1, ?, 'rower', 'FixedDistanceSplits', ?, ?, ?, ?, datetime('now'))
+    VALUES (?, 1, 1, ?, 'rower', 'FixedDistanceSplits', ?, ?, ?, ?, datetime('now'))
   `).run(id, date, tag, distance, timeMs, Math.round((timeMs / distance) * 500));
 }
 
 function insertPlanRow({ date, distance = null, durationMs = null, type = 'steady', status = 'planned', workoutId = null, matchType = null }) {
   const result = db.prepare(`
-    INSERT INTO planned_workouts (date, type, target_distance, target_duration_ms,
+    INSERT INTO planned_workouts (profile_id, date, type, target_distance, target_duration_ms,
                                   completed_workout_id, match_type, status)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    VALUES (1, ?, ?, ?, ?, ?, ?, ?)
   `).run(date, type, distance, durationMs, workoutId, matchType, status);
   return result.lastInsertRowid;
 }

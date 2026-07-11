@@ -26,10 +26,12 @@ beforeEach(async () => {
   const dbModule = await import('../src/db.js');
   const settingsRouter = (await import('../src/routes/settings.js')).default;
   ({ closeDb } = dbModule);
-  dbModule.initDb();
+  const db = dbModule.initDb();
+  db.prepare("INSERT INTO profiles (id, name) VALUES (1, 'Test')").run();
 
   const app = express();
   app.use(express.json());
+  app.use((req, res, next) => { req.profileId = 1; next(); });
   app.use('/api/settings', settingsRouter);
   await new Promise(resolve => { server = app.listen(0, resolve); });
   base = `http://localhost:${server.address().port}`;

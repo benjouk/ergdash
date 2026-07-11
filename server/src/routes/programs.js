@@ -83,16 +83,16 @@ router.get('/presets', (req, res) => {
 router.get('/', (req, res) => {
   const db = getDb();
   const todayStr = today();
-  const programs = db.prepare('SELECT * FROM programs ORDER BY created_at DESC, id DESC').all();
+  const programs = db.prepare('SELECT * FROM programs WHERE profile_id = ? ORDER BY created_at DESC, id DESC').all(req.profileId);
   res.json({ programs: programs.map(p => decorateProgram(db, p, todayStr)) });
 });
 
 const SESSION_INSERT = `
   INSERT INTO planned_workouts (
-    date, type, target_distance, target_duration_ms, target_pace_ms, target_rate,
+    profile_id, date, type, target_distance, target_duration_ms, target_pace_ms, target_rate,
     interval_reps, interval_distance, interval_duration_ms, interval_rest_ms, notes,
     program_id, program_week, program_slot
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `;
 
 router.post('/', (req, res) => {
@@ -118,7 +118,7 @@ router.post('/', (req, res) => {
 
   // One active-or-paused program at a time keeps "the current program"
   // unambiguous; finishing means deleting it.
-  const inProgress = db.prepare("SELECT id FROM programs WHERE status IN ('active','paused')").get();
+  const inProgress = db.prepare("SELECT id FROM programs WHERE profile_id = ? AND status IN ('active','paused')").get(req.profileId);
   if (inProgress) {
     return res.status(409).json({ error: 'A program is already in progress. Delete it before starting another.' });
   }
@@ -130,22 +130,22 @@ router.post('/', (req, res) => {
   });
 
   const insertProgram = db.prepare(`
-    INSERT INTO programs (preset_id, name, start_date, duration_weeks, training_days, race_date)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO programs (profile_id, preset_id, name, start_date, duration_weeks, training_days, race_date)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `);
   const insertSession = db.prepare(SESSION_INSERT);
 
   const sessionIds = [];
   const programId = db.transaction(() => {
     const pid = insertProgram.run(
-      preset.id, preset.name, gen.startDate, gen.durationWeeks,
+      req.profileId, preset.id, preset.name, gen.startDate, gen.durationWeeks,
       JSON.stringify(trainingDays), body.race_date ?? null,
     ).lastInsertRowid;
 
     for (const s of gen.sessions) {
       const f = deriveIntervalTotals({ ...s });
       sessionIds.push(insertSession.run(
-        s.date, s.type, f.target_distance ?? null, f.target_duration_ms ?? null,
+        req.profileId, s.date, s.type, f.target_distance ?? null, f.target_duration_ms ?? null,
         s.target_pace_ms ?? null, s.target_rate ?? null,
         s.interval_reps ?? null, s.interval_distance ?? null,
         s.interval_duration_ms ?? null, s.interval_rest_ms ?? null, s.notes ?? null,
@@ -170,7 +170,7 @@ router.patch('/:id', (req, res) => {
   if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid program id' });
 
   const program = getProgram(db, id);
-  if (!program) return res.status(404).json({ error: 'Program not found' });
+  if (!program || program.profile_id !== req.profileId) return res.status(404).json({ error: 'Program not found' });
 
   const body = req.body || {};
   const todayStr = today();
@@ -248,7 +248,7 @@ router.post('/:id/shift', (req, res) => {
   }
 
   const program = getProgram(db, id);
-  if (!program) return res.status(404).json({ error: 'Program not found' });
+  if (!program || program.profile_id !== req.profileId) return res.status(404).json({ error: 'Program not found' });
 
   const todayStr = today();
   db.transaction(() => {
@@ -268,7 +268,7 @@ router.delete('/:id', (req, res) => {
   if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid program id' });
 
   const program = getProgram(db, id);
-  if (!program) return res.status(404).json({ error: 'Program not found' });
+  if (!program || program.profile_id !== req.profileId) return res.status(404).json({ error: 'Program not found' });
 
   const todayStr = today();
   db.transaction(() => {
