@@ -59,8 +59,13 @@ function manifestKey(path, params = {}, rangeKey = null) {
   return parts.length ? `${path}?${parts.join('&')}` : path;
 }
 
-const manifest = {};
+// Per-profile capture state. Each demo profile's fixtures live under
+// demo-data/p<id>/ with their own manifest, so the static demo can resolve
+// fixtures by the active profile and each household member shows their own data.
+let manifest = {};
 let fileCounter = 0;
+let profileDir = outDir;
+let profileHeader = null;
 
 function slugFor(path) {
   return path.replace(/^\//, '').replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'root';
@@ -69,7 +74,9 @@ function slugFor(path) {
 async function fetchJson(path, params = {}) {
   const qs = new URLSearchParams(params);
   const url = qs.toString() ? `${BASE}${path}?${qs}` : `${BASE}${path}`;
-  const res = await fetch(url, { headers: { Cookie: cookieHeader } });
+  const headers = { Cookie: cookieHeader };
+  if (profileHeader) headers['X-Profile-Id'] = String(profileHeader);
+  const res = await fetch(url, { headers });
   if (!res.ok) {
     throw new Error(`Capture failed: GET ${path} (params=${JSON.stringify(params)}) -> ${res.status}`);
   }
@@ -80,7 +87,7 @@ async function capture(path, params = {}, rangeKey = null) {
   const data = await fetchJson(path, params);
   const key = manifestKey(path, params, rangeKey);
   const file = `f${fileCounter++}_${slugFor(path)}.json`;
-  writeFileSync(join(outDir, file), JSON.stringify(data));
+  writeFileSync(join(profileDir, file), JSON.stringify(data));
   manifest[key] = file;
   return data;
 }
@@ -137,85 +144,108 @@ async function main() {
     if (!setCookie) throw new Error('mock-login did not return a session cookie');
     cookieHeader = setCookie.split(';')[0];
 
-    await capture('/auth/status');
-    await capture('/api/settings');
-    await capture('/api/sync/status');
-    await capture('/api/insights/weekly');
-    await capture('/api/stats/cumulative');
-    await capture('/api/stats/power-curve');
-    await capture('/api/stats/pb-history');
-    await capture('/api/stats/predictions');
-    await capture('/api/goals');
-    await capture('/api/plans');
-    await capture('/api/plans/adherence', { weeks: 12 });
-    await capture('/api/programs/presets');
-    await capture('/api/programs');
+    // Profile-agnostic fixtures, captured once at the top level.
+    const status = await fetchJson('/auth/status');
+    writeFileSync(join(outDir, 'auth-status.json'), JSON.stringify(status));
+    const profiles = status.profiles || [];
+    if (profiles.length === 0) throw new Error('mock-login produced no profiles to capture');
 
-    const calendarFrom = new Date(Date.now() - 400 * 86400000).toISOString().slice(0, 10);
-    await capture('/api/stats/calendar', { from: calendarFrom });
-
-    for (const rangeKey of RANGE_PRESETS) {
-      const params = rangeParams(rangeKey);
-      await capture('/api/stats/summary', params, rangeKey);
-      await capture('/api/stats/personal-bests', params, rangeKey);
-      await capture('/api/stats/fitness', params, rangeKey);
-      await capture('/api/stats/zones', { ...params, group: 'week' }, rangeKey);
-      await capture('/api/stats/polarization', params, rangeKey);
-      await capture('/api/stats/pb-history', params, rangeKey);
-      for (const metric of TREND_METRICS) {
-        await capture('/api/stats/trends', { ...params, metric, period: 'all' }, rangeKey);
-      }
+    let totalFixtures = 0;
+    for (const profile of profiles) {
+      totalFixtures += await captureProfile(profile.id);
     }
 
-    // Workouts list: fetch both pages the 100-row cap allows, merge.
-    const page1 = await fetchJson('/api/workouts', { limit: '100', offset: '0' });
-    const page2 = await fetchJson('/api/workouts', { limit: '100', offset: '100' });
-    const allWorkouts = [...page1.data, ...(page2.data || [])];
-    const workoutsPayload = {
-      data: allWorkouts,
-      meta: { ...page1.meta, total: allWorkouts.length, limit: allWorkouts.length, offset: 0 },
-    };
-    writeFileSync(join(outDir, 'workouts.json'), JSON.stringify(workoutsPayload));
-    manifest['/api/workouts'] = 'workouts.json';
-
-    // Full detail for every captured workout.
-    mkdirSync(join(outDir, 'workout'), { recursive: true });
-    for (const w of allWorkouts) {
-      const detail = await fetchJson(`/api/workouts/${w.id}`);
-      writeFileSync(join(outDir, 'workout', `${w.id}.json`), JSON.stringify(detail));
-    }
-
-    // Compare: capture sequential pairs so the shim can assemble any two.
-    mkdirSync(join(outDir, 'compare'), { recursive: true });
-    const sortedIds = allWorkouts.map(w => w.id).sort((a, b) => a - b);
-    for (let i = 0; i < sortedIds.length - 1; i++) {
-      const a = sortedIds[i];
-      const b = sortedIds[i + 1];
-      const result = await fetchJson('/api/stats/compare', { ids: `${a},${b}` });
-      const [wa, wb] = result.workouts;
-      writeFileSync(join(outDir, 'compare', `${a}.json`), JSON.stringify(wa));
-      // Ensure the final id in the sequence is also covered as a "left" side.
-      if (i === sortedIds.length - 2) {
-        writeFileSync(join(outDir, 'compare', `${b}.json`), JSON.stringify(wb));
-      }
-    }
-
-    // Decay-curve: FadeFingerprint.jsx queries the most recent workout at
-    // each of these fixed distances, independently — not a single "latest".
-    for (const distance of [2000, 5000, 10000]) {
-      const workout = [...allWorkouts]
-        .filter(w => w.distance === distance)
-        .sort((a, b) => b.date.localeCompare(a.date))[0];
-      if (workout) {
-        await capture('/api/stats/decay-curve', { distance, workout_id: workout.id });
-      }
-    }
-
-    writeFileSync(join(outDir, 'manifest.json'), JSON.stringify(manifest, null, 2));
-    console.log(`Demo data captured: ${Object.keys(manifest).length} fixtures, ${allWorkouts.length} workouts.`);
+    console.log(`Demo data captured for ${profiles.length} profiles: ${totalFixtures} fixtures total.`);
   } finally {
     cleanup();
   }
+}
+
+// Capture the full fixture set for one profile into demo-data/p<id>/, scoping
+// every request with X-Profile-Id. Returns the fixture count.
+async function captureProfile(profileId) {
+  profileHeader = profileId;
+  profileDir = join(outDir, `p${profileId}`);
+  manifest = {};
+  fileCounter = 0;
+  mkdirSync(profileDir, { recursive: true });
+
+  await capture('/api/settings');
+  await capture('/api/sync/status');
+  await capture('/api/insights/weekly');
+  await capture('/api/stats/cumulative');
+  await capture('/api/stats/power-curve');
+  await capture('/api/stats/pb-history');
+  await capture('/api/stats/predictions');
+  await capture('/api/goals');
+  await capture('/api/plans');
+  await capture('/api/plans/adherence', { weeks: 12 });
+  await capture('/api/programs/presets');
+  await capture('/api/programs');
+
+  const calendarFrom = new Date(Date.now() - 400 * 86400000).toISOString().slice(0, 10);
+  await capture('/api/stats/calendar', { from: calendarFrom });
+
+  for (const rangeKey of RANGE_PRESETS) {
+    const params = rangeParams(rangeKey);
+    await capture('/api/stats/summary', params, rangeKey);
+    await capture('/api/stats/personal-bests', params, rangeKey);
+    await capture('/api/stats/fitness', params, rangeKey);
+    await capture('/api/stats/zones', { ...params, group: 'week' }, rangeKey);
+    await capture('/api/stats/polarization', params, rangeKey);
+    await capture('/api/stats/pb-history', params, rangeKey);
+    for (const metric of TREND_METRICS) {
+      await capture('/api/stats/trends', { ...params, metric, period: 'all' }, rangeKey);
+    }
+  }
+
+  // Workouts list: fetch both pages the 100-row cap allows, merge.
+  const page1 = await fetchJson('/api/workouts', { limit: '100', offset: '0' });
+  const page2 = await fetchJson('/api/workouts', { limit: '100', offset: '100' });
+  const allWorkouts = [...page1.data, ...(page2.data || [])];
+  const workoutsPayload = {
+    data: allWorkouts,
+    meta: { ...page1.meta, total: allWorkouts.length, limit: allWorkouts.length, offset: 0 },
+  };
+  writeFileSync(join(profileDir, 'workouts.json'), JSON.stringify(workoutsPayload));
+  manifest['/api/workouts'] = 'workouts.json';
+
+  // Full detail for every captured workout.
+  mkdirSync(join(profileDir, 'workout'), { recursive: true });
+  for (const w of allWorkouts) {
+    const detail = await fetchJson(`/api/workouts/${w.id}`);
+    writeFileSync(join(profileDir, 'workout', `${w.id}.json`), JSON.stringify(detail));
+  }
+
+  // Compare: capture sequential pairs so the shim can assemble any two.
+  mkdirSync(join(profileDir, 'compare'), { recursive: true });
+  const sortedIds = allWorkouts.map(w => w.id).sort((a, b) => a - b);
+  for (let i = 0; i < sortedIds.length - 1; i++) {
+    const a = sortedIds[i];
+    const b = sortedIds[i + 1];
+    const result = await fetchJson('/api/stats/compare', { ids: `${a},${b}` });
+    const [wa, wb] = result.workouts;
+    writeFileSync(join(profileDir, 'compare', `${a}.json`), JSON.stringify(wa));
+    // Ensure the final id in the sequence is also covered as a "left" side.
+    if (i === sortedIds.length - 2) {
+      writeFileSync(join(profileDir, 'compare', `${b}.json`), JSON.stringify(wb));
+    }
+  }
+
+  // Decay-curve: FadeFingerprint.jsx queries the most recent workout at
+  // each of these fixed distances, independently — not a single "latest".
+  for (const distance of [2000, 5000, 10000]) {
+    const workout = [...allWorkouts]
+      .filter(w => w.distance === distance)
+      .sort((a, b) => b.date.localeCompare(a.date))[0];
+    if (workout) {
+      await capture('/api/stats/decay-curve', { distance, workout_id: workout.id });
+    }
+  }
+
+  writeFileSync(join(profileDir, 'manifest.json'), JSON.stringify(manifest, null, 2));
+  console.log(`  Profile ${profileId}: ${Object.keys(manifest).length} fixtures, ${allWorkouts.length} workouts.`);
+  return Object.keys(manifest).length;
 }
 
 main().catch(err => {

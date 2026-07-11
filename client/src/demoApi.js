@@ -20,20 +20,46 @@ const RANGE_SCOPED_ROUTES = new Set([
   '/api/stats/trends',
 ]);
 
-let manifestPromise = null;
+// Fixtures are captured per profile under demo-data/p<id>/, so each household
+// member in the demo shows their own data. The active profile is the same
+// localStorage key the real api.js uses; before one is chosen we default to
+// the first captured profile.
+const manifestPromises = new Map();
 const fixtureCache = new Map();
+let authStatusPromise = null;
 
-function loadManifest() {
-  if (!manifestPromise) {
-    manifestPromise = fetch(`${BASE}demo-data/manifest.json`).then(r => r.json());
+function loadAuthStatus() {
+  if (!authStatusPromise) {
+    authStatusPromise = fetch(`${BASE}demo-data/auth-status.json`).then(r => r.json());
   }
-  return manifestPromise;
+  return authStatusPromise;
+}
+
+async function activeProfileId() {
+  const stored = localStorage.getItem('ergdash_profile');
+  if (stored) return stored;
+  const status = await loadAuthStatus();
+  return String(status.profiles?.[0]?.id ?? '1');
+}
+
+async function fixtureUrl(subpath) {
+  return `${BASE}demo-data/p${await activeProfileId()}/${subpath}`;
+}
+
+async function loadManifest() {
+  const id = await activeProfileId();
+  if (!manifestPromises.has(id)) {
+    manifestPromises.set(id, fetch(`${BASE}demo-data/p${id}/manifest.json`).then(r => r.json()));
+  }
+  return manifestPromises.get(id);
 }
 
 async function loadFixture(file) {
-  if (fixtureCache.has(file)) return fixtureCache.get(file);
-  const data = await fetch(`${BASE}demo-data/${file}`).then(r => r.json());
-  fixtureCache.set(file, data);
+  const id = await activeProfileId();
+  const cacheKey = `${id}/${file}`;
+  if (fixtureCache.has(cacheKey)) return fixtureCache.get(cacheKey);
+  const data = await fetch(`${BASE}demo-data/p${id}/${file}`).then(r => r.json());
+  fixtureCache.set(cacheKey, data);
   return data;
 }
 
@@ -380,23 +406,20 @@ function parsePath(path) {
 
 async function handleGet(route, params) {
   if (route === '/auth/status') {
-    const fixture = await lookupFixture(route, {});
-    // The live server returns a profiles array; synthesize one demo profile
-    // so the switcher and Settings render consistently.
-    const user = fixture.user || null;
-    const profiles = fixture.profiles || [{
-      id: 1,
-      name: user?.first_name || 'Demo Rower',
-      connected: true,
-      user,
+    const status = await loadAuthStatus();
+    // The capture records the real multi-profile array; synthesize a single
+    // profile only if an older fixture lacks one.
+    const profiles = status.profiles || [{
+      id: 1, name: status.user?.first_name || 'Demo Rower', connected: true, user: status.user || null,
     }];
-    return { ...fixture, profiles };
+    return { ...status, profiles };
   }
 
   if (route === '/api/profiles') {
-    const status = await lookupFixture('/auth/status', {});
-    const user = status.user || null;
-    return [{ id: 1, name: user?.first_name || 'Demo Rower', connected: true, user }];
+    const status = await loadAuthStatus();
+    return status.profiles || [{
+      id: 1, name: status.user?.first_name || 'Demo Rower', connected: true, user: status.user || null,
+    }];
   }
 
   if (route === '/api/settings') {
@@ -417,7 +440,7 @@ async function handleGet(route, params) {
   const workoutMatch = route.match(/^\/api\/workouts\/(\d+)$/);
   if (workoutMatch) {
     const id = workoutMatch[1];
-    const detail = await fetch(`${BASE}demo-data/workout/${id}.json`).then(r => {
+    const detail = await fetch(await fixtureUrl(`workout/${id}.json`)).then(r => {
       if (!r.ok) throw new Error('Workout not found');
       return r.json();
     });
@@ -429,8 +452,8 @@ async function handleGet(route, params) {
   if (route === '/api/stats/compare') {
     const ids = (params.ids || '').split(',');
     if (ids.length !== 2) throw new Error('Provide exactly 2 workout IDs');
-    const [a, b] = await Promise.all(ids.map(id =>
-      fetch(`${BASE}demo-data/compare/${id}.json`).then(r => {
+    const [a, b] = await Promise.all(ids.map(async id =>
+      fetch(await fixtureUrl(`compare/${id}.json`)).then(r => {
         if (!r.ok) throw new Error('Workout not found');
         return r.json();
       })
@@ -577,7 +600,7 @@ async function handlePatch(route, body) {
     if ('pinned' in body) patch.pinned = !!body.pinned;
     if ('notes' in body) patch.notes = body.notes;
     const merged = setWorkoutOverlay(id, patch);
-    const detail = await fetch(`${BASE}demo-data/workout/${id}.json`).then(r => r.json());
+    const detail = await fetch(await fixtureUrl(`workout/${id}.json`)).then(r => r.json());
     return applyWorkoutOverlay({ ...detail, ...merged });
   }
 

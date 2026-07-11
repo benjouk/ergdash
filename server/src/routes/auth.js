@@ -101,27 +101,33 @@ router.post('/logout', (req, res) => {
 });
 
 if (process.env.NODE_ENV !== 'production') {
+  // Dev "skip auth": establishes a session and marks every existing profile
+  // connected with a mock identity. Profiles come from the seed (the demo
+  // seeds two) — mock-login must NOT invent its own, or throwaway profiles
+  // leak into the captured demo fixtures. Only when the DB has no profiles at
+  // all does it create one (?profiles=2 for local multi-profile testing).
   router.get('/mock-login', (req, res) => {
-    // Two mock profiles so multi-profile flows are testable locally.
-    const mocks = [
-      { username: 'mockrower', first_name: 'Test', last_name: 'Rower', c2Id: 1 },
-      { username: 'mockrower2', first_name: 'Casey', last_name: 'Rower', c2Id: 2 },
-    ];
-    for (const mock of mocks) {
-      let profile = getProfileByC2UserId(mock.c2Id);
-      if (!profile) profile = createProfile(mock.first_name);
+    let profiles = listProfiles();
+    if (profiles.length === 0) {
+      const count = req.query.profiles === '2' ? 2 : 1;
+      const names = ['Dev Rower', 'Second Rower'];
+      for (let i = 0; i < count; i++) createProfile(names[i]);
+      profiles = listProfiles();
+    }
+    profiles.forEach((profile) => {
+      const [first, ...rest] = String(profile.name).split(' ');
       setProfileIdentity(profile.id, {
-        id: mock.c2Id,
-        username: mock.username,
-        first_name: mock.first_name,
-        last_name: mock.last_name,
+        id: 900000 + profile.id,
+        username: first.toLowerCase(),
+        first_name: first,
+        last_name: rest.join(' '),
       });
       storeTokens(profile.id, {
         access_token: 'mock-token',
         refresh_token: 'mock-refresh',
         expires_in: 3600,
       });
-    }
+    });
     createAuthSession(res);
     res.redirect('/');
   });
