@@ -344,13 +344,27 @@ export function setProfileIdentity(profileId, userInfo) {
     .run(userInfo?.id ?? null, userInfo ? JSON.stringify(userInfo) : null, profileId);
 }
 
-// Maps a freshly-authorized Concept2 account to exactly one profile: reuse the
-// profile that already holds this logbook id (prevents duplicates), else honor
-// a reconnect intent, else create a new profile named from the account.
+// Maps a freshly-authorized Concept2 account to exactly one profile. Returns
+// { profile } on success or { error } when a reconnect names the wrong account.
 export function resolveConnectingProfile(userInfo, intent = {}) {
-  return getProfileByC2UserId(userInfo?.id)
-    || (intent.profileId ? getProfile(intent.profileId) : null)
-    || createProfile(intent.newName || userInfo?.first_name || userInfo?.username);
+  const c2Id = userInfo?.id ?? null;
+  const owner = getProfileByC2UserId(c2Id); // profile already holding this logbook, if any
+
+  if (intent.profileId) {
+    const target = getProfile(intent.profileId);
+    if (!target) return { error: 'profile_not_found' };
+    // An explicit reconnect must re-authorize the SAME logbook: refuse if the
+    // account belongs to a different profile (would hijack/merge) or differs
+    // from the one this profile is already bound to (would mix two people's
+    // data under one profile).
+    if (owner && owner.id !== target.id) return { error: 'logbook_in_use' };
+    if (target.c2_user_id != null && target.c2_user_id !== c2Id) return { error: 'wrong_account' };
+    return { profile: target };
+  }
+
+  // Add-profile / legacy: reuse the logbook's existing profile to avoid a
+  // duplicate, else create one named from the account.
+  return { profile: owner || createProfile(intent.newName || userInfo?.first_name || userInfo?.username) };
 }
 
 // No FK CASCADE on the app-enforced profile_id columns, so cascade here.

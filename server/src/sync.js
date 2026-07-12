@@ -1,6 +1,6 @@
 import cron from 'node-cron';
 import { getDb } from './db.js';
-import { getValidToken, fetchC2Api, listProfiles } from './auth.js';
+import { getValidToken, fetchC2Api, listProfiles, clearAuth } from './auth.js';
 import {
   tagAllWorkouts,
   computeAllMetrics,
@@ -26,6 +26,19 @@ export function isSyncInProgress(profileId) {
 
 function connectedProfileIds() {
   return listProfiles().filter(p => p.connected).map(p => p.id);
+}
+
+// A 401 from Concept2 after getValidToken already tried to refresh means the
+// connection is dead (revoked/expired refresh token), not a transient network
+// blip. Disconnect the profile so the UI prompts a reconnect instead of
+// silently erroring on every future sync. Other errors stay a soft 'error'.
+function handleSyncError(profileId, err) {
+  if (err?.message === 'TOKEN_EXPIRED') {
+    clearAuth(profileId);
+    setSyncState(profileId, 'sync_status', 'auth_error');
+  } else {
+    setSyncState(profileId, 'sync_status', 'error');
+  }
 }
 
 function setSyncState(profileId, key, value) {
@@ -388,7 +401,7 @@ export async function runFullSync(profileId) {
     setSyncState(profileId, 'sync_status', 'idle');
   } catch (err) {
     console.error('Full sync error:', err);
-    setSyncState(profileId, 'sync_status', 'error');
+    handleSyncError(profileId, err);
   } finally {
     syncingProfiles.delete(profileId);
   }
@@ -460,7 +473,7 @@ export async function runIncrementalSync(profileId) {
     setSyncState(profileId, 'sync_status', 'idle');
   } catch (err) {
     console.error('Incremental sync error:', err);
-    setSyncState(profileId, 'sync_status', 'error');
+    handleSyncError(profileId, err);
   } finally {
     syncingProfiles.delete(profileId);
   }
@@ -634,6 +647,7 @@ export async function runStrokeEnrichment(profileId) {
       setSyncState(profileId, 'last_enriched_workout_id', String(id));
       await delay(1000);
     } catch (err) {
+      if (err?.message === 'TOKEN_EXPIRED') { handleSyncError(profileId, err); return; }
       console.error(`Stroke enrichment failed for workout ${id}:`, err);
       setSyncState(profileId, 'last_enriched_workout_id', String(id));
     }

@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './context/AuthContext.jsx';
 import { usePrefs } from './context/PrefsContext.jsx';
+import { useToast } from './context/ToastContext.jsx';
 import Ticker from './components/Ticker/Ticker.jsx';
 import BottomNav from './components/BottomNav/BottomNav.jsx';
 import FeedPanel from './components/Feed/FeedPanel.jsx';
@@ -35,7 +36,26 @@ function usePageTitle(isAuthenticated) {
 export default function App() {
   const { isAuthenticated, isLoading, profiles } = useAuth();
   const { defaultLanding } = usePrefs();
+  const toast = useToast();
   usePageTitle(isAuthenticated);
+
+  // The OAuth callback redirects to /?error=<code> when a connect/reconnect is
+  // refused. Surface it once, then strip the param so a refresh doesn't repeat.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('error');
+    if (!code) return;
+    const messages = {
+      logbook_in_use: 'That Concept2 account is already linked to another profile.',
+      wrong_account: 'That is a different Concept2 account than this profile uses — reconnect the original account, or add a new profile.',
+      profile_not_found: 'That profile no longer exists.',
+      auth_failed: 'Connecting to Concept2 failed. Please try again.',
+    };
+    toast.error(messages[code] || 'Something went wrong connecting to Concept2.');
+    params.delete('error');
+    const qs = params.toString();
+    window.history.replaceState({}, '', window.location.pathname + (qs ? `?${qs}` : ''));
+  }, [toast]);
 
   if (isLoading) {
     return (

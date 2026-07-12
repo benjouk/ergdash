@@ -54,7 +54,11 @@ router.get('/callback', async (req, res) => {
     const userResp = await fetchC2Api('/api/users/me', tokens.access_token);
     const userInfo = userResp.data || userResp;
 
-    const profile = resolveConnectingProfile(userInfo, intent);
+    const result = resolveConnectingProfile(userInfo, intent);
+    if (result.error) {
+      return res.redirect(`/?error=${encodeURIComponent(result.error)}`);
+    }
+    const profile = result.profile;
 
     setProfileIdentity(profile.id, userInfo);
     storeTokens(profile.id, tokens);

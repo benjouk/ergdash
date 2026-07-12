@@ -284,20 +284,50 @@ describe('profile management and isolation (unit)', () => {
 
       const resolved = auth.resolveConnectingProfile({ id: 555, first_name: 'Whoever' }, { newName: 'New Name' });
 
-      expect(resolved.id).toBe(existing.id);
+      expect(resolved.profile.id).toBe(existing.id);
       expect(auth.listProfiles().length).toBe(before); // no duplicate created
     });
 
-    it('honors a reconnect intent when the Concept2 user id is unknown', () => {
+    it('honors a reconnect intent when the profile has no logbook yet', () => {
       const target = auth.createProfile('Target');
       const resolved = auth.resolveConnectingProfile({ id: 999 }, { profileId: target.id });
-      expect(resolved.id).toBe(target.id);
+      expect(resolved.profile.id).toBe(target.id);
+    });
+
+    it('allows a reconnect that re-authorizes the same logbook', () => {
+      const target = auth.createProfile('Target');
+      auth.setProfileIdentity(target.id, { id: 100 });
+      const resolved = auth.resolveConnectingProfile({ id: 100 }, { profileId: target.id });
+      expect(resolved.profile.id).toBe(target.id);
+    });
+
+    it('refuses a reconnect that authorizes a logbook owned by another profile', () => {
+      const a = auth.createProfile('A');
+      auth.setProfileIdentity(a.id, { id: 42 });
+      const b = auth.createProfile('B');
+
+      const resolved = auth.resolveConnectingProfile({ id: 42 }, { profileId: b.id });
+
+      expect(resolved.error).toBe('logbook_in_use');
+      expect(resolved.profile).toBeUndefined();
+      // Nothing got retargeted.
+      expect(auth.getProfileByC2UserId(42).id).toBe(a.id);
+    });
+
+    it('refuses a reconnect that authorizes a different account than the profile is bound to', () => {
+      const b = auth.createProfile('B');
+      auth.setProfileIdentity(b.id, { id: 100 });
+
+      const resolved = auth.resolveConnectingProfile({ id: 200 }, { profileId: b.id });
+
+      expect(resolved.error).toBe('wrong_account');
+      expect(auth.getProfile(b.id).c2_user_id).toBe(100); // unchanged
     });
 
     it('creates a new profile named from the account when nothing matches', () => {
       const before = auth.listProfiles().length;
       const resolved = auth.resolveConnectingProfile({ id: 1000, first_name: 'Dana' }, {});
-      expect(resolved.name).toBe('Dana');
+      expect(resolved.profile.name).toBe('Dana');
       expect(auth.listProfiles().length).toBe(before + 1);
     });
   });
@@ -499,5 +529,64 @@ describe('profiles route: last-profile deletion guard', () => {
     expect(await del(b.id)).toBe(409);           // one → zero is refused
     expect(auth.listProfiles().length).toBe(1);
     expect(auth.getProfile(b.id)).not.toBeNull();
+  });
+});
+
+
+describe('sync auth failure disconnects the profile', () => {
+  let db;
+  let closeDb;
+  let auth;
+  let sync;
+
+  beforeEach(async () => {
+    dataDir = mkdtempSync(join(tmpdir(), 'ergdash-authfail-test-'));
+    process.env.DATA_DIR = dataDir;
+
+    vi.resetModules();
+    const dbModule = await import('../src/db.js');
+    auth = await import('../src/auth.js');
+    sync = await import('../src/sync.js');
+    ({ closeDb } = dbModule);
+    db = dbModule.initDb();
+    auth.initAuth();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    closeDb();
+  });
+
+  it('clears the profile connection when Concept2 returns 401 during sync', async () => {
+    const p = auth.createProfile('A');
+    auth.setProfileIdentity(p.id, { id: 7 });
+    // Token valid for an hour, so getValidToken uses it without refreshing.
+    auth.storeTokens(p.id, { access_token: 'tok', refresh_token: 'ref', expires_in: 3600 });
+    expect(auth.getProfile(p.id).access_token).not.toBeNull();
+
+    // Every Concept2 call rejects the credentials.
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 401, text: async () => '', json: async () => ({}) })));
+
+    await sync.runIncrementalSync(p.id);
+
+    // The dead connection is cleared, so the UI shows "not connected" / reconnect.
+    const after = auth.getProfile(p.id);
+    expect(after.access_token).toBeNull();
+    expect(auth.listProfiles().find(x => x.id === p.id).connected).toBe(false);
+  });
+
+  it('keeps the connection on a transient (non-401) sync error', async () => {
+    const p = auth.createProfile('A');
+    auth.setProfileIdentity(p.id, { id: 7 });
+    auth.storeTokens(p.id, { access_token: 'tok', refresh_token: 'ref', expires_in: 3600 });
+
+    // A network-style failure: fetch rejects.
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('network down'); }));
+
+    await sync.runIncrementalSync(p.id);
+
+    // Still connected — a blip must not disconnect the profile.
+    expect(auth.getProfile(p.id).access_token).not.toBeNull();
+    expect(auth.listProfiles().find(x => x.id === p.id).connected).toBe(true);
   });
 });
