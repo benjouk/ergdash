@@ -12,9 +12,9 @@ import {
   fetchC2Api,
   listProfiles,
   getProfile,
-  getProfileByC2UserId,
   createProfile,
   setProfileIdentity,
+  resolveConnectingProfile,
 } from '../auth.js';
 import { runFullSync, startSyncSchedule } from '../sync.js';
 
@@ -54,16 +54,7 @@ router.get('/callback', async (req, res) => {
     const userResp = await fetchC2Api('/api/users/me', tokens.access_token);
     const userInfo = userResp.data || userResp;
 
-    // A logbook account maps to exactly one profile: reuse a profile that
-    // already holds this Concept2 user id, else honor the reconnect intent,
-    // else create a new profile named after the account.
-    let profile = getProfileByC2UserId(userInfo?.id);
-    if (!profile && intent.profileId) {
-      profile = getProfile(intent.profileId);
-    }
-    if (!profile) {
-      profile = createProfile(intent.newName || userInfo?.first_name || userInfo?.username);
-    }
+    const profile = resolveConnectingProfile(userInfo, intent);
 
     setProfileIdentity(profile.id, userInfo);
     storeTokens(profile.id, tokens);

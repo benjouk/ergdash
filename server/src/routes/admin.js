@@ -8,6 +8,7 @@ import { isSyncInProgress, runFullSync } from '../sync.js';
 const router = Router();
 const SQLITE_MAGIC = Buffer.from('SQLite format 3\0', 'binary');
 export const EXPORT_TABLES = [
+  'profiles',
   'workouts',
   'intervals',
   'strokes',
@@ -22,6 +23,12 @@ export const EXPORT_TABLES = [
   'planned_workouts',
   'settings',
 ];
+// Columns to project per table. profiles omits the encrypted token columns —
+// a JSON export is meant to be portable/shareable, not a secret store (the
+// binary /backup keeps everything). Tables absent here export all columns.
+export const EXPORT_COLUMNS = {
+  profiles: 'id, name, c2_user_id, user_info, created_at',
+};
 // Date-global derived tables rebuilt from scratch after a wipe (pb_history
 // backfills on the next PB detection pass, fitness_log on the next sync).
 // Per-workout child tables aren't listed: deleting the c2 workout rows
@@ -111,7 +118,8 @@ router.get('/export', (req, res, next) => {
       if (tableIndex > 0) res.write(',');
       res.write(`${JSON.stringify(table)}:[`);
       let rowIndex = 0;
-      for (const row of db.prepare(`SELECT * FROM ${table}`).iterate()) {
+      const cols = EXPORT_COLUMNS[table] || '*';
+      for (const row of db.prepare(`SELECT ${cols} FROM ${table}`).iterate()) {
         if (rowIndex > 0) res.write(',');
         res.write(JSON.stringify(row));
         rowIndex += 1;

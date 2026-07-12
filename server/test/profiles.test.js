@@ -221,4 +221,234 @@ describe('cross-profile isolation', () => {
     const empty = await fetch(`${base}/api/stats/summary`);
     expect(empty.status).toBe(409);
   });
+
+  it('falls back to the first profile for an unknown/stale profile id', async () => {
+    // A client whose saved profile was deleted elsewhere still gets data
+    // (the first profile) rather than a 409 on every request.
+    const res = await req('GET', '/api/stats/summary', 99999);
+    expect(res.status).toBe(200);
+    expect(res.body.total_meters).toBe(2000); // profile 1 (Alice)
+  });
+});
+
+
+describe('profile management and isolation (unit)', () => {
+  let db;
+  let closeDb;
+  let auth;
+  let admin;
+  let dedup;
+  let pb;
+  let planMatching;
+  let hrZones;
+  let analytics;
+
+  beforeEach(async () => {
+    dataDir = mkdtempSync(join(tmpdir(), 'ergdash-unit-test-'));
+    process.env.DATA_DIR = dataDir;
+
+    vi.resetModules();
+    const dbModule = await import('../src/db.js');
+    auth = await import('../src/auth.js');
+    admin = await import('../src/routes/admin.js');
+    dedup = await import('../src/importers/dedup.js');
+    pb = await import('../src/pbDetection.js');
+    planMatching = await import('../src/planMatching.js');
+    hrZones = await import('../src/hrZones.js');
+    analytics = await import('../src/analytics.js');
+    ({ closeDb } = dbModule);
+    db = dbModule.initDb();
+    auth.initAuth();
+  });
+
+  afterEach(() => {
+    closeDb();
+  });
+
+  function addWorkout(profileId, id, { distance = 2000, timeMs = 420000, hrMax = null, source = 'c2', fingerprint = null } = {}) {
+    const paceMs = Math.round((timeMs / distance) * 500);
+    db.prepare(`
+      INSERT INTO workouts (id, profile_id, user_id, date, type, workout_type,
+                            distance, time_ms, pace_ms, heart_rate_max, has_stroke_data,
+                            source, import_fingerprint, synced_at)
+      VALUES (?, ?, 0, '2026-07-01T08:00:00', 'rower', 'FixedDistanceSplits',
+              ?, ?, ?, ?, 0, ?, ?, datetime('now'))
+    `).run(id, profileId, distance, timeMs, paceMs, hrMax, source, fingerprint);
+  }
+
+  describe('resolveConnectingProfile', () => {
+    it('reuses the profile that already holds the connecting Concept2 user id', () => {
+      const existing = auth.createProfile('Existing');
+      auth.setProfileIdentity(existing.id, { id: 555 });
+      const before = auth.listProfiles().length;
+
+      const resolved = auth.resolveConnectingProfile({ id: 555, first_name: 'Whoever' }, { newName: 'New Name' });
+
+      expect(resolved.id).toBe(existing.id);
+      expect(auth.listProfiles().length).toBe(before); // no duplicate created
+    });
+
+    it('honors a reconnect intent when the Concept2 user id is unknown', () => {
+      const target = auth.createProfile('Target');
+      const resolved = auth.resolveConnectingProfile({ id: 999 }, { profileId: target.id });
+      expect(resolved.id).toBe(target.id);
+    });
+
+    it('creates a new profile named from the account when nothing matches', () => {
+      const before = auth.listProfiles().length;
+      const resolved = auth.resolveConnectingProfile({ id: 1000, first_name: 'Dana' }, {});
+      expect(resolved.name).toBe('Dana');
+      expect(auth.listProfiles().length).toBe(before + 1);
+    });
+  });
+
+  describe('deleteProfile', () => {
+    function populate(profileId, workoutId) {
+      addWorkout(profileId, workoutId, { hrMax: 190 });
+      db.prepare('UPDATE workouts SET has_stroke_data = 1 WHERE id = ?').run(workoutId);
+      db.prepare('INSERT INTO strokes (workout_id, stroke_number, time_s, distance_m) VALUES (?, 0, 1.0, 5.0)').run(workoutId);
+      db.prepare("INSERT INTO intervals (workout_id, interval_index, type, distance, time_ms) VALUES (?, 0, 'work', 2000, 420000)").run(workoutId);
+      db.prepare('INSERT INTO computed_metrics (workout_id, fade_index) VALUES (?, 1.0)').run(workoutId);
+      db.prepare('INSERT INTO hr_zone_time (workout_id, zone, time_s) VALUES (?, 1, 100)').run(workoutId);
+      db.prepare('INSERT INTO best_efforts (workout_id, duration_s, avg_watts) VALUES (?, 60, 200)').run(workoutId);
+      db.prepare('INSERT INTO interval_recoveries (workout_id, rep_index) VALUES (?, 0)').run(workoutId);
+      db.prepare("INSERT INTO pb_history (profile_id, workout_id, distance, pace_ms, time_ms, achieved_at, tag) VALUES (?, ?, 2000, 105000, 420000, '2026-07-01', 'endurance')").run(profileId, workoutId);
+      db.prepare("INSERT INTO goals (profile_id, kind, period, target_meters) VALUES (?, 'volume', 'weekly', 50000)").run(profileId);
+      db.prepare("INSERT INTO planned_workouts (profile_id, date, type, target_distance) VALUES (?, '2026-07-01', 'steady', 2000)").run(profileId);
+      db.prepare("INSERT INTO programs (profile_id, preset_id, name, start_date, duration_weeks, training_days) VALUES (?, 'pete-plan', 'P', '2026-07-01', 12, '[0]')").run(profileId);
+      db.prepare("INSERT INTO fitness_log (profile_id, date, fitness) VALUES (?, '2026-07-01', 50)").run(profileId);
+      db.prepare('INSERT INTO predictions (profile_id, distance, predicted_time) VALUES (?, 2000, 415000)').run(profileId);
+      db.prepare("INSERT INTO settings (profile_id, key, value) VALUES (?, 'max_hr', '190')").run(profileId);
+      db.prepare('INSERT INTO sync_state (key, value) VALUES (?, ?)').run(`profile:${profileId}:sync_status`, 'idle');
+    }
+
+    const OWNER_TABLES = ['workouts', 'pb_history', 'goals', 'planned_workouts', 'programs', 'fitness_log', 'predictions', 'settings'];
+    const CHILD_TABLES = ['strokes', 'intervals', 'computed_metrics', 'hr_zone_time', 'best_efforts', 'interval_recoveries'];
+
+    it('cascades across every owned table and leaves other profiles untouched', () => {
+      const a = auth.createProfile('A');
+      const b = auth.createProfile('B');
+      populate(a.id, 101);
+      populate(b.id, 202);
+
+      auth.deleteProfile(a.id);
+
+      for (const t of OWNER_TABLES) {
+        // A is fully gone; B is untouched (settings carries seeded defaults too,
+        // so assert presence rather than an exact row count).
+        expect(db.prepare(`SELECT COUNT(*) c FROM ${t} WHERE profile_id = ?`).get(a.id).c).toBe(0);
+        expect(db.prepare(`SELECT COUNT(*) c FROM ${t} WHERE profile_id = ?`).get(b.id).c).toBeGreaterThan(0);
+      }
+      for (const t of CHILD_TABLES) {
+        expect(db.prepare(`SELECT COUNT(*) c FROM ${t} WHERE workout_id = 101`).get().c).toBe(0);
+        expect(db.prepare(`SELECT COUNT(*) c FROM ${t} WHERE workout_id = 202`).get().c).toBe(1);
+      }
+      expect(db.prepare('SELECT COUNT(*) c FROM sync_state WHERE key = ?').get(`profile:${a.id}:sync_status`).c).toBe(0);
+      expect(db.prepare('SELECT COUNT(*) c FROM sync_state WHERE key = ?').get(`profile:${b.id}:sync_status`).c).toBe(1);
+      expect(auth.getProfile(a.id)).toBeNull();
+      expect(auth.getProfile(b.id)).not.toBeNull();
+    });
+  });
+
+  describe('token isolation', () => {
+    it('clearAuth disconnects only the target profile', () => {
+      const a = auth.createProfile('A');
+      const b = auth.createProfile('B');
+      auth.storeTokens(a.id, { access_token: 'tok-a', refresh_token: 'ref-a', expires_in: 3600 });
+      auth.storeTokens(b.id, { access_token: 'tok-b', refresh_token: 'ref-b', expires_in: 3600 });
+
+      auth.clearAuth(a.id);
+
+      const connected = Object.fromEntries(auth.listProfiles().map(p => [p.id, p.connected]));
+      expect(connected[a.id]).toBe(false);
+      expect(connected[b.id]).toBe(true);
+    });
+
+    it('getValidToken returns each profiles own token (encryption round-trips per profile)', async () => {
+      const a = auth.createProfile('A');
+      const b = auth.createProfile('B');
+      auth.storeTokens(a.id, { access_token: 'tok-a', expires_in: 3600 });
+      auth.storeTokens(b.id, { access_token: 'tok-b', expires_in: 3600 });
+
+      expect(await auth.getValidToken(a.id)).toBe('tok-a');
+      expect(await auth.getValidToken(b.id)).toBe('tok-b');
+    });
+  });
+
+  it('observed max HR (zone model input) is scoped per profile', () => {
+    const a = auth.createProfile('A');
+    const b = auth.createProfile('B');
+    addWorkout(a.id, 1, { hrMax: 190 });
+    addWorkout(b.id, 2, { hrMax: 160 });
+
+    expect(hrZones.getObservedMaxHr(db, a.id)).toBe(190);
+    expect(hrZones.getObservedMaxHr(db, b.id)).toBe(160);
+  });
+
+  it('PB history is computed independently per profile', () => {
+    const a = auth.createProfile('A');
+    const b = auth.createProfile('B');
+    addWorkout(a.id, 1, { distance: 2000, timeMs: 400000 }); // faster 2k
+    addWorkout(b.id, 2, { distance: 2000, timeMs: 460000 }); // slower 2k
+    analytics.tagAllWorkouts(a.id);
+    analytics.tagAllWorkouts(b.id);
+
+    pb.backfillPbHistory(a.id);
+    pb.backfillPbHistory(b.id);
+
+    expect(db.prepare('SELECT time_ms FROM pb_history WHERE profile_id = ? AND distance = 2000').get(a.id).time_ms).toBe(400000);
+    expect(db.prepare('SELECT time_ms FROM pb_history WHERE profile_id = ? AND distance = 2000').get(b.id).time_ms).toBe(460000);
+    // A's faster mark never leaks into B's history.
+    expect(db.prepare('SELECT COUNT(*) c FROM pb_history WHERE profile_id = ?').get(b.id).c).toBe(1);
+  });
+
+  it('wipeWorkoutData wipes only the target profiles synced data', () => {
+    const a = auth.createProfile('A');
+    const b = auth.createProfile('B');
+    addWorkout(a.id, 1);
+    addWorkout(b.id, 2);
+    for (const pid of [a.id, b.id]) {
+      db.prepare("INSERT INTO pb_history (profile_id, workout_id, distance, pace_ms, time_ms, achieved_at, tag) VALUES (?, ?, 2000, 105000, 420000, '2026-07-01', 'endurance')").run(pid, pid === a.id ? 1 : 2);
+      db.prepare("INSERT INTO fitness_log (profile_id, date, fitness) VALUES (?, '2026-07-01', 50)").run(pid);
+      db.prepare('INSERT INTO sync_state (key, value) VALUES (?, ?)').run(`profile:${pid}:last_sync_completed`, '2026-07-01');
+    }
+
+    admin.wipeWorkoutData(db, a.id);
+
+    expect(db.prepare('SELECT COUNT(*) c FROM workouts WHERE profile_id = ?').get(a.id).c).toBe(0);
+    expect(db.prepare('SELECT COUNT(*) c FROM pb_history WHERE profile_id = ?').get(a.id).c).toBe(0);
+    expect(db.prepare('SELECT COUNT(*) c FROM fitness_log WHERE profile_id = ?').get(a.id).c).toBe(0);
+    expect(db.prepare('SELECT COUNT(*) c FROM sync_state WHERE key = ?').get(`profile:${a.id}:last_sync_completed`).c).toBe(0);
+
+    expect(db.prepare('SELECT COUNT(*) c FROM workouts WHERE profile_id = ?').get(b.id).c).toBe(1);
+    expect(db.prepare('SELECT COUNT(*) c FROM pb_history WHERE profile_id = ?').get(b.id).c).toBe(1);
+    expect(db.prepare('SELECT COUNT(*) c FROM fitness_log WHERE profile_id = ?').get(b.id).c).toBe(1);
+    expect(db.prepare('SELECT COUNT(*) c FROM sync_state WHERE key = ?').get(`profile:${b.id}:last_sync_completed`).c).toBe(1);
+  });
+
+  it('import dedup and fingerprint uniqueness are scoped per profile', () => {
+    const a = auth.createProfile('A');
+    const b = auth.createProfile('B');
+    addWorkout(a.id, -1, { source: 'import', fingerprint: 'fp:0' });
+
+    const wk = { date: '2026-07-01T08:00:00', distance: 2000, time_ms: 420000 };
+    expect(dedup.findDuplicate(db, wk, 'fp:0', a.id)?.status).toBe('already_imported');
+    // B must not see A's imported row by fingerprint (or by date/distance).
+    expect(dedup.findDuplicate(db, wk, 'fp:0', b.id)).toBeNull();
+    // The same fingerprint can coexist under a different profile.
+    expect(() => addWorkout(b.id, -2, { source: 'import', fingerprint: 'fp:0' })).not.toThrow();
+  });
+
+  it('plan matching never links a workout to another profiles plan', () => {
+    const a = auth.createProfile('A');
+    const b = auth.createProfile('B');
+    db.prepare("INSERT INTO planned_workouts (profile_id, date, type, target_distance) VALUES (?, '2026-07-01', 'steady', 2000)").run(a.id);
+    addWorkout(b.id, 7, { distance: 2000, timeMs: 420000 }); // same day/distance, other profile
+    db.prepare("UPDATE workouts SET inferred_tag = 'endurance' WHERE id = 7").run();
+
+    const matched = planMatching.matchNewWorkouts([7]);
+
+    expect(matched).toBe(0);
+    expect(db.prepare('SELECT status FROM planned_workouts WHERE profile_id = ?').get(a.id).status).toBe('planned');
+  });
 });

@@ -344,6 +344,15 @@ export function setProfileIdentity(profileId, userInfo) {
     .run(userInfo?.id ?? null, userInfo ? JSON.stringify(userInfo) : null, profileId);
 }
 
+// Maps a freshly-authorized Concept2 account to exactly one profile: reuse the
+// profile that already holds this logbook id (prevents duplicates), else honor
+// a reconnect intent, else create a new profile named from the account.
+export function resolveConnectingProfile(userInfo, intent = {}) {
+  return getProfileByC2UserId(userInfo?.id)
+    || (intent.profileId ? getProfile(intent.profileId) : null)
+    || createProfile(intent.newName || userInfo?.first_name || userInfo?.username);
+}
+
 // No FK CASCADE on the app-enforced profile_id columns, so cascade here.
 export function deleteProfile(profileId) {
   const db = getDb();
