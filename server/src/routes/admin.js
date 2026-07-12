@@ -1,13 +1,14 @@
 import express, { Router } from 'express';
 import { createReadStream, existsSync, renameSync, rmSync, writeFileSync } from 'fs';
 import { join } from 'path';
-import { clearAuth, clearAuthSession } from '../auth.js';
+import { clearAuth } from '../auth.js';
 import { closeDb, getDataDir, getDb, getDbPath, reopenDb } from '../db.js';
 import { isSyncInProgress, runFullSync } from '../sync.js';
 
 const router = Router();
 const SQLITE_MAGIC = Buffer.from('SQLite format 3\0', 'binary');
 export const EXPORT_TABLES = [
+  'profiles',
   'workouts',
   'intervals',
   'strokes',
@@ -22,6 +23,12 @@ export const EXPORT_TABLES = [
   'planned_workouts',
   'settings',
 ];
+// Columns to project per table. profiles omits the encrypted token columns —
+// a JSON export is meant to be portable/shareable, not a secret store (the
+// binary /backup keeps everything). Tables absent here export all columns.
+export const EXPORT_COLUMNS = {
+  profiles: 'id, name, c2_user_id, user_info, created_at',
+};
 // Date-global derived tables rebuilt from scratch after a wipe (pb_history
 // backfills on the next PB detection pass, fitness_log on the next sync).
 // Per-workout child tables aren't listed: deleting the c2 workout rows
@@ -36,11 +43,11 @@ const SYNC_CURSOR_KEYS = [
   'last_enriched_workout_id',
 ];
 
-// Wipes Concept2-synced data ahead of a fresh full sync. Manual and imported
-// workouts are user-entered — a resync can't restore them — so they survive,
-// along with their intervals/strokes/metrics (cascade only fires for the
-// deleted c2 rows).
-export function wipeWorkoutData(db) {
+// Wipes one profile's Concept2-synced data ahead of a fresh full sync. Manual
+// and imported workouts are user-entered — a resync can't restore them — so
+// they survive, along with their intervals/strokes/metrics (cascade only
+// fires for the deleted c2 rows). Other profiles are untouched.
+export function wipeWorkoutData(db, profileId) {
   db.transaction(() => {
     // Workout FKs are SET NULL on deletion, but completion is a property of
     // the link. Reset plans linked to c2 workouts so the fresh sync can match
@@ -49,15 +56,18 @@ export function wipeWorkoutData(db) {
       UPDATE planned_workouts
       SET completed_workout_id = NULL, status = 'planned', match_type = NULL,
           updated_at = datetime('now')
-      WHERE completed_workout_id IN (SELECT id FROM workouts WHERE source = 'c2')
-    `).run();
+      WHERE completed_workout_id IN (SELECT id FROM workouts WHERE source = 'c2' AND profile_id = ?)
+    `).run(profileId);
 
     for (const table of WIPE_TABLES) {
-      db.prepare(`DELETE FROM ${table}`).run();
+      db.prepare(`DELETE FROM ${table} WHERE profile_id = ?`).run(profileId);
     }
-    db.prepare("DELETE FROM workouts WHERE source = 'c2'").run();
-    db.prepare(`DELETE FROM sync_state WHERE key IN (${SYNC_CURSOR_KEYS.map(() => '?').join(', ')})`).run(...SYNC_CURSOR_KEYS);
-    db.prepare("INSERT OR REPLACE INTO sync_state (key, value, updated_at) VALUES ('sync_status', 'idle', datetime('now'))").run();
+    db.prepare("DELETE FROM workouts WHERE source = 'c2' AND profile_id = ?").run(profileId);
+    for (const key of SYNC_CURSOR_KEYS) {
+      db.prepare('DELETE FROM sync_state WHERE key = ?').run(`profile:${profileId}:${key}`);
+    }
+    db.prepare("INSERT OR REPLACE INTO sync_state (key, value, updated_at) VALUES (?, 'idle', datetime('now'))")
+      .run(`profile:${profileId}:sync_status`);
   })();
 }
 
@@ -108,7 +118,8 @@ router.get('/export', (req, res, next) => {
       if (tableIndex > 0) res.write(',');
       res.write(`${JSON.stringify(table)}:[`);
       let rowIndex = 0;
-      for (const row of db.prepare(`SELECT * FROM ${table}`).iterate()) {
+      const cols = EXPORT_COLUMNS[table] || '*';
+      for (const row of db.prepare(`SELECT ${cols} FROM ${table}`).iterate()) {
         if (rowIndex > 0) res.write(',');
         res.write(JSON.stringify(row));
         rowIndex += 1;
@@ -160,10 +171,11 @@ router.post('/restore', express.raw({ type: 'application/octet-stream', limit: '
   }
 });
 
+// Disconnects the active profile from Concept2. The browser session stays —
+// other household profiles remain usable on this device.
 router.post('/disconnect', (req, res, next) => {
   try {
-    clearAuth();
-    clearAuthSession(req, res);
+    clearAuth(req.profileId);
     res.json({ ok: true });
   } catch (err) {
     next(err);
@@ -171,15 +183,15 @@ router.post('/disconnect', (req, res, next) => {
 });
 
 router.post('/wipe', (req, res, next) => {
-  if (isSyncInProgress()) {
+  if (isSyncInProgress(req.profileId)) {
     return res.status(409).json({ error: 'Cannot wipe local data while a sync is running' });
   }
 
   try {
     const db = getDb();
-    wipeWorkoutData(db);
+    wipeWorkoutData(db, req.profileId);
 
-    runFullSync().catch(err => console.error('Post-wipe sync failed:', err));
+    runFullSync(req.profileId).catch(err => console.error('Post-wipe sync failed:', err));
     res.json({ ok: true });
   } catch (err) {
     next(err);

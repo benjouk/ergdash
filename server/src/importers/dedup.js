@@ -50,11 +50,11 @@ export function computeMergeable(db, existing, workout) {
 
 // Finds the best existing match for a normalized workout. Returns null or
 // { status: 'already_imported'|'exact'|'likely', match, matched_on }.
-export function findDuplicate(db, workout, fingerprint) {
+export function findDuplicate(db, workout, fingerprint, profileId) {
   if (fingerprint) {
     const imported = db.prepare(
-      'SELECT * FROM workouts WHERE import_fingerprint = ?'
-    ).get(fingerprint);
+      'SELECT * FROM workouts WHERE import_fingerprint = ? AND profile_id = ?'
+    ).get(fingerprint, profileId);
     if (imported) {
       return { status: 'already_imported', match: imported, matched_on: ['fingerprint'] };
     }
@@ -64,7 +64,7 @@ export function findDuplicate(db, workout, fingerprint) {
 
   const logId = workout.source_meta?.c2_log_id;
   if (logId) {
-    const byId = db.prepare('SELECT * FROM workouts WHERE id = ?').get(logId);
+    const byId = db.prepare('SELECT * FROM workouts WHERE id = ? AND profile_id = ?').get(logId, profileId);
     // The log id is client-supplied (parsed from the file, then round-tripped
     // through the preview), so it only counts as identity when the row's own
     // numbers corroborate it — distance, time, AND when it happened. Erg
@@ -85,8 +85,9 @@ export function findDuplicate(db, workout, fingerprint) {
   const day = workout.date.slice(0, 10);
   const candidates = db.prepare(`
     SELECT * FROM workouts
-    WHERE substr(date, 1, 10) BETWEEN date(?, '-1 day') AND date(?, '+1 day')
-  `).all(day, day);
+    WHERE profile_id = ?
+      AND substr(date, 1, 10) BETWEEN date(?, '-1 day') AND date(?, '+1 day')
+  `).all(profileId, day, day);
 
   let best = null;
   for (const candidate of candidates) {
@@ -122,11 +123,11 @@ export function findDuplicate(db, workout, fingerprint) {
 // commit payload could merge an arbitrary imported row into any workout,
 // overwriting its missing fields/splits/strokes and stealing its
 // import fingerprint.
-export function resolveMergeTarget(db, workout, fingerprint, targetId) {
+export function resolveMergeTarget(db, workout, fingerprint, targetId, profileId) {
   if (!Number.isInteger(targetId)) {
     return { error: 'merge target not found' };
   }
-  const found = findDuplicate(db, workout, fingerprint);
+  const found = findDuplicate(db, workout, fingerprint, profileId);
   if (!found || found.status === 'already_imported') {
     return { error: 'no duplicate detected for this row — import as new instead' };
   }

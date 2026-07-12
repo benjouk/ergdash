@@ -1,24 +1,41 @@
 import { Router } from 'express';
-import { getDb } from '../db.js';
 import {
   getAuthorizationUrl,
+  consumeOauthState,
   exchangeCodeForTokens,
   storeTokens,
-  isAuthenticated,
+  hasConnectedProfile,
   createAuthSession,
   hasValidSession,
   clearAuthSession,
-  getUserInfo,
   clearAuth,
   fetchC2Api,
+  listProfiles,
+  getProfile,
+  createProfile,
+  setProfileIdentity,
+  resolveConnectingProfile,
 } from '../auth.js';
 import { runFullSync, startSyncSchedule } from '../sync.js';
 
 const router = Router();
 
+// ?profile=new (optionally &name=Alice) connects a new household member;
+// ?profile=<id> reconnects an existing profile. Legacy /auth/login with no
+// params behaves like profile=new (the callback dedupes by Concept2 user id).
 router.get('/login', (req, res) => {
-  const url = getAuthorizationUrl();
-  res.redirect(url);
+  const requested = req.query.profile;
+  let intent = {};
+  if (requested && requested !== 'new') {
+    const id = Number(requested);
+    if (!Number.isInteger(id) || !getProfile(id)) {
+      return res.status(404).json({ error: 'Profile not found' });
+    }
+    intent = { profileId: id };
+  } else if (req.query.name) {
+    intent = { newName: String(req.query.name).slice(0, 60) };
+  }
+  res.redirect(getAuthorizationUrl(intent));
 });
 
 router.get('/callback', async (req, res) => {
@@ -28,28 +45,31 @@ router.get('/callback', async (req, res) => {
       return res.status(400).json({ error: 'Missing authorization code' });
     }
 
-    const db = getDb();
-    const savedState = db.prepare(
-      "SELECT value FROM sync_state WHERE key = 'oauth_state' AND updated_at >= datetime('now', '-10 minutes')"
-    ).get();
-    db.prepare("DELETE FROM sync_state WHERE key = 'oauth_state'").run();
-    if (!state || !savedState || state !== savedState.value) {
+    const intent = consumeOauthState(state);
+    if (!intent) {
       return res.status(400).json({ error: 'Invalid or expired state parameter' });
     }
 
     const tokens = await exchangeCodeForTokens(code);
-    storeTokens(tokens);
-    createAuthSession(res);
+    const userResp = await fetchC2Api('/api/users/me', tokens.access_token);
+    const userInfo = userResp.data || userResp;
 
-    const userInfo = await fetchC2Api('/api/users/me', tokens.access_token);
-    db.prepare("INSERT OR REPLACE INTO sync_state (key, value, updated_at) VALUES ('user_info', ?, datetime('now'))").run(
-      JSON.stringify(userInfo.data || userInfo)
-    );
+    const result = resolveConnectingProfile(userInfo, intent);
+    if (result.error) {
+      return res.redirect(`/?error=${encodeURIComponent(result.error)}`);
+    }
+    const profile = result.profile;
 
-    runFullSync().catch(err => console.error('Initial sync failed:', err));
+    setProfileIdentity(profile.id, userInfo);
+    storeTokens(profile.id, tokens);
+    if (!hasValidSession(req)) {
+      createAuthSession(res);
+    }
+
+    runFullSync(profile.id).catch(err => console.error('Initial sync failed:', err));
     startSyncSchedule();
 
-    res.redirect('/?connected=true');
+    res.redirect(`/?connected=${profile.id}`);
   } catch (err) {
     console.error('OAuth callback error:', err);
     res.redirect('/?error=auth_failed');
@@ -57,43 +77,52 @@ router.get('/callback', async (req, res) => {
 });
 
 router.get('/status', (req, res) => {
-  const connected = isAuthenticated();
-  const authenticated = connected && hasValidSession(req);
+  const authenticated = hasValidSession(req);
   res.json({
     authenticated,
-    connected,
-    user: authenticated ? getUserInfo() : null,
+    connected: hasConnectedProfile(),
+    profiles: authenticated ? listProfiles() : [],
   });
 });
 
+// Ends the browser session only; Concept2 connections are per-profile and
+// managed via /api/profiles/:id/disconnect.
 router.post('/logout', (req, res) => {
   if (process.env.NODE_ENV === 'production' && !hasValidSession(req)) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
   clearAuthSession(req, res);
-  clearAuth();
   res.json({ ok: true });
 });
 
 if (process.env.NODE_ENV !== 'production') {
+  // Dev "skip auth": establishes a session and marks every existing profile
+  // connected with a mock identity. Profiles come from the seed (the demo
+  // seeds two) — mock-login must NOT invent its own, or throwaway profiles
+  // leak into the captured demo fixtures. Only when the DB has no profiles at
+  // all does it create one (?profiles=2 for local multi-profile testing).
   router.get('/mock-login', (req, res) => {
-    const db = getDb();
-    const upsert = db.prepare(
-      "INSERT OR REPLACE INTO sync_state (key, value, updated_at) VALUES (?, ?, datetime('now'))"
-    );
-    storeTokens({
-      access_token: 'mock-token',
-      refresh_token: 'mock-refresh',
-      expires_in: 3600,
+    let profiles = listProfiles();
+    if (profiles.length === 0) {
+      const count = req.query.profiles === '2' ? 2 : 1;
+      const names = ['Dev Rower', 'Second Rower'];
+      for (let i = 0; i < count; i++) createProfile(names[i]);
+      profiles = listProfiles();
+    }
+    profiles.forEach((profile) => {
+      const [first, ...rest] = String(profile.name).split(' ');
+      setProfileIdentity(profile.id, {
+        id: 900000 + profile.id,
+        username: first.toLowerCase(),
+        first_name: first,
+        last_name: rest.join(' '),
+      });
+      storeTokens(profile.id, {
+        access_token: 'mock-token',
+        refresh_token: 'mock-refresh',
+        expires_in: 3600,
+      });
     });
-    db.transaction(() => {
-      upsert.run('user_info', JSON.stringify({
-        id: 1,
-        username: 'mockrower',
-        first_name: 'Test',
-        last_name: 'Rower',
-      }));
-    })();
     createAuthSession(res);
     res.redirect('/');
   });

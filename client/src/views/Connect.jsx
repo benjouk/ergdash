@@ -16,7 +16,8 @@ export default function Connect() {
   const [syncing, setSyncing] = useState(false);
   const [syncProgress, setSyncProgress] = useState(null);
 
-  const connected = searchParams.get('connected') === 'true';
+  // The OAuth callback redirects with the new profile's id.
+  const connected = !!searchParams.get('connected');
   const isDev = import.meta.env.DEV;
 
   useEffect(() => {
@@ -66,7 +67,7 @@ export default function Connect() {
           </div>
         ) : (
           <div className={styles.actions}>
-            <a href="/auth/login" className={styles.cta}>
+            <a href="/auth/login?profile=new" className={styles.cta}>
               Connect with Concept2
             </a>
 

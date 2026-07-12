@@ -36,6 +36,7 @@ beforeEach(async () => {
 
   initDb();
   db = getDb();
+  db.prepare("INSERT INTO profiles (id, name, c2_user_id) VALUES (1, 'Test', 42)").run();
 });
 
 afterEach(() => {
@@ -85,7 +86,7 @@ describe('createManualWorkout', () => {
   };
 
   it('creates a negative-id row with source=manual, pace, notes and intervals', () => {
-    const result = createManualWorkout(body, 42);
+    const result = createManualWorkout(body, 1);
     expect(result.errors).toBeUndefined();
     expect(result.id).toBe(-1);
     expect(result.warnings).toEqual([]);
@@ -100,22 +101,22 @@ describe('createManualWorkout', () => {
   });
 
   it('allocates decreasing ids and never collides with c2 ids', () => {
-    insertWorkout(db, c2Workout());
-    createManualWorkout(body, 42);
-    createManualWorkout({ ...body, date: '2024-02-02 06:30:00' }, 42);
+    insertWorkout(db, c2Workout(), 1);
+    createManualWorkout(body, 1);
+    createManualWorkout({ ...body, date: '2024-02-02 06:30:00' }, 1);
     expect(getWorkout(-1)).toBeTruthy();
     expect(getWorkout(-2)).toBeTruthy();
     expect(allocateManualId(db)).toBe(-3);
   });
 
   it('rejects missing core fields and out-of-range values', () => {
-    const bad = createManualWorkout({ distance: 2000 }, 42);
+    const bad = createManualWorkout({ distance: 2000 }, 1);
     expect(bad.errors.join(' ')).toMatch(/date is required/);
     expect(bad.errors.join(' ')).toMatch(/time_ms is required/);
 
     const badHr = createManualWorkout({
       date: '2024-02-01 06:30:00', distance: 2000, time_ms: 420000, heart_rate_avg: 300,
-    }, 42);
+    }, 1);
     expect(badHr.errors.join(' ')).toMatch(/heart_rate_avg/);
   });
 
@@ -123,18 +124,18 @@ describe('createManualWorkout', () => {
     const result = createManualWorkout({
       ...body,
       intervals: [{ type: 'work', distance: 500, time_ms: 105000 }],
-    }, 42);
+    }, 1);
     expect(result.id).toBeLessThan(0);
     expect(result.warnings.join(' ')).toMatch(/work intervals sum/);
   });
 
   it('matches a planned workout of the same day and distance', () => {
     db.prepare(`
-      INSERT INTO planned_workouts (date, type, target_distance, status)
-      VALUES ('2024-02-01', 'steady', 2000, 'planned')
+      INSERT INTO planned_workouts (profile_id, date, type, target_distance, status)
+      VALUES (1, '2024-02-01', 'steady', 2000, 'planned')
     `).run();
 
-    createManualWorkout(body, 42);
+    createManualWorkout(body, 1);
 
     const plan = db.prepare('SELECT completed_workout_id, status FROM planned_workouts').get();
     expect(plan.completed_workout_id).toBe(-1);
@@ -144,7 +145,7 @@ describe('createManualWorkout', () => {
 
 describe('applyWorkoutCorrection', () => {
   it('tracks edited_fields on c2 rows and recomputes pace', () => {
-    insertWorkout(db, c2Workout());
+    insertWorkout(db, c2Workout(), 1);
     applyWorkoutCorrection(db, getWorkout(100), { distance: 2100, heart_rate_avg: 152 });
 
     const row = getWorkout(100);
@@ -154,7 +155,7 @@ describe('applyWorkoutCorrection', () => {
   });
 
   it('does not track edited_fields on manual rows', () => {
-    createManualWorkout({ date: '2024-02-01 06:30:00', distance: 2000, time_ms: 420000 }, 42);
+    createManualWorkout({ date: '2024-02-01 06:30:00', distance: 2000, time_ms: 420000 }, 1);
     applyWorkoutCorrection(db, getWorkout(-1), { heart_rate_avg: 160 });
 
     const row = getWorkout(-1);
@@ -163,14 +164,14 @@ describe('applyWorkoutCorrection', () => {
   });
 
   it('wipes strokes on c2 performance changes but keeps them on manual rows', () => {
-    insertWorkout(db, c2Workout());
+    insertWorkout(db, c2Workout(), 1);
     db.prepare('INSERT INTO strokes (workout_id, stroke_number, time_s) VALUES (100, 0, 1.0)').run();
     db.prepare('UPDATE workouts SET has_stroke_data = 1 WHERE id = 100').run();
     applyWorkoutCorrection(db, getWorkout(100), { time_ms: 470000 });
     expect(db.prepare('SELECT COUNT(*) as c FROM strokes WHERE workout_id = 100').get().c).toBe(0);
     expect(getWorkout(100).has_stroke_data).toBe(0);
 
-    createManualWorkout({ date: '2024-02-01 06:30:00', distance: 2000, time_ms: 420000 }, 42);
+    createManualWorkout({ date: '2024-02-01 06:30:00', distance: 2000, time_ms: 420000 }, 1);
     db.prepare('INSERT INTO strokes (workout_id, stroke_number, time_s) VALUES (-1, 0, 1.0)').run();
     db.prepare('UPDATE workouts SET has_stroke_data = 1 WHERE id = -1').run();
     applyWorkoutCorrection(db, getWorkout(-1), { time_ms: 415000 });
@@ -179,9 +180,9 @@ describe('applyWorkoutCorrection', () => {
   });
 
   it('rebuilds pb history when a correction invalidates a PB', () => {
-    insertWorkout(db, c2Workout({ id: 101, date: '2024-01-01 08:00:00', time: 4200 })); // 2k in 7:00
-    insertWorkout(db, c2Workout({ id: 102, date: '2024-01-02 08:00:00', time: 4100 })); // 2k in 6:50 = PB
-    detectNewPbs([101, 102]);
+    insertWorkout(db, c2Workout({ id: 101, date: '2024-01-01 08:00:00', time: 4200 }), 1); // 2k in 7:00
+    insertWorkout(db, c2Workout({ id: 102, date: '2024-01-02 08:00:00', time: 4100 }), 1); // 2k in 6:50 = PB
+    detectNewPbs(1, [101, 102]);
     const before = db.prepare('SELECT workout_id FROM pb_history WHERE distance = 2000 ORDER BY pace_ms ASC').all();
     expect(before.map(r => r.workout_id)).toContain(102);
 
@@ -196,7 +197,7 @@ describe('applyWorkoutCorrection', () => {
 
 describe('revertWorkoutToC2', () => {
   it('restores raw_json values, clears overrides, and refuses non-c2 rows', () => {
-    insertWorkout(db, c2Workout());
+    insertWorkout(db, c2Workout(), 1);
     applyWorkoutCorrection(db, getWorkout(100), { heart_rate_avg: 160, drag_factor: 111 });
     expect(getWorkout(100).heart_rate_avg).toBe(160);
 
@@ -207,12 +208,12 @@ describe('revertWorkoutToC2', () => {
     expect(row.drag_factor).toBe(120);
     expect(row.edited_fields).toBeNull();
 
-    createManualWorkout({ date: '2024-02-01 06:30:00', distance: 2000, time_ms: 420000 }, 42);
+    createManualWorkout({ date: '2024-02-01 06:30:00', distance: 2000, time_ms: 420000 }, 1);
     expect(revertWorkoutToC2(db, getWorkout(-1), null).error).toMatch(/Concept2/);
   });
 
   it('reverts only the named fields', () => {
-    insertWorkout(db, c2Workout());
+    insertWorkout(db, c2Workout(), 1);
     applyWorkoutCorrection(db, getWorkout(100), { heart_rate_avg: 160, drag_factor: 111 });
 
     revertWorkoutToC2(db, getWorkout(100), ['drag_factor']);
@@ -225,21 +226,21 @@ describe('revertWorkoutToC2', () => {
 
 describe('deleteUserWorkout', () => {
   it('refuses c2 rows', () => {
-    insertWorkout(db, c2Workout());
+    insertWorkout(db, c2Workout(), 1);
     expect(deleteUserWorkout(db, getWorkout(100)).error).toMatch(/cannot be deleted/);
     expect(getWorkout(100)).toBeTruthy();
   });
 
   it('deletes manual rows with children, pb_history, and frees the plan link', () => {
     db.prepare(`
-      INSERT INTO planned_workouts (date, type, target_distance, status)
-      VALUES ('2024-02-01', 'steady', 2000, 'planned')
+      INSERT INTO planned_workouts (profile_id, date, type, target_distance, status)
+      VALUES (1, '2024-02-01', 'steady', 2000, 'planned')
     `).run();
 
     createManualWorkout({
       date: '2024-02-01 06:30:00', distance: 2000, time_ms: 420000,
       intervals: [{ type: 'work', distance: 2000, time_ms: 420000 }],
-    }, 42);
+    }, 1);
     db.prepare('INSERT INTO strokes (workout_id, stroke_number, time_s) VALUES (-1, 0, 1.0)').run();
 
     // Sanity: manual 2k landed in pb_history and matched the plan.
@@ -276,7 +277,7 @@ describe('validateWorkoutFields', () => {
 
 describe('workout_type corrections', () => {
   it('re-runs tag classification when workout_type changes', () => {
-    insertWorkout(db, c2Workout());
+    insertWorkout(db, c2Workout(), 1);
     // Force a stale tag; a workout_type edit must trigger the retag pass
     // that corrects it (tag classification keys off rest data).
     db.prepare("UPDATE workouts SET inferred_tag = 'interval' WHERE id = 100").run();

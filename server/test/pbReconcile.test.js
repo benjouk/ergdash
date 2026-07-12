@@ -30,6 +30,7 @@ beforeEach(async () => {
 
   initDb();
   db = getDb();
+  db.prepare("INSERT INTO profiles (id, name) VALUES (1, 'Test')").run();
 });
 
 afterEach(() => {
@@ -58,8 +59,8 @@ function c2Workout(overrides) {
 
 describe('reconcilePbDistances', () => {
   it('updates a stale PB when a correction changes its pace', () => {
-    insertWorkout(db, c2Workout({ id: 1, time: 4800 })); // pace 120000
-    backfillPbHistory();
+    insertWorkout(db, c2Workout({ id: 1, time: 4800 }), 1); // pace 120000
+    backfillPbHistory(1);
 
     let history = db.prepare('SELECT * FROM pb_history WHERE distance = 2000').all();
     expect(history).toHaveLength(1);
@@ -67,8 +68,8 @@ describe('reconcilePbDistances', () => {
     expect(history[0].tag).toBe('endurance');
 
     // Corrected result is faster.
-    insertWorkout(db, c2Workout({ id: 1, time: 4700 })); // pace 117500
-    reconcilePbDistances([2000]);
+    insertWorkout(db, c2Workout({ id: 1, time: 4700 }), 1); // pace 117500
+    reconcilePbDistances(1, [2000]);
 
     history = db.prepare('SELECT * FROM pb_history WHERE distance = 2000').all();
     expect(history).toHaveLength(1);
@@ -76,16 +77,16 @@ describe('reconcilePbDistances', () => {
   });
 
   it('drops a later PB that a correction invalidates', () => {
-    insertWorkout(db, c2Workout({ id: 1, date: '2024-01-01T08:00:00', time: 4800 })); // pace 120000, PB
-    insertWorkout(db, c2Workout({ id: 2, date: '2024-01-02T08:00:00', time: 4750 })); // pace 118750, PB
-    backfillPbHistory();
+    insertWorkout(db, c2Workout({ id: 1, date: '2024-01-01T08:00:00', time: 4800 }), 1); // pace 120000, PB
+    insertWorkout(db, c2Workout({ id: 2, date: '2024-01-02T08:00:00', time: 4750 }), 1); // pace 118750, PB
+    backfillPbHistory(1);
 
     let history = db.prepare('SELECT workout_id, pace_ms FROM pb_history WHERE distance = 2000 ORDER BY achieved_at').all();
     expect(history.map(h => h.workout_id)).toEqual([1, 2]);
 
     // Correct workout 1 to be faster than both — it should now be the only PB.
-    insertWorkout(db, c2Workout({ id: 1, date: '2024-01-01T08:00:00', time: 4500 })); // pace 112500
-    reconcilePbDistances([2000]);
+    insertWorkout(db, c2Workout({ id: 1, date: '2024-01-01T08:00:00', time: 4500 }), 1); // pace 112500
+    reconcilePbDistances(1, [2000]);
 
     history = db.prepare('SELECT workout_id, pace_ms FROM pb_history WHERE distance = 2000 ORDER BY achieved_at').all();
     expect(history).toEqual([
@@ -94,13 +95,13 @@ describe('reconcilePbDistances', () => {
   });
 
   it('ignores non-standard distances', () => {
-    insertWorkout(db, c2Workout({ id: 1, distance: 1234, time: 4800 }));
-    backfillPbHistory();
-    expect(reconcilePbDistances([1234])).toEqual([]);
+    insertWorkout(db, c2Workout({ id: 1, distance: 1234, time: 4800 }), 1);
+    backfillPbHistory(1);
+    expect(reconcilePbDistances(1, [1234])).toEqual([]);
   });
 
   it('tracks separate PBs for interval and endurance workouts', () => {
-    insertWorkout(db, c2Workout({ id: 1, date: '2024-01-01T08:00:00', time: 4800 })); // endurance 2k, pace 120000
+    insertWorkout(db, c2Workout({ id: 1, date: '2024-01-01T08:00:00', time: 4800 }), 1); // endurance 2k, pace 120000
     insertWorkout(db, c2Workout({
       id: 2, date: '2024-01-02T08:00:00', time: 4600, // interval 2k, pace 115000
       rest_time: 600,
@@ -108,9 +109,9 @@ describe('reconcilePbDistances', () => {
         { type: 'distance', distance: 1000, time: 2300, stroke_rate: 28, rest_time: 600 },
         { type: 'distance', distance: 1000, time: 2300, stroke_rate: 28 },
       ] },
-    }));
-    tagAllWorkouts();
-    backfillPbHistory();
+    }), 1);
+    tagAllWorkouts(1);
+    backfillPbHistory(1);
 
     const history = db.prepare('SELECT workout_id, pace_ms, tag FROM pb_history WHERE distance = 2000 ORDER BY achieved_at').all();
     expect(history).toHaveLength(2);
@@ -121,14 +122,14 @@ describe('reconcilePbDistances', () => {
 
 describe('detectNewPbs', () => {
   it('rebuilds progression when a late upload predates an existing PB', () => {
-    insertWorkout(db, c2Workout({ id: 1, date: '2024-01-01T08:00:00', time: 4800 })); // 120000
-    insertWorkout(db, c2Workout({ id: 2, date: '2024-03-01T08:00:00', time: 4600 })); // 115000
-    tagAllWorkouts();
-    backfillPbHistory();
+    insertWorkout(db, c2Workout({ id: 1, date: '2024-01-01T08:00:00', time: 4800 }), 1); // 120000
+    insertWorkout(db, c2Workout({ id: 2, date: '2024-03-01T08:00:00', time: 4600 }), 1); // 115000
+    tagAllWorkouts(1);
+    backfillPbHistory(1);
 
-    insertWorkout(db, c2Workout({ id: 3, date: '2024-02-01T08:00:00', time: 4400 })); // 110000
-    tagAllWorkouts();
-    const notifications = detectNewPbs([3]);
+    insertWorkout(db, c2Workout({ id: 3, date: '2024-02-01T08:00:00', time: 4400 }), 1); // 110000
+    tagAllWorkouts(1);
+    const notifications = detectNewPbs(1, [3]);
 
     expect(notifications.map(event => event.workout_id)).toEqual([3]);
     const history = db.prepare(
@@ -141,14 +142,14 @@ describe('detectNewPbs', () => {
   });
 
   it('adds a late historical PB without notifying when it is not the current best', () => {
-    insertWorkout(db, c2Workout({ id: 1, date: '2024-01-01T08:00:00', time: 4800 })); // 120000
-    insertWorkout(db, c2Workout({ id: 2, date: '2024-03-01T08:00:00', time: 4400 })); // 110000
-    tagAllWorkouts();
-    backfillPbHistory();
+    insertWorkout(db, c2Workout({ id: 1, date: '2024-01-01T08:00:00', time: 4800 }), 1); // 120000
+    insertWorkout(db, c2Workout({ id: 2, date: '2024-03-01T08:00:00', time: 4400 }), 1); // 110000
+    tagAllWorkouts(1);
+    backfillPbHistory(1);
 
-    insertWorkout(db, c2Workout({ id: 3, date: '2024-02-01T08:00:00', time: 4600 })); // 115000
-    tagAllWorkouts();
-    expect(detectNewPbs([3])).toEqual([]);
+    insertWorkout(db, c2Workout({ id: 3, date: '2024-02-01T08:00:00', time: 4600 }), 1); // 115000
+    tagAllWorkouts(1);
+    expect(detectNewPbs(1, [3])).toEqual([]);
 
     const history = db.prepare(
       'SELECT workout_id FROM pb_history WHERE distance = 2000 ORDER BY achieved_at'

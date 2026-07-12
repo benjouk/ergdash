@@ -93,7 +93,7 @@ export function matchNewWorkouts(insertedWorkoutIds = []) {
 
   for (const id of insertedWorkoutIds) {
     const workout = db.prepare(`
-      SELECT id, date, distance, time_ms, inferred_tag
+      SELECT id, profile_id, date, distance, time_ms, inferred_tag
       FROM workouts WHERE id = ? AND type = 'rower'
     `).get(id);
     if (!workout) continue;
@@ -103,9 +103,10 @@ export function matchNewWorkouts(insertedWorkoutIds = []) {
     ).get(id);
     if (alreadyLinked) continue;
 
+    // Invariant: a plan may only link to a workout owned by the same profile.
     const dayPlans = db.prepare(
-      'SELECT * FROM planned_workouts WHERE date = ?'
-    ).all(workoutDay(workout));
+      'SELECT * FROM planned_workouts WHERE date = ? AND profile_id = ?'
+    ).all(workoutDay(workout), workout.profile_id);
 
     const best = pickBestMatch(dayPlans, workout);
     if (best) {
@@ -124,20 +125,21 @@ export function autoMatchPlan(planId) {
   const plan = db.prepare('SELECT * FROM planned_workouts WHERE id = ?').get(planId);
   if (!plan || plan.status !== 'planned' || plan.completed_workout_id) return false;
 
+  // Invariant: a plan may only link to a workout owned by the same profile.
   const candidates = db.prepare(`
     SELECT w.id, w.date, w.distance, w.time_ms, w.inferred_tag
     FROM workouts w
-    WHERE w.type = 'rower' AND date(w.date) = ?
+    WHERE w.type = 'rower' AND date(w.date) = ? AND w.profile_id = ?
       AND w.id NOT IN (
         SELECT completed_workout_id FROM planned_workouts
         WHERE completed_workout_id IS NOT NULL
       )
     ORDER BY w.date
-  `).all(plan.date);
+  `).all(plan.date, plan.profile_id);
 
   const dayPlans = db.prepare(
-    'SELECT * FROM planned_workouts WHERE date = ?'
-  ).all(plan.date);
+    'SELECT * FROM planned_workouts WHERE date = ? AND profile_id = ?'
+  ).all(plan.date, plan.profile_id);
 
   for (const workout of candidates) {
     const best = pickBestMatch(dayPlans, workout);

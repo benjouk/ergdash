@@ -7,8 +7,8 @@ const router = Router();
 
 const MAX_LABEL_LENGTH = 100;
 
-function getWeekStart(db) {
-  const row = db.prepare("SELECT value FROM settings WHERE key = 'week_start'").get();
+function getWeekStart(db, profileId) {
+  const row = db.prepare("SELECT value FROM settings WHERE profile_id = ? AND key = 'week_start'").get(profileId);
   return row?.value === 'sunday' ? 'sunday' : 'monday';
 }
 
@@ -17,8 +17,8 @@ function decorateGoal(db, goal, weekStart, now = new Date()) {
     const window = periodWindow(goal.period, now, weekStart);
     const { meters } = db.prepare(`
       SELECT COALESCE(SUM(distance), 0) as meters FROM workouts
-      WHERE type = 'rower' AND date >= ? AND date < ?
-    `).get(window.from, window.to);
+      WHERE type = 'rower' AND profile_id = ? AND date >= ? AND date < ?
+    `).get(goal.profile_id, window.from, window.to);
     return {
       ...goal,
       progress: {
@@ -30,13 +30,13 @@ function decorateGoal(db, goal, weekStart, now = new Date()) {
 
   const pb = db.prepare(`
     SELECT id as workout_id, date, time_ms, pace_ms FROM workouts
-    WHERE type = 'rower' AND distance = ? AND pace_ms > 0
+    WHERE type = 'rower' AND profile_id = ? AND distance = ? AND pace_ms > 0
     ORDER BY pace_ms ASC LIMIT 1
-  `).get(goal.distance);
+  `).get(goal.profile_id, goal.distance);
 
   const prediction = db.prepare(
-    'SELECT distance, predicted_time, confidence, window_start, window_end FROM predictions WHERE distance = ?'
-  ).get(goal.distance);
+    'SELECT distance, predicted_time, confidence, window_start, window_end FROM predictions WHERE profile_id = ? AND distance = ?'
+  ).get(goal.profile_id, goal.distance);
 
   const gap = performanceGap(goal, pb || null, prediction || null, now);
 
@@ -60,10 +60,10 @@ function decorateGoal(db, goal, weekStart, now = new Date()) {
 
 router.get('/', (req, res) => {
   const db = getDb();
-  const weekStart = getWeekStart(db);
+  const weekStart = getWeekStart(db, req.profileId);
   const rows = db.prepare(
-    'SELECT * FROM goals ORDER BY active DESC, kind, period, distance, id'
-  ).all();
+    'SELECT * FROM goals WHERE profile_id = ? ORDER BY active DESC, kind, period, distance, id'
+  ).all(req.profileId);
   res.json({ goals: rows.map(g => decorateGoal(db, g, weekStart)) });
 });
 
@@ -133,11 +133,11 @@ function validateGoalBody(body, kind, { partial = false } = {}) {
   return { errors, fields };
 }
 
-function activeVolumeConflict(db, period, excludeId = null) {
+function activeVolumeConflict(db, profileId, period, excludeId = null) {
   const row = db.prepare(`
     SELECT id FROM goals
-    WHERE kind = 'volume' AND period = ? AND active = 1 AND id != COALESCE(?, -1)
-  `).get(period, excludeId);
+    WHERE profile_id = ? AND kind = 'volume' AND period = ? AND active = 1 AND id != COALESCE(?, -1)
+  `).get(profileId, period, excludeId);
   return !!row;
 }
 
@@ -158,16 +158,17 @@ router.post('/', (req, res) => {
   }
 
   const active = fields.active ?? 1;
-  if (body.kind === 'volume' && active && activeVolumeConflict(db, fields.period)) {
+  if (body.kind === 'volume' && active && activeVolumeConflict(db, req.profileId, fields.period)) {
     return res.status(409).json({
       error: `An active ${fields.period} volume goal already exists`,
     });
   }
 
   const result = db.prepare(`
-    INSERT INTO goals (kind, period, target_meters, distance, target_time_ms, race_date, label, active)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO goals (profile_id, kind, period, target_meters, distance, target_time_ms, race_date, label, active)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
+    req.profileId,
     body.kind,
     fields.period ?? null,
     fields.target_meters ?? null,
@@ -179,7 +180,7 @@ router.post('/', (req, res) => {
   );
 
   const goal = db.prepare('SELECT * FROM goals WHERE id = ?').get(result.lastInsertRowid);
-  res.status(201).json(decorateGoal(db, goal, getWeekStart(db)));
+  res.status(201).json(decorateGoal(db, goal, getWeekStart(db, req.profileId)));
 });
 
 router.patch('/:id', (req, res) => {
@@ -190,7 +191,7 @@ router.patch('/:id', (req, res) => {
   }
 
   const existing = db.prepare('SELECT * FROM goals WHERE id = ?').get(id);
-  if (!existing) {
+  if (!existing || existing.profile_id !== req.profileId) {
     return res.status(404).json({ error: 'Goal not found' });
   }
 
@@ -205,7 +206,7 @@ router.patch('/:id', (req, res) => {
   if (existing.kind === 'volume') {
     const period = fields.period ?? existing.period;
     const active = fields.active ?? existing.active;
-    if (active && activeVolumeConflict(db, period, id)) {
+    if (active && activeVolumeConflict(db, req.profileId, period, id)) {
       return res.status(409).json({
         error: `An active ${period} volume goal already exists`,
       });
@@ -218,7 +219,7 @@ router.patch('/:id', (req, res) => {
     .run(...Object.values(fields), id);
 
   const goal = db.prepare('SELECT * FROM goals WHERE id = ?').get(id);
-  res.json(decorateGoal(db, goal, getWeekStart(db)));
+  res.json(decorateGoal(db, goal, getWeekStart(db, req.profileId)));
 });
 
 router.delete('/:id', (req, res) => {
@@ -228,7 +229,7 @@ router.delete('/:id', (req, res) => {
     return res.status(400).json({ error: 'Invalid goal id' });
   }
 
-  const result = db.prepare('DELETE FROM goals WHERE id = ?').run(id);
+  const result = db.prepare('DELETE FROM goals WHERE id = ? AND profile_id = ?').run(id, req.profileId);
   if (result.changes === 0) {
     return res.status(404).json({ error: 'Goal not found' });
   }

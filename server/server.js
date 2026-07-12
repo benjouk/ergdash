@@ -7,8 +7,9 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { initDb, getDb } from './src/db.js';
 import { startSyncSchedule } from './src/sync.js';
-import { initAuth, hasValidSession, isAuthenticated } from './src/auth.js';
+import { initAuth, hasValidSession, hasConnectedProfile } from './src/auth.js';
 import { errorHandler } from './src/middleware/error.js';
+import { resolveProfile } from './src/middleware/profile.js';
 import { isDevAuthBypassEnabled, sameOriginWriteGuard, validateCorsOriginConfig } from './src/middleware/security.js';
 import { seedDatabase, shouldAutoSeedDemoData } from './src/seed.js';
 import {
@@ -33,6 +34,7 @@ import goalsRouter from './src/routes/goals.js';
 import plansRouter from './src/routes/plans.js';
 import programsRouter from './src/routes/programs.js';
 import importRouter from './src/routes/import.js';
+import profilesRouter from './src/routes/profiles.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = parseInt(process.env.PORT || '3000', 10);
@@ -80,27 +82,32 @@ app.use(sameOriginWriteGuard);
 app.use('/health', healthRouter);
 app.use('/auth', authRouter);
 
+// Session is the only auth gate; profile resolution (and per-profile
+// connection state) is handled by resolveProfile and the routes themselves,
+// so a household member with a disconnected profile can still browse data
+// and manage profiles.
 function requireAuth(req, res, next) {
   if (isDevAuthBypassEnabled()) {
     // Explicit local-development bypass. In dev, use /auth/mock-login to get a session.
     return next();
   }
-  if (!isAuthenticated() || !hasValidSession(req)) {
+  if (!hasValidSession(req)) {
     return res.status(401).json({ error: 'Not authenticated. Please visit /auth/login to connect Concept2.' });
   }
   next();
 }
 
-app.use('/api/workouts', requireAuth, workoutsRouter);
-app.use('/api/stats', requireAuth, statsRouter);
-app.use('/api/sync', requireAuth, syncRouter);
-app.use('/api/insights', requireAuth, insightsRouter);
-app.use('/api/settings', requireAuth, settingsRouter);
-app.use('/api/admin', requireAuth, adminRouter);
-app.use('/api/goals', requireAuth, goalsRouter);
-app.use('/api/plans', requireAuth, plansRouter);
-app.use('/api/programs', requireAuth, programsRouter);
-app.use('/api/import', requireAuth, importRouter);
+app.use('/api/profiles', requireAuth, profilesRouter);
+app.use('/api/workouts', requireAuth, resolveProfile, workoutsRouter);
+app.use('/api/stats', requireAuth, resolveProfile, statsRouter);
+app.use('/api/sync', requireAuth, resolveProfile, syncRouter);
+app.use('/api/insights', requireAuth, resolveProfile, insightsRouter);
+app.use('/api/settings', requireAuth, resolveProfile, settingsRouter);
+app.use('/api/admin', requireAuth, resolveProfile, adminRouter);
+app.use('/api/goals', requireAuth, resolveProfile, goalsRouter);
+app.use('/api/plans', requireAuth, resolveProfile, plansRouter);
+app.use('/api/programs', requireAuth, resolveProfile, programsRouter);
+app.use('/api/import', requireAuth, resolveProfile, importRouter);
 
 const distPath = join(__dirname, 'dist');
 app.use(express.static(distPath));
@@ -116,15 +123,17 @@ app.get('*', (req, res, next) => {
 app.use(errorHandler);
 
 recomputePacesIfMissing();
-backfillPbHistory();
-tagAllWorkouts();
-computeAllMetrics();
-computeFitnessLog();
-computePredictions();
-computeAllZoneTimes();
-computeAllBestEfforts();
+for (const { id } of getDb().prepare('SELECT id FROM profiles').all()) {
+  backfillPbHistory(id);
+  tagAllWorkouts(id);
+  computeAllMetrics(id);
+  computeFitnessLog(id);
+  computePredictions(id);
+  computeAllZoneTimes(id);
+  computeAllBestEfforts(id);
+}
 
-if (isAuthenticated()) {
+if (hasConnectedProfile()) {
   startSyncSchedule();
 }
 

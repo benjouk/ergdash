@@ -1,3 +1,19 @@
+// The active household profile, chosen client-side and sent with every API
+// call. The server falls back to the first profile when the header is absent.
+export function getActiveProfileId() {
+  return localStorage.getItem('ergdash_profile') || '';
+}
+
+export function setActiveProfileId(id) {
+  if (id == null || id === '') localStorage.removeItem('ergdash_profile');
+  else localStorage.setItem('ergdash_profile', String(id));
+}
+
+function profileHeaders() {
+  const id = getActiveProfileId();
+  return id ? { 'X-Profile-Id': id } : {};
+}
+
 async function request(path, options = {}) {
   if (import.meta.env.VITE_DEMO === '1') {
     const { demoRequest } = await import('./demoApi.js');
@@ -6,7 +22,7 @@ async function request(path, options = {}) {
 
   const res = await fetch(path, {
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...options.headers },
+    headers: { 'Content-Type': 'application/json', ...profileHeaders(), ...options.headers },
     ...options,
   });
 
@@ -30,7 +46,7 @@ async function uploadRaw(path, file, demoMessage) {
   const res = await fetch(path, {
     method: 'POST',
     credentials: 'include',
-    headers: { 'Content-Type': 'application/octet-stream' },
+    headers: { 'Content-Type': 'application/octet-stream', ...profileHeaders() },
     body: file,
   });
 
@@ -49,6 +65,14 @@ async function uploadRaw(path, file, demoMessage) {
 export const api = {
   getAuthStatus: () => request('/auth/status'),
   logout: () => request('/auth/logout', { method: 'POST' }),
+
+  getProfiles: () => request('/api/profiles'),
+  renameProfile: (id, name) => request(`/api/profiles/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ name }),
+  }),
+  disconnectProfile: (id) => request(`/api/profiles/${id}/disconnect`, { method: 'POST' }),
+  deleteProfile: (id) => request(`/api/profiles/${id}`, { method: 'DELETE' }),
 
   getWorkouts: (params = {}) => request(`/api/workouts?${new URLSearchParams(params)}`),
   getWorkout: (id) => request(`/api/workouts/${id}`),

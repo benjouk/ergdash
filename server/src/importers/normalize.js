@@ -77,7 +77,7 @@ export function validateNormalized(workout) {
 // Insert a NormalizedWorkout as a new source='import' row (negative id),
 // including its samples as stroke rows. Returns the new workout id.
 // Post-insert analytics are the caller's job — commits batch them.
-export function insertNormalizedWorkout(db, workout, fingerprint) {
+export function insertNormalizedWorkout(db, workout, fingerprint, profileId) {
   const { ok, errors, fields, intervals } = validateNormalized(workout);
   if (!ok) throw new Error(`Invalid workout: ${errors.join('; ')}`);
 
@@ -96,6 +96,7 @@ export function insertNormalizedWorkout(db, workout, fingerprint) {
       intervals,
       source: 'import',
       importFingerprint: fingerprint,
+      profileId,
     });
     writeSamples(db, id, workout.samples);
   })();

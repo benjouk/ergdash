@@ -1,10 +1,11 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { api } from '../api.js';
+import { api, getActiveProfileId, setActiveProfileId } from '../api.js';
 
 const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
+  const [profiles, setProfiles] = useState([]);
+  const [activeProfile, setActiveProfile] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -12,10 +13,26 @@ export function AuthProvider({ children }) {
     try {
       const status = await api.getAuthStatus();
       setIsAuthenticated(status.authenticated);
-      setUser(status.user);
+      const list = status.profiles || [];
+      setProfiles(list);
+
+      // The OAuth callback redirects to /?connected=<profileId>; adopt that
+      // profile so the person who just connected lands on their own data.
+      const connectedParam = new URLSearchParams(window.location.search).get('connected');
+      if (connectedParam && list.some(p => String(p.id) === connectedParam)) {
+        setActiveProfileId(connectedParam);
+      }
+
+      // Validate the stored selection against the live list; fall back to the
+      // first profile (matching the server middleware's fallback).
+      const storedId = getActiveProfileId();
+      const active = list.find(p => String(p.id) === storedId) || list[0] || null;
+      if (active && String(active.id) !== storedId) setActiveProfileId(active.id);
+      setActiveProfile(active);
     } catch {
       setIsAuthenticated(false);
-      setUser(null);
+      setProfiles([]);
+      setActiveProfile(null);
     } finally {
       setIsLoading(false);
     }
@@ -25,14 +42,35 @@ export function AuthProvider({ children }) {
     checkAuth();
   }, [checkAuth]);
 
+  // A full reload is the simplest correct cache invalidation: every context
+  // and view refetches under the new X-Profile-Id.
+  const switchProfile = useCallback((id) => {
+    setActiveProfileId(id);
+    window.location.reload();
+  }, []);
+
   const logout = useCallback(async () => {
     await api.logout();
     setIsAuthenticated(false);
-    setUser(null);
+    setProfiles([]);
+    setActiveProfile(null);
   }, []);
 
+  // `user` keeps its old meaning (the connected Concept2 identity) for the
+  // views that still read it, now scoped to the active profile.
+  const user = activeProfile?.user || null;
+
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated, isLoading, logout, checkAuth }}>
+    <AuthContext.Provider value={{
+      user,
+      profiles,
+      activeProfile,
+      switchProfile,
+      isAuthenticated,
+      isLoading,
+      logout,
+      checkAuth,
+    }}>
       {children}
     </AuthContext.Provider>
   );
