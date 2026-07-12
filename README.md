@@ -13,6 +13,7 @@ ErgDash connects to the Concept2 Logbook API to sync your workout history and di
 ## Features
 
 - **Dashboard:** Weekly coach summary, season metres and streak stats, volume vs goal, weekly volume chart, personal bests with new-PB notifications, calendar heatmap
+- **Profiles (household):** Connect several Concept2 Logbook accounts to one instance — one profile per household member, each with its own workouts, PBs, goals, plans, and settings. Switch profiles from the header; rename, reconnect, disconnect, or remove members in Settings. Existing single-user installs upgrade in place
 - **Session Detail:** Per-stroke pace and rate/HR charts, interval rep chart with HR recovery, rate-vs-pace scatter, HR zone bar, splits table, side-by-side session comparison, downloadable session card, computed metrics (fade index, consistency, effort, distance per stroke, watts/beat, HR drift, rate discipline)
 - **Workouts:** Filterable/sortable table with CSV/JSON export
 - **Manual entry & file import:** Add rows that never reached the Logbook (old PM3/PM4 pieces, club machines, races) by hand — including work/rest splits — or import CSV (Concept2 Logbook export or generic), TCX, and FIT (PM5 USB / ErgData) files with a preview step, duplicate detection against synced workouts, and enrich-merge that fills in missing HR/drag/splits/stroke data
@@ -24,7 +25,7 @@ ErgDash connects to the Concept2 Logbook API to sync your workout history and di
 - **HR Zones:** Five configurable zones in Settings (% of max HR), estimated from observed data until set
 - **Body weight:** Optional setting that adds weight-adjusted equivalents to personal bests and Tools
 - **Feed:** Always-visible sidebar of recent sessions with sparklines
-- **Ticker:** Sticky header with key stats, pace trace, and navigation
+- **Ticker:** Sticky header with key stats, pace trace, profile switcher, and navigation
 - **Light/Dark theme:** System-aware with manual override
 - **Units:** Toggle between /500m pace, watts, and cal/hr
 
@@ -35,6 +36,8 @@ ErgDash connects to the Concept2 Logbook API to sync your workout history and di
    - **Callback Endpoint**: `http://localhost:3100/auth/callback` (or your real host/port — must match `C2_REDIRECT_URI` exactly)
    - The remaining fields (Website, Description, Webhook URL) are optional.
 2. `cp .env.example .env` and fill in `C2_CLIENT_ID`, `C2_CLIENT_SECRET`, and `SESSION_SECRET` (`openssl rand -base64 32`).
+
+> One OAuth app authorizes any number of Logbook accounts. Additional household members connect their own Concept2 account from inside the app (header → Add profile) — no extra credentials or configuration.
 
 ## Run (Docker)
 
