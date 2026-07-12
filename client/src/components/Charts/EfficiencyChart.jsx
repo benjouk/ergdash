@@ -84,7 +84,7 @@ export default function EfficiencyChart() {
         </ComposedChart>
       </ResponsiveContainer>
     
-      <ChartInfo>Average watts divided by average heart rate for each session — how much power each heartbeat buys. A smoothed trend that climbs over months signals improving aerobic fitness.</ChartInfo>
+      <ChartInfo>Average watts divided by average heart rate for each session shows how much power each heartbeat buys. A smoothed trend that climbs over months signals improving aerobic fitness.</ChartInfo>
     </div>
   );
 }

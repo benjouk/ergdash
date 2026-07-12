@@ -108,7 +108,7 @@ export default function PbTimelineChart() {
         </LineChart>
       </ResponsiveContainer>
 
-      <ChartInfo>Your personal-best pace for each distance over time — every point marks a new PB. Solid lines are endurance; dashed lines are interval.</ChartInfo>
+      <ChartInfo>Your personal-best pace for each distance over time. Every point marks a new PB. Solid lines are endurance; dashed lines are interval.</ChartInfo>
     </div>
   );
 }

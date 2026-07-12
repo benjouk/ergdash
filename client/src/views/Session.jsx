@@ -643,7 +643,7 @@ export default function Session() {
               />
             </div>
           </div>
-          <ChartInfo>The shape of your pace through this session, drawn from summary data — stroke-level detail is not available for this workout. The dashed line marks the session average; higher is faster.</ChartInfo>
+          <ChartInfo>The shape of your pace through this session, drawn from summary data. Stroke-level detail is not available for this workout. The dashed line marks the session average; higher is faster.</ChartInfo>
         </div>
       )}
 
@@ -753,7 +753,7 @@ export default function Session() {
             </span>
           </div>
           <IntervalRepChart intervals={workout.intervals} formatPace={formatPace} />
-          <ChartInfo>One bar per rep — taller bars are faster. Dots mark stroke rate, the line traces heart rate, and muted stubs are rest periods.</ChartInfo>
+          <ChartInfo>One bar per rep. Taller bars are faster. Dots mark stroke rate, the line traces heart rate, and muted stubs are rest periods.</ChartInfo>
         </div>
       )}
 

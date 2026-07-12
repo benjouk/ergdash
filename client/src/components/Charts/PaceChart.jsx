@@ -108,7 +108,7 @@ export default function PaceChart() {
         </LineChart>
       </ResponsiveContainer>
 
-      <ChartInfo>Each session's average pace (faint, with dots coloured by type — endurance or interval) plus a {SMOOTH_WINDOW}-session rolling average that cuts through the noise. The scale is flipped so higher points are faster.</ChartInfo>
+      <ChartInfo>Each session's average pace (faint, with dots coloured by endurance or interval type) plus a {SMOOTH_WINDOW}-session rolling average that cuts through the noise. The scale is flipped so higher points are faster.</ChartInfo>
     </div>
   );
 }

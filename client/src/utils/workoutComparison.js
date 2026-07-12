@@ -205,7 +205,7 @@ export function buildComparisonSummary(workout1, workout2, match, splits = []) {
   if (paceDelta != null && validNumber(workout1.heart_rate_avg) && validNumber(workout2.heart_rate_avg)) {
     const hrDelta = workout1.heart_rate_avg - workout2.heart_rate_avg;
     effort = paceDelta < 0 && hrDelta <= 0
-      ? `Faster at ${Math.abs(Math.round(hrDelta))} bpm ${hrDelta < 0 ? 'lower' : 'the same'} average HR — improved efficiency.`
+      ? `Faster at ${Math.abs(Math.round(hrDelta))} bpm ${hrDelta < 0 ? 'lower' : 'the same'} average HR. This suggests improved efficiency.`
       : `${paceDelta < 0 ? 'Higher output' : 'Lower output'} at ${signed(hrDelta, 0)} bpm average HR.`;
   }
   return { headline, paceDelta, where, effort };

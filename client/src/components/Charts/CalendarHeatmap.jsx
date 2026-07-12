@@ -166,7 +166,7 @@ export default function CalendarHeatmap() {
         </svg>
       </div>
     
-      <ChartInfo>A year of training at a glance: each cell is one day, shaded by metres rowed. Darker cells were bigger days. Ringed cells had a planned session — green when completed as planned, red when missed.</ChartInfo>
+      <ChartInfo>A year of training at a glance: each cell is one day, shaded by metres rowed. Darker cells were bigger days. Ringed cells had a planned session: green when completed as planned, red when missed.</ChartInfo>
     </div>
   );
 }
