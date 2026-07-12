@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Download, ChevronUp, ChevronDown, Pin, Search, Plus, Upload } from 'lucide-react';
+import { Download, ChevronUp, ChevronDown, Pin, Search, Plus, Upload, GitCompare, X } from 'lucide-react';
 import { api } from '../api.js';
 import { paceToWatts } from '../utils/ergMath.js';
 import { useUnits } from '../context/UnitsContext.jsx';
@@ -54,6 +54,8 @@ export default function Workouts() {
   const [q, setQ] = useState('');
   const [distancePreset, setDistancePreset] = useState('');
   const [loading, setLoading] = useState(true);
+  const [compareMode, setCompareMode] = useState(false);
+  const [compareSelection, setCompareSelection] = useState([]);
   const [loadError, setLoadError] = useState('');
   // 'add' | 'import' | null — which inline panel is open above the list.
   const [panel, setPanel] = useState(null);
@@ -201,6 +203,27 @@ export default function Workouts() {
 
   const openSession = (id) => navigate(`/session/${id}`);
 
+  const toggleComparisonWorkout = (id) => {
+    setCompareSelection(current => {
+      if (current.includes(id)) return current.filter(selected => selected !== id);
+      if (current.length >= 2) {
+        toast.error('Choose exactly two workouts');
+        return current;
+      }
+      return [...current, id];
+    });
+  };
+
+  const exitCompareMode = () => {
+    setCompareMode(false);
+    setCompareSelection([]);
+  };
+
+  const openComparison = () => {
+    if (compareSelection.length !== 2) return;
+    navigate(`/session/${compareSelection[0]}?compare=${compareSelection[1]}`);
+  };
+
   const handleTogglePinned = async (event, workout) => {
     event.stopPropagation();
     const nextPinned = !workout.pinned;
@@ -233,6 +256,14 @@ export default function Workouts() {
       <div className={styles.header}>
         <h2 className={styles.title}>Workouts</h2>
         <div className={styles.actions}>
+          <button
+            type="button"
+            onClick={() => compareMode ? exitCompareMode() : setCompareMode(true)}
+            className={`${styles.exportButton} ${compareMode ? styles.compareModeActive : ''}`}
+            aria-pressed={compareMode}
+          >
+            {compareMode ? <X size={14} /> : <GitCompare size={14} />} {compareMode ? 'Cancel' : 'Compare'}
+          </button>
           {/* Visible-but-disabled in the demo so the feature is discoverable. */}
           <button
             onClick={() => setPanel(prev => (prev === 'add' ? null : 'add'))}
@@ -317,6 +348,13 @@ export default function Workouts() {
         ))}
       </div>
 
+      {compareMode && (
+        <div className={styles.compareTray} role="status">
+          <div><GitCompare size={16} /><strong>Select two workouts</strong><span>{compareSelection.length} of 2 selected</span></div>
+          <button type="button" onClick={openComparison} disabled={compareSelection.length !== 2}>Compare selected</button>
+        </div>
+      )}
+
       {loadError && (
         <div className={styles.errorBanner} role="alert">
           <span>{loadError}</span>
@@ -353,17 +391,15 @@ export default function Workouts() {
               <tr
                 key={w.id}
                 tabIndex={0}
-                role="link"
-                aria-label={`Open session from ${formatDateShort(w.date, dateFormat)}`}
-                onClick={() => openSession(w.id)}
-                onKeyDown={e => { if (e.key === 'Enter') openSession(w.id); }}
-                className={styles.row}
+                role={compareMode ? 'checkbox' : 'link'}
+                aria-checked={compareMode ? compareSelection.includes(w.id) : undefined}
+                aria-label={compareMode ? `Select workout from ${formatDateShort(w.date, dateFormat)} for comparison` : `Open session from ${formatDateShort(w.date, dateFormat)}`}
+                onClick={() => compareMode ? toggleComparisonWorkout(w.id) : openSession(w.id)}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); compareMode ? toggleComparisonWorkout(w.id) : openSession(w.id); } }}
+                className={`${styles.row} ${compareSelection.includes(w.id) ? styles.compareSelected : ''}`}
               >
                 <td className={styles.pinCell}>
-                  <PinButton
-                    pinned={w.pinned}
-                    onClick={event => handleTogglePinned(event, w)}
-                  />
+                  {compareMode ? <SelectionBox selected={compareSelection.includes(w.id)} /> : <PinButton pinned={w.pinned} onClick={event => handleTogglePinned(event, w)} />}
                 </td>
                 <td>{formatDateShort(w.date, dateFormat)}</td>
                 <td>
@@ -420,24 +456,23 @@ export default function Workouts() {
         ) : workouts.map(w => (
           <div
             key={w.id}
-            role="button"
+            role={compareMode ? 'checkbox' : 'button'}
             tabIndex={0}
-            className={styles.workoutCard}
-            onClick={() => openSession(w.id)}
-            onKeyDown={event => handleCardKeyDown(event, w.id)}
-            aria-label={`Open session from ${formatDateShort(w.date, dateFormat)}`}
+            className={`${styles.workoutCard} ${compareSelection.includes(w.id) ? styles.compareSelected : ''}`}
+            onClick={() => compareMode ? toggleComparisonWorkout(w.id) : openSession(w.id)}
+            onKeyDown={event => compareMode ? ((event.key === 'Enter' || event.key === ' ') && (event.preventDefault(), toggleComparisonWorkout(w.id))) : handleCardKeyDown(event, w.id)}
+            aria-checked={compareMode ? compareSelection.includes(w.id) : undefined}
+            aria-label={compareMode ? `Select workout from ${formatDateShort(w.date, dateFormat)} for comparison` : `Open session from ${formatDateShort(w.date, dateFormat)}`}
           >
             <div className={styles.cardTop}>
+              {compareMode && <SelectionBox selected={compareSelection.includes(w.id)} />}
               <span className={styles.cardDate}>{formatDateShort(w.date, dateFormat)}</span>
               <span className={styles.cardTopActions}>
                 <PBBadges distances={w.pb_distances} compact />
                 {w.inferred_tag && <TagBadge tag={w.inferred_tag} />}
                 {w.plan && <PlanBadge />}
                 <SourceBadge source={w.source} />
-                <PinButton
-                  pinned={w.pinned}
-                  onClick={event => handleTogglePinned(event, w)}
-                />
+                {!compareMode && <PinButton pinned={w.pinned} onClick={event => handleTogglePinned(event, w)} />}
               </span>
             </div>
             <div className={styles.cardMain}>
@@ -521,6 +556,12 @@ function PinButton({ pinned, onClick }) {
       <Pin size={14} fill={pinned ? 'currentColor' : 'none'} />
     </button>
   );
+}
+
+function SelectionBox({ selected }) {
+  return <span className={`${styles.selectionBox} ${selected ? styles.selectionBoxActive : ''}`} aria-hidden="true">
+    {selected ? '✓' : ''}
+  </span>;
 }
 
 function MobileWorkoutSkeleton() {

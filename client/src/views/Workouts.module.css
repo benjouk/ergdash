@@ -26,6 +26,22 @@
   gap: var(--space-2);
 }
 
+.compareModeActive { color: var(--accent-2); border-color: var(--accent-2); }
+.compareTray { position: sticky; top: var(--space-3); z-index: 12; display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); margin-bottom: var(--space-3); padding: var(--space-3) var(--space-4); background: color-mix(in srgb, var(--accent-2) 10%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent-2) 35%, var(--rule)); border-radius: var(--radius-md); box-shadow: var(--shadow-md); }
+.compareTray > div { display: flex; align-items: center; gap: var(--space-2); color: var(--ink); }
+.compareTray span { color: var(--ink-3); font-size: .75rem; }
+.compareTray button { padding: 7px 11px; color: var(--surface); background: var(--accent-2); border-radius: var(--radius-sm); font-size: .75rem; font-weight: 700; }
+.compareTray button:disabled { opacity: .4; }
+.compareSelected { background: color-mix(in srgb, var(--accent-2) 9%, var(--surface)) !important; outline: 1px solid color-mix(in srgb, var(--accent-2) 45%, transparent); outline-offset: -1px; }
+.selectionBox { width: 18px; height: 18px; flex: 0 0 18px; display: inline-grid; place-items: center; border: 1px solid var(--rule); border-radius: 4px; color: white; font-size: .72rem; font-weight: 800; }
+.selectionBoxActive { border-color: var(--accent-2); background: var(--accent-2); }
+
+@media (max-width: 600px) {
+  .compareTray { align-items: stretch; flex-direction: column; }
+  .compareTray > div { flex-wrap: wrap; }
+  .compareTray button { width: 100%; }
+}
+
 .exportButton {
   display: flex;
   align-items: center;

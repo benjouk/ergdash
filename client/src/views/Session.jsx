@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
 import {
   Area,
   AreaChart,
@@ -29,7 +29,6 @@ import {
   Timer,
   Zap,
   GitCompare,
-  ChevronDown,
   Pencil,
   RotateCcw,
   Trash2,
@@ -54,6 +53,8 @@ import styles from './Session.module.css';
 export default function Session() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const compareParam = searchParams.get('compare');
   const isMobile = useIsMobile();
   const [workout, setWorkout] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -67,6 +68,10 @@ export default function Session() {
   const [comparisonWorkout, setComparisonWorkout] = useState(null);
   const [comparisonLoading, setComparisonLoading] = useState(false);
   const [compareOptions, setCompareOptions] = useState([]);
+  const [comparisonMatch, setComparisonMatch] = useState(null);
+  const [compareScope, setCompareScope] = useState('recommended');
+  const [candidateSearch, setCandidateSearch] = useState('');
+  const [candidatesLoading, setCandidatesLoading] = useState(false);
   const [pinSaving, setPinSaving] = useState(false);
   const [notesDraft, setNotesDraft] = useState('');
   const [notesSaving, setNotesSaving] = useState(false);
@@ -77,7 +82,6 @@ export default function Session() {
   const { units, formatPace, formatDistance, formatDistanceFull, formatTime } = useUnits();
   const toast = useToast();
   const [compareMenuOpen, setCompareMenuOpen] = useState(false);
-  const compareMenuRef = useRef(null);
   const shareMenuRef = useRef(null);
 
   useEffect(() => {
@@ -113,19 +117,16 @@ export default function Session() {
             });
         }
 
-        // Load comparison options: other workouts of the same distance (±100m tolerance)
-        // This range accommodates slight variations in actual distance rowed vs. workout distance target.
-        api.getWorkouts({ min_distance: currentWorkout.distance - 100, limit: 50 })
+        setCandidatesLoading(true);
+        loadAllComparisonCandidates(currentWorkout.id, 'recommended')
           .then(workoutsData => {
             if (!mounted) return;
-            const options = (workoutsData.data || [])
-              .filter(w => w.id !== currentWorkout.id && Math.abs(w.distance - currentWorkout.distance) < 100)
-              .slice(0, 20);
-            setCompareOptions(options);
+            setCompareOptions(workoutsData.data || []);
           })
           .catch(() => {
             if (mounted) setCompareOptions([]);
-          });
+          })
+          .finally(() => { if (mounted) setCandidatesLoading(false); });
       } catch (err) {
         if (!mounted) return;
         const message = err.message || "Couldn't load session";
@@ -270,38 +271,48 @@ export default function Session() {
 
   const handleCompare = useCallback((comparisonWorkoutId) => {
     setCompareMenuOpen(false);
-    setComparisonLoading(true);
-    setCompareId(comparisonWorkoutId);
-    api.getCompare(id, comparisonWorkoutId)
-      .then(data => {
-        setComparisonWorkout(data.workouts[1]);
-        setCompareMode(true);
-      })
-      .catch(() => {
-        setCompareId(null);
-      })
-      .finally(() => setComparisonLoading(false));
-  }, [id]);
+    setSearchParams({ compare: String(comparisonWorkoutId) });
+  }, [setSearchParams]);
 
   useEffect(() => {
-    if (!compareMenuOpen) return;
+    if (!workout) return;
+    if (!compareParam || String(compareParam) === String(workout.id)) {
+      setCompareMode(false);
+      setCompareId(null);
+      setComparisonWorkout(null);
+      setComparisonMatch(null);
+      return;
+    }
+    if (String(comparisonWorkout?.id) === String(compareParam)) return;
+    let active = true;
+    setComparisonLoading(true);
+    setCompareId(compareParam);
+    api.getCompare(workout.id, compareParam)
+      .then(data => {
+        if (!active) return;
+        setComparisonWorkout(data.workouts[1]);
+        setComparisonMatch(data.comparison_match || { level: 'other', reason: 'Comparison', axis: 'percent' });
+        setCompareMode(true);
+      })
+      .catch(err => {
+        if (!active) return;
+        setCompareId(null);
+        setSearchParams({}, { replace: true });
+        toast.error(err.message || 'Could not compare workouts');
+      })
+      .finally(() => { if (active) setComparisonLoading(false); });
+    return () => { active = false; };
+  }, [compareParam, comparisonWorkout?.id, setSearchParams, toast, workout]);
 
-    const handlePointerDown = (event) => {
-      if (compareMenuRef.current && !compareMenuRef.current.contains(event.target)) {
-        setCompareMenuOpen(false);
-      }
-    };
-    const handleKeyDown = (event) => {
-      if (event.key === 'Escape') setCompareMenuOpen(false);
-    };
-
-    document.addEventListener('mousedown', handlePointerDown);
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('mousedown', handlePointerDown);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [compareMenuOpen]);
+  const loadCandidateScope = useCallback((scope) => {
+    if (!workout || candidatesLoading) return;
+    setCompareScope(scope);
+    setCandidatesLoading(true);
+    loadAllComparisonCandidates(workout.id, scope)
+      .then(data => setCompareOptions(data.data || []))
+      .catch(err => toast.error(err.message || 'Could not load comparison workouts'))
+      .finally(() => setCandidatesLoading(false));
+  }, [candidatesLoading, toast, workout]);
 
   useEffect(() => {
     if (!shareMenuOpen) return;
@@ -324,10 +335,8 @@ export default function Session() {
   }, [shareMenuOpen]);
 
   const handleExitComparison = useCallback(() => {
-    setCompareMode(false);
-    setCompareId(null);
-    setComparisonWorkout(null);
-  }, []);
+    setSearchParams({}, { replace: true });
+  }, [setSearchParams]);
 
   const strokeData = useMemo(() => buildStrokeSeries(workout?.strokes), [workout?.strokes]);
   const splitRows = useMemo(() => buildSplitRows(workout), [workout]);
@@ -355,7 +364,29 @@ export default function Session() {
   if (!workout) return <div className={styles.statusState}>Workout not found</div>;
 
   if (compareMode && comparisonWorkout) {
-    return <ComparisonOverlay workout1={workout} workout2={comparisonWorkout} onBack={handleExitComparison} />;
+    return <>
+      <ComparisonOverlay
+        workout1={workout}
+        workout2={comparisonWorkout}
+        match={comparisonMatch}
+        onBack={handleExitComparison}
+        onChange={() => setCompareMenuOpen(true)}
+        onSwap={() => navigate(`/session/${comparisonWorkout.id}?compare=${workout.id}`)}
+      />
+      {compareMenuOpen && <ComparisonPicker
+        options={compareOptions}
+        scope={compareScope}
+        search={candidateSearch}
+        loading={candidatesLoading}
+        formatDistance={formatDistance}
+        formatPace={formatPace}
+        formatTime={formatTime}
+        onSearch={setCandidateSearch}
+        onScope={loadCandidateScope}
+        onSelect={handleCompare}
+        onClose={() => setCompareMenuOpen(false)}
+      />}
+    </>;
   }
 
   const date = new Date(workout.date);
@@ -414,59 +445,16 @@ export default function Session() {
           <ArrowLeft size={15} /> Back
         </button>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 'var(--space-3)' }}>
-          {compareOptions.length > 0 && (
-            <div className={styles.compareWrapper} ref={compareMenuRef}>
-              <button
-                type="button"
-                onClick={() => setCompareMenuOpen(open => !open)}
-                disabled={comparisonLoading}
-                className={styles.compareButton}
-                aria-haspopup="listbox"
-                aria-expanded={compareMenuOpen}
-              >
-                {comparisonLoading
-                  ? <Loader2 size={15} className={styles.spinner} />
-                  : <GitCompare size={15} />}
-                <span>Compare</span>
-                <ChevronDown size={13} className={styles.compareChevron} />
-              </button>
-              {compareMenuOpen && (
-                <ul className={styles.compareMenu} role="listbox">
-                  {compareOptions.map(w => {
-                    const isInterval = w.inferred_tag === 'interval';
-                    return (
-                      <li key={w.id} role="option" aria-selected={compareId === w.id}>
-                        <button
-                          type="button"
-                          className={styles.compareOption}
-                          onClick={() => handleCompare(w.id)}
-                        >
-                          <span className={styles.compareOptionRow}>
-                            <span className={styles.compareOptionDate}>
-                              <CalendarDays size={12} />
-                              {formatDateShort(new Date(w.date))}
-                            </span>
-                            {w.inferred_tag && (
-                              <span className={`${styles.tag} ${isInterval ? styles.tagInterval : ''}`}>
-                                {w.inferred_tag}
-                              </span>
-                            )}
-                          </span>
-                          <span className={styles.compareOptionStats}>
-                            <span>{formatDistance(w.distance)}</span>
-                            <span className={styles.compareOptionDot}>·</span>
-                            <span>{formatPace(w.pace_ms)}</span>
-                            <span className={styles.compareOptionDot}>·</span>
-                            <span>{formatTime(w.time_ms)}</span>
-                          </span>
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </div>
-          )}
+          <button
+            type="button"
+            onClick={() => setCompareMenuOpen(true)}
+            disabled={comparisonLoading}
+            className={styles.compareButton}
+            aria-haspopup="dialog"
+          >
+            {comparisonLoading ? <Loader2 size={15} className={styles.spinner} /> : <GitCompare size={15} />}
+            <span>Compare</span>
+          </button>
           <div className={styles.shareWrapper} ref={shareMenuRef}>
             <button
               type="button"
@@ -897,8 +885,76 @@ export default function Session() {
           </div>
         </div>
       </div>
+      {compareMenuOpen && <ComparisonPicker
+        options={compareOptions}
+        scope={compareScope}
+        search={candidateSearch}
+        loading={candidatesLoading}
+        formatDistance={formatDistance}
+        formatPace={formatPace}
+        formatTime={formatTime}
+        onSearch={setCandidateSearch}
+        onScope={loadCandidateScope}
+        onSelect={handleCompare}
+        onClose={() => setCompareMenuOpen(false)}
+      />}
     </div>
   );
+}
+
+function ComparisonPicker({ options, scope, search, loading, formatDistance, formatPace, formatTime, onSearch, onScope, onSelect, onClose }) {
+  useEffect(() => {
+    const onKeyDown = event => { if (event.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
+
+  const query = search.trim().toLowerCase();
+  const filtered = options.filter(option => !query || [
+    formatDateShort(new Date(option.date)), option.interval_summary, option.inferred_tag,
+    option.comparison_match?.reason, ...(option.comparison_labels || []),
+  ].filter(Boolean).join(' ').toLowerCase().includes(query));
+
+  return <div className={styles.pickerBackdrop} role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
+    <section className={styles.pickerDialog} role="dialog" aria-modal="true" aria-labelledby="compare-picker-title">
+      <div className={styles.pickerHeader}>
+        <div><h3 id="compare-picker-title">Choose a workout</h3><p>Best matches are ranked by format, target, and recency.</p></div>
+        <button type="button" onClick={onClose} aria-label="Close comparison picker">×</button>
+      </div>
+      <div className={styles.pickerTools}>
+        <label className={styles.pickerSearch}><Search size={14} /><input autoFocus value={search} onChange={event => onSearch(event.target.value)} placeholder="Search dates, type or labels" /></label>
+        <div className={styles.pickerScopes}>
+          <button type="button" className={scope === 'recommended' ? styles.pickerScopeActive : ''} onClick={() => onScope('recommended')}>Best matches</button>
+          <button type="button" className={scope === 'all' ? styles.pickerScopeActive : ''} onClick={() => onScope('all')}>All workouts</button>
+        </div>
+      </div>
+      <div className={styles.pickerList} role="listbox">
+        {loading && <div className={styles.pickerEmpty}><Loader2 className={styles.spinner} size={18} /> Loading workouts…</div>}
+        {!loading && filtered.map(option => <button type="button" role="option" key={option.id} className={styles.pickerOption} onClick={() => onSelect(option.id)}>
+          <span className={styles.pickerOptionTop}>
+            <strong><CalendarDays size={13} /> {formatDateShort(new Date(option.date))}</strong>
+            <span className={`${styles.pickerMatch} ${option.comparison_match?.level === 'other' ? styles.pickerMatchOther : ''}`}>{option.comparison_match?.reason}</span>
+          </span>
+          <span className={styles.pickerOptionStats}>{option.interval_summary || formatDistance(option.distance)} · {formatPace(option.pace_ms)} · {formatTime(option.time_ms)}</span>
+          {(option.comparison_labels || []).length > 0 && <span className={styles.pickerLabels}>{option.comparison_labels.map(label => <em key={label}>{label}</em>)}</span>}
+        </button>)}
+        {!loading && filtered.length === 0 && <div className={styles.pickerEmpty}>No workouts match this view.</div>}
+      </div>
+    </section>
+  </div>;
+}
+
+async function loadAllComparisonCandidates(workoutId, scope) {
+  const pageSize = 100;
+  let offset = 0;
+  let all = [];
+  while (true) {
+    const response = await api.getComparisonCandidates(workoutId, { scope, limit: pageSize, offset });
+    const rows = response.data || [];
+    all = all.concat(rows);
+    if (rows.length === 0 || all.length >= (response.meta?.total ?? all.length)) return { ...response, data: all };
+    offset += pageSize;
+  }
 }
 
 function ChartTooltip({ active, payload, label, formatPace }) {

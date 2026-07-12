@@ -195,6 +195,32 @@ describe('cross-profile isolation', () => {
     expect((await req('DELETE', '/api/workouts/2', 1)).status).toBe(404);
   });
 
+  it('ranks same-profile comparison candidates and excludes other profiles', async () => {
+    db.prepare(`
+      INSERT INTO workouts (id, profile_id, user_id, date, type, workout_type, inferred_tag, distance, time_ms, pace_ms, synced_at)
+      VALUES (3, 1, 11, '2026-06-25T08:00:00', 'rower', 'FixedDistanceSplits', 'endurance', 2000, 425000, 106250, datetime('now'))
+    `).run();
+    const result = await req('GET', '/api/workouts/1/comparison-candidates?scope=recommended&limit=100', 1);
+    expect(result.status).toBe(200);
+    expect(result.body.data.map(workout => workout.id)).toEqual([3]);
+    expect(result.body.data[0].comparison_match).toMatchObject({ level: 'exact', axis: 'distance' });
+    expect((await req('GET', '/api/workouts/2/comparison-candidates', 1)).status).toBe(404);
+  });
+
+  it('preserves compare order, serializes advanced metrics, and blocks cross-profile pairs', async () => {
+    db.prepare(`
+      INSERT INTO workouts (id, profile_id, user_id, date, type, workout_type, inferred_tag, distance, time_ms, pace_ms, synced_at)
+      VALUES (3, 1, 11, '2026-06-25T08:00:00', 'rower', 'FixedDistanceSplits', 'endurance', 2000, 425000, 106250, datetime('now'))
+    `).run();
+    db.prepare('INSERT INTO computed_metrics (workout_id, consistency, distance_per_stroke, rate_discipline) VALUES (1, 92, 9.5, 88)').run();
+    const result = await req('GET', '/api/stats/compare?ids=3,1', 1);
+    expect(result.status).toBe(200);
+    expect(result.body.workouts.map(workout => workout.id)).toEqual([3, 1]);
+    expect(result.body.workouts[1].metrics).toMatchObject({ consistency: 92, distance_per_stroke: 9.5, rate_discipline: 88 });
+    expect(result.body.comparison_match.level).toBe('exact');
+    expect((await req('GET', '/api/stats/compare?ids=1,2', 1)).status).toBe(404);
+  });
+
   it('scopes stats summaries per profile', async () => {
     const alice = await req('GET', '/api/stats/summary', 1);
     const bob = await req('GET', '/api/stats/summary', 2);

@@ -5,6 +5,7 @@ import { BEST_EFFORT_DURATIONS, computeWeekStreak } from '../analytics.js';
 import { getZoneModel, getObservedMaxHr } from '../hrZones.js';
 import { wattsFromPace, paceFromWatts } from '../strokeMetrics.js';
 import { STANDARD_PB_DISTANCES } from '../pbDetection.js';
+import { classifyComparison } from '../workoutComparison.js';
 
 const router = Router();
 
@@ -371,7 +372,9 @@ router.get('/compare', (req, res) => {
 
   const workouts = ids.map(id => {
     const w = db.prepare(`
-      SELECT w.*, cm.fade_index, cm.consistency, cm.effort_score
+      SELECT w.*, cm.fade_index, cm.consistency, cm.effort_score, cm.drag_delta,
+             cm.distance_per_stroke, cm.watts_per_beat, cm.hr_drift_pct,
+             cm.rate_discipline, cm.hr_recovery_avg
       FROM workouts w
       LEFT JOIN computed_metrics cm ON w.id = cm.workout_id
       WHERE w.id = ?
@@ -387,15 +390,63 @@ router.get('/compare', (req, res) => {
       'SELECT * FROM intervals WHERE workout_id = ? ORDER BY interval_index'
     ).all(id);
 
-    return { ...w, strokes, intervals };
+    const recoveries = db.prepare(
+      'SELECT rep_index, hr_end, hr_next_start, drop_bpm, rest_s FROM interval_recoveries WHERE workout_id = ? ORDER BY rep_index'
+    ).all(id);
+
+    return {
+      id: w.id,
+      date: w.date,
+      type: w.type,
+      workout_type: w.workout_type,
+      inferred_tag: w.inferred_tag === 'interval' ? 'interval' : 'endurance',
+      distance: w.distance,
+      time_ms: w.time_ms,
+      pace_ms: w.pace_ms,
+      stroke_rate: w.stroke_rate,
+      stroke_count: w.stroke_count,
+      heart_rate_avg: w.heart_rate_avg,
+      heart_rate_max: w.heart_rate_max,
+      drag_factor: w.drag_factor,
+      rest_distance: w.rest_distance,
+      rest_time_ms: w.rest_time_ms,
+      pinned: !!w.pinned,
+      metrics: {
+        fade_index: w.fade_index,
+        consistency: w.consistency,
+        effort_score: w.effort_score,
+        drag_delta: w.drag_delta,
+        distance_per_stroke: w.distance_per_stroke,
+        watts_per_beat: w.watts_per_beat,
+        hr_drift_pct: w.hr_drift_pct,
+        rate_discipline: w.rate_discipline,
+        hr_recovery_avg: w.hr_recovery_avg,
+      },
+      strokes,
+      intervals,
+      recoveries,
+      pace_profile: comparisonPaceProfile(strokes, intervals),
+    };
   });
 
   if (workouts.some(w => w === null)) {
     return res.status(404).json({ error: 'One or both workouts not found' });
   }
 
-  res.json({ workouts });
+  res.json({
+    workouts,
+    comparison_match: classifyComparison(workouts[0], workouts[1], workouts[0].intervals, workouts[1].intervals),
+  });
 });
+
+function comparisonPaceProfile(strokes, intervals) {
+  const paces = strokes.filter(stroke => stroke.pace_ms > 0).map(stroke => stroke.pace_ms);
+  if (paces.length >= 2) {
+    const step = Math.max(1, Math.floor(paces.length / 24));
+    return paces.filter((_, index) => index % step === 0).slice(0, 24);
+  }
+  return intervals.filter(interval => interval.type !== 'rest' && interval.pace_ms > 0).map(interval => interval.pace_ms);
+}
 
 router.get('/fitness', (req, res) => {
   const db = getDb();

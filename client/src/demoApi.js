@@ -437,6 +437,17 @@ async function handleGet(route, params) {
     return filterWorkouts(workouts, params);
   }
 
+  const candidatesMatch = route.match(/^\/api\/workouts\/(\d+)\/comparison-candidates$/);
+  if (candidatesMatch) {
+    const scope = params.scope === 'all' ? 'all' : 'recommended';
+    const response = await fetch(await fixtureUrl(`comparison-candidates/${candidatesMatch[1]}-${scope}.json`));
+    if (!response.ok) throw new Error('Comparison workouts not found');
+    const fixture = await response.json();
+    const limit = Math.min(100, Math.max(1, Number(params.limit) || 20));
+    const offset = Math.max(0, Number(params.offset) || 0);
+    return { data: fixture.data.slice(offset, offset + limit), meta: { total: fixture.data.length, limit, offset } };
+  }
+
   const workoutMatch = route.match(/^\/api\/workouts\/(\d+)$/);
   if (workoutMatch) {
     const id = workoutMatch[1];
@@ -458,7 +469,7 @@ async function handleGet(route, params) {
         return r.json();
       })
     ));
-    return { workouts: [a, b] };
+    return { workouts: [a, b], comparison_match: demoComparisonMatch(a, b) };
   }
 
   // Goals/predictions/adherence are served straight from their fixtures by
@@ -744,4 +755,16 @@ async function matchDemoPlan(planId, workoutId) {
     },
   });
   return findDemoPlan(planId);
+}
+
+function demoComparisonMatch(a, b) {
+  const sameTag = a.inferred_tag === b.inferred_tag;
+  const sameIntervals = a.inferred_tag === 'interval' && b.inferred_tag === 'interval'
+    && (a.intervals || []).filter(interval => interval.type !== 'rest').length === (b.intervals || []).filter(interval => interval.type !== 'rest').length;
+  const distanceDifference = Math.abs((a.distance || 0) - (b.distance || 0)) / Math.max(1, a.distance || 0, b.distance || 0);
+  if (sameTag && (sameIntervals || distanceDifference <= 0.01)) {
+    return { level: 'exact', reason: sameIntervals ? 'Same interval structure' : 'Same distance', axis: 'distance' };
+  }
+  if (sameTag && distanceDifference <= 0.05) return { level: 'close', reason: 'Similar distance', axis: 'percent' };
+  return { level: 'other', reason: sameTag ? 'Different workout format' : 'Different workout category', axis: 'percent' };
 }

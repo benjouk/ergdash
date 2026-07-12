@@ -3,6 +3,7 @@ import { getDb } from '../db.js';
 import { enrichSingleWorkout } from '../sync.js';
 import { buildWorkoutInsight } from '../insights.js';
 import { parseEditedFields } from '../workoutFields.js';
+import { classifyComparison, rankComparisonCandidates } from '../workoutComparison.js';
 import {
   createManualWorkout,
   validateWorkoutFields,
@@ -265,6 +266,69 @@ router.delete('/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+router.get('/:id/comparison-candidates', (req, res) => {
+  const db = getDb();
+  const id = Number(req.params.id);
+  const scope = req.query.scope || 'recommended';
+  if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid workout id' });
+  if (!['recommended', 'all'].includes(scope)) {
+    return res.status(400).json({ error: 'scope must be recommended or all' });
+  }
+
+  const current = getWorkoutWithMetrics(db, id);
+  if (!current || current.profile_id !== req.profileId) {
+    return res.status(404).json({ error: 'Workout not found' });
+  }
+
+  const currentIntervals = getComparisonIntervals(db, id);
+  const rows = db.prepare(`
+    SELECT w.*, cm.fade_index, cm.consistency, cm.effort_score, cm.drag_delta,
+           cm.distance_per_stroke, cm.watts_per_beat, cm.hr_drift_pct,
+           cm.rate_discipline, cm.hr_recovery_avg
+    FROM workouts w
+    LEFT JOIN computed_metrics cm ON w.id = cm.workout_id
+    WHERE w.profile_id = ? AND w.type = ? AND w.id != ?
+  `).all(req.profileId, current.type, id);
+
+  let candidates = rows.map(row => {
+    const intervals = getComparisonIntervals(db, row.id);
+    const summary = normalizeWorkoutTag(row.inferred_tag) === 'interval'
+      ? computeIntervalSummaryFromRows(intervals) : null;
+    return {
+      ...formatWorkout(row, summary),
+      pb_distances: getCurrentPbDistances(db, row.id),
+      comparison_match: classifyComparison(current, row, currentIntervals, intervals),
+    };
+  });
+  if (scope === 'recommended') {
+    candidates = candidates.filter(candidate => candidate.comparison_match.level !== 'other');
+  }
+  candidates = rankComparisonCandidates(current, candidates);
+
+  const previous = candidates.find(candidate => (
+    candidate.comparison_match.level === 'exact' && new Date(candidate.date) < new Date(current.date)
+  ));
+  const exactWithPace = candidates.filter(candidate => candidate.comparison_match.level === 'exact' && candidate.pace_ms > 0);
+  const fastestPace = exactWithPace.length ? Math.min(...exactWithPace.map(candidate => candidate.pace_ms)) : null;
+  candidates = candidates.map(candidate => ({
+    ...candidate,
+    comparison_labels: [
+      candidate.id === previous?.id ? 'Previous equivalent' : null,
+      fastestPace != null && candidate.pace_ms === fastestPace ? 'Fastest' : null,
+      candidate.pb_distances.length > 0 ? 'PB' : null,
+      candidate.pinned ? 'Pinned' : null,
+      candidate.comparison_match.level === 'other' ? 'Not like-for-like' : null,
+    ].filter(Boolean),
+  }));
+
+  const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 20));
+  const offset = Math.max(0, Number(req.query.offset) || 0);
+  res.json({
+    data: candidates.slice(offset, offset + limit),
+    meta: { total: candidates.length, limit, offset },
+  });
+});
+
 router.get('/:id', (req, res) => {
   const db = getDb();
   const id = Number(req.params.id);
@@ -306,6 +370,12 @@ router.get('/:id', (req, res) => {
     insight: buildWorkoutInsight(formatted, getTagBaseline(db, workout), { intervals, recoveries }),
   });
 });
+
+function getComparisonIntervals(db, workoutId) {
+  return db.prepare(
+    'SELECT type, distance, time_ms, pace_ms, stroke_rate, heart_rate_avg, interval_index FROM intervals WHERE workout_id = ? ORDER BY interval_index'
+  ).all(workoutId);
+}
 
 // Median pace/HR across the rower's other sessions of the same tag, so a
 // single workout can be read relative to what's normal for them. Excludes the
