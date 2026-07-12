@@ -655,7 +655,9 @@
 .pickerHeader > button { color: var(--ink-3); font-size: 1.5rem; line-height: 1; }
 .pickerTools { display: flex; gap: var(--space-3); align-items: center; padding: var(--space-3) var(--space-5); background: var(--surface-alt); border-bottom: 1px solid var(--rule); }
 .pickerSearch { min-width: 0; flex: 1; display: flex; align-items: center; gap: var(--space-2); padding: 7px 9px; border: 1px solid var(--rule); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink-3); }
-.pickerSearch input { min-width: 0; width: 100%; color: var(--ink); font-size: .76rem; }
+.pickerSearch:focus-within { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.pickerSearch input { min-width: 0; width: 100%; padding: 0; border: 0; outline: 0; background: transparent; color: var(--ink); font-size: .76rem; }
+.pickerSearch input::placeholder { color: var(--ink-3); opacity: 1; }
 .pickerScopes { display: flex; padding: 3px; background: color-mix(in srgb, var(--ink) 5%, transparent); border-radius: var(--radius-sm); }
 .pickerScopes button { padding: 5px 8px; color: var(--ink-3); font-size: .68rem; border-radius: calc(var(--radius-sm) - 2px); white-space: nowrap; }
 .pickerScopes .pickerScopeActive { color: var(--ink); background: var(--surface); box-shadow: var(--shadow-sm); }
