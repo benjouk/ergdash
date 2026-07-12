@@ -677,6 +677,7 @@
   .pickerBackdrop { place-items: end center; padding: 0; }
   .pickerDialog { max-height: 92vh; border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
   .pickerTools { align-items: stretch; flex-direction: column; }
+  .pickerSearch input { font-size: 16px; }
   .pickerScopes button { flex: 1; }
 }
 

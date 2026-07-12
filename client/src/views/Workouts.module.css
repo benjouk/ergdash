@@ -37,6 +37,19 @@
 .selectionBoxActive { border-color: var(--accent-2); background: var(--accent-2); }
 
 @media (max-width: 600px) {
+  .actions {
+    width: 100%;
+    max-width: 100%;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+  }
+
+  .actions .exportButton {
+    gap: var(--space-1);
+    padding: var(--space-2);
+    font-size: 0.72rem;
+  }
+
   .compareTray { align-items: stretch; flex-direction: column; }
   .compareTray > div { flex-wrap: wrap; }
   .compareTray button { width: 100%; }

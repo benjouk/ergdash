@@ -930,7 +930,7 @@ function ComparisonPicker({ options, scope, search, loading, formatDistance, for
         <button type="button" onClick={onClose} aria-label="Close comparison picker">×</button>
       </div>
       <div className={styles.pickerTools}>
-        <label className={styles.pickerSearch}><Search size={14} /><input autoFocus value={search} onChange={event => onSearch(event.target.value)} placeholder="Search dates, type or labels" /></label>
+        <label className={styles.pickerSearch}><Search size={14} /><input value={search} onChange={event => onSearch(event.target.value)} placeholder="Search dates, type or labels" /></label>
         <div className={styles.pickerScopes}>
           <button type="button" className={scope === 'recommended' ? styles.pickerScopeActive : ''} onClick={() => onScope('recommended')}>Best matches</button>
           <button type="button" className={scope === 'all' ? styles.pickerScopeActive : ''} onClick={() => onScope('all')}>All workouts</button>
