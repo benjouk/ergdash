@@ -448,3 +448,94 @@ describe('spoofed c2_log_id with matching distance/time', () => {
     expect(found.match.id).toBe(90000001);
   });
 });
+
+describe('import route → active profile (end-to-end)', () => {
+  let server;
+  let base;
+
+  beforeEach(async () => {
+    const express = (await import('express')).default;
+    const { resolveProfile } = await import('../src/middleware/profile.js');
+    const importRouter = (await import('../src/routes/import.js')).default;
+    // The file-level beforeEach already created profile 1 and the DB.
+    db.prepare("INSERT INTO profiles (id, name) VALUES (2, 'Other')").run();
+
+    const app = express();
+    app.use('/api/import', resolveProfile, importRouter);
+    await new Promise(resolve => { server = app.listen(0, resolve); });
+    base = `http://localhost:${server.address().port}`;
+  });
+
+  afterEach(async () => {
+    await new Promise(resolve => server.close(resolve));
+  });
+
+  async function preview(profileId, buffer, filename) {
+    const res = await fetch(`${base}/api/import/preview?filename=${encodeURIComponent(filename)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/octet-stream', 'X-Profile-Id': String(profileId) },
+      body: buffer,
+    });
+    return res.json();
+  }
+
+  async function commit(profileId, payload) {
+    const res = await fetch(`${base}/api/import/commit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Profile-Id': String(profileId) },
+      body: JSON.stringify(payload),
+    });
+    return { status: res.status, body: await res.json() };
+  }
+
+  function newRowsPayload(prev) {
+    return prev.workouts
+      .filter(w => w.suggested_action === 'new')
+      .map(w => ({ index: w.index, action: 'new', normalized: w.normalized }));
+  }
+
+  const countImported = (profileId) =>
+    db.prepare("SELECT COUNT(*) c FROM workouts WHERE profile_id = ? AND source = 'import'").get(profileId).c;
+
+  it('commits imported runs under the active profile and keeps profiles independent', async () => {
+    const buffer = readFileSync(join(fixturesDir, 'concept2-export.csv'));
+
+    const prev1 = await preview(1, buffer, 'concept2-export.csv');
+    const rows1 = newRowsPayload(prev1);
+    expect(rows1.length).toBeGreaterThan(0);
+
+    const commit1 = await commit(1, { fingerprint_base: prev1.fingerprint_base, workouts: rows1 });
+    expect(commit1.status).toBe(200);
+    expect(commit1.body.created.length).toBe(rows1.length);
+
+    // The runs belong to the active profile only.
+    expect(countImported(1)).toBe(rows1.length);
+    expect(countImported(2)).toBe(0);
+
+    // The same file imports independently under profile 2 — fingerprints are
+    // per-profile, so profile 2 sees the rows as NEW, not already-imported.
+    const prev2 = await preview(2, buffer, 'concept2-export.csv');
+    const rows2 = newRowsPayload(prev2);
+    expect(rows2.length).toBe(rows1.length);
+
+    const commit2 = await commit(2, { fingerprint_base: prev2.fingerprint_base, workouts: rows2 });
+    expect(commit2.status).toBe(200);
+    expect(countImported(2)).toBe(rows1.length);
+    expect(countImported(1)).toBe(rows1.length); // profile 1 untouched
+  });
+
+  it('re-importing the same file under the same profile is deduped', async () => {
+    const buffer = readFileSync(join(fixturesDir, 'concept2-export.csv'));
+
+    const prev = await preview(1, buffer, 'concept2-export.csv');
+    await commit(1, { fingerprint_base: prev.fingerprint_base, workouts: newRowsPayload(prev) });
+    const afterFirst = countImported(1);
+
+    // A second preview of the same file flags its rows as already-imported for
+    // this profile, so nothing new is suggested.
+    const prev2 = await preview(1, buffer, 'concept2-export.csv');
+    expect(prev2.workouts.some(w => w.duplicate?.status === 'already_imported')).toBe(true);
+    expect(newRowsPayload(prev2).length).toBe(0);
+    expect(countImported(1)).toBe(afterFirst);
+  });
+});
