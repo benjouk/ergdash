@@ -22,6 +22,7 @@ const INTERVAL_WORKOUT_TYPES = new Set([
   'FixedDistanceInterval',
   'FixedTimeInterval',
   'FixedCalorieInterval',
+  'FixedWattMinuteInterval',
   'VariableInterval',
   'VariableIntervalUndefinedRest',
 ]);

@@ -1,5 +1,6 @@
 const INTERVAL_TYPES = new Set([
   'FixedDistanceInterval', 'FixedTimeInterval', 'FixedCalorieInterval',
+  'FixedWattMinuteInterval',
   'VariableInterval', 'VariableIntervalUndefinedRest',
 ]);
 

@@ -447,6 +447,7 @@ describe('profile management and isolation (unit)', () => {
       'FixedDistanceInterval',
       'FixedTimeInterval',
       'FixedCalorieInterval',
+      'FixedWattMinuteInterval',
       'VariableInterval',
       'VariableIntervalUndefinedRest',
     ];
@@ -455,17 +456,21 @@ describe('profile management and isolation (unit)', () => {
       addWorkout(profile.id, id);
       db.prepare('UPDATE workouts SET workout_type = ? WHERE id = ?').run(workoutType, id);
     });
-    addWorkout(profile.id, 6);
-    addWorkout(profile.id, 7);
-    db.prepare("UPDATE workouts SET workout_type = 'FixedDistanceSplits', rest_time_ms = 120000 WHERE id = 6").run();
+    const restWorkoutId = explicitIntervalTypes.length + 1;
+    const enduranceWorkoutId = restWorkoutId + 1;
+    addWorkout(profile.id, restWorkoutId);
+    addWorkout(profile.id, enduranceWorkoutId);
+    db.prepare("UPDATE workouts SET workout_type = 'FixedDistanceSplits', rest_time_ms = 120000 WHERE id = ?")
+      .run(restWorkoutId);
 
     analytics.tagAllWorkouts(profile.id);
 
     const tags = db.prepare('SELECT id, inferred_tag FROM workouts WHERE profile_id = ? ORDER BY id').all(profile.id)
       .map(row => row.inferred_tag);
     expect(tags).toEqual([
-      'interval', 'interval', 'interval', 'interval', 'interval',
-      'interval', 'endurance',
+      ...explicitIntervalTypes.map(() => 'interval'),
+      'interval',
+      'endurance',
     ]);
   });
 
