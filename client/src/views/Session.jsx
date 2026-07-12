@@ -915,10 +915,11 @@ function ComparisonPicker({ options, scope, search, loading, formatDistance, for
     };
   }, [onClose]);
 
-  const query = search.trim().toLowerCase();
-  const filtered = options.filter(option => !query || [
-    formatDateShort(new Date(option.date)), option.interval_summary, option.inferred_tag,
-    option.comparison_match?.reason, ...(option.comparison_labels || []),
+  const query = String(search || '').trim().toLowerCase();
+  const safeOptions = Array.isArray(options) ? options.filter(option => option?.id != null) : [];
+  const filtered = safeOptions.filter(option => !query || [
+    safeComparisonDate(option.date), option.interval_summary, option.inferred_tag,
+    option.comparison_match?.reason, ...safeLabels(option.comparison_labels),
   ].filter(Boolean).join(' ').toLowerCase().includes(query));
 
   const picker = <div className={styles.pickerBackdrop} role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
@@ -938,17 +939,26 @@ function ComparisonPicker({ options, scope, search, loading, formatDistance, for
         {loading && <div className={styles.pickerEmpty}><Loader2 className={styles.spinner} size={18} /> Loading workouts…</div>}
         {!loading && filtered.map(option => <button type="button" role="option" key={option.id} className={styles.pickerOption} onClick={() => onSelect(option.id)}>
           <span className={styles.pickerOptionTop}>
-            <strong><CalendarDays size={13} /> {formatDateShort(new Date(option.date))}</strong>
+            <strong><CalendarDays size={13} /> {safeComparisonDate(option.date)}</strong>
             <span className={`${styles.pickerMatch} ${option.comparison_match?.level === 'other' ? styles.pickerMatchOther : ''}`}>{option.comparison_match?.reason}</span>
           </span>
           <span className={styles.pickerOptionStats}>{option.interval_summary || formatDistance(option.distance)} · {formatPace(option.pace_ms)} · {formatTime(option.time_ms)}</span>
-          {(option.comparison_labels || []).length > 0 && <span className={styles.pickerLabels}>{option.comparison_labels.map(label => <em key={label}>{label}</em>)}</span>}
+          {safeLabels(option.comparison_labels).length > 0 && <span className={styles.pickerLabels}>{safeLabels(option.comparison_labels).map(label => <em key={label}>{label}</em>)}</span>}
         </button>)}
         {!loading && filtered.length === 0 && <div className={styles.pickerEmpty}>No workouts match this view.</div>}
       </div>
     </section>
   </div>;
   return typeof document === 'undefined' ? picker : createPortal(picker, document.body);
+}
+
+function safeComparisonDate(value) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? 'Unknown date' : formatDateShort(date);
+}
+
+function safeLabels(value) {
+  return Array.isArray(value) ? value.filter(label => typeof label === 'string') : [];
 }
 
 async function loadAllComparisonCandidates(workoutId, scope) {

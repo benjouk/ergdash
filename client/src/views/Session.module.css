@@ -629,8 +629,7 @@
   display: grid;
   place-items: center;
   padding: var(--space-4);
-  background: color-mix(in srgb, var(--bg) 72%, transparent);
-  backdrop-filter: blur(5px);
+  background: rgba(5, 5, 8, 0.58);
   isolation: isolate;
 }
 
@@ -647,6 +646,7 @@
   border: 1px solid var(--rule);
   border-radius: var(--radius-lg);
   box-shadow: 0 24px 80px rgba(0, 0, 0, .35);
+  transform: translateZ(0);
 }
 
 .pickerHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); padding: var(--space-5); border-bottom: 1px solid var(--rule); }
