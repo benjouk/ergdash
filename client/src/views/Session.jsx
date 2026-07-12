@@ -26,6 +26,7 @@ import {
   Lock,
   MessageSquare,
   Pin,
+  Search,
   Share2,
   Timer,
   Zap,
