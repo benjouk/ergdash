@@ -217,6 +217,19 @@ async function captureProfile(profileId) {
     writeFileSync(join(profileDir, 'workout', `${w.id}.json`), JSON.stringify(detail));
   }
 
+  // Ranked comparison candidates for both picker scopes.
+  mkdirSync(join(profileDir, 'comparison-candidates'), { recursive: true });
+  for (const w of allWorkouts) {
+    for (const scope of ['recommended', 'all']) {
+      const first = await fetchJson(`/api/workouts/${w.id}/comparison-candidates`, { scope, limit: 100, offset: 0 });
+      const second = first.meta.total > 100
+        ? await fetchJson(`/api/workouts/${w.id}/comparison-candidates`, { scope, limit: 100, offset: 100 })
+        : { data: [] };
+      const candidates = { data: [...first.data, ...(second.data || [])], meta: { ...first.meta, limit: first.meta.total, offset: 0 } };
+      writeFileSync(join(profileDir, 'comparison-candidates', `${w.id}-${scope}.json`), JSON.stringify(candidates));
+    }
+  }
+
   // Compare: capture sequential pairs so the shim can assemble any two.
   mkdirSync(join(profileDir, 'compare'), { recursive: true });
   const sortedIds = allWorkouts.map(w => w.id).sort((a, b) => a - b);

@@ -70,7 +70,7 @@ export default function FitnessChart({ compact = false }) {
         </AreaChart>
       </ResponsiveContainer>
     
-      <ChartInfo>Modelled from your training load. Fitness builds slowly with consistent volume, fatigue rises quickly after hard days, and form (fitness minus fatigue) shows freshness — above zero means ready to perform.</ChartInfo>
+      <ChartInfo>Modelled from your training load. Fitness builds slowly with consistent volume, fatigue rises quickly after hard days, and form (fitness minus fatigue) shows freshness. Above zero means ready to perform.</ChartInfo>
     </div>
   );
 }

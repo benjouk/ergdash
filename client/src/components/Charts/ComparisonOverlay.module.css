@@ -10,6 +10,10 @@
   gap: var(--space-3);
 }
 
+.comparisonActions { margin-left: auto; display: flex; gap: var(--space-2); }
+.secondaryButton { display: inline-flex; align-items: center; gap: var(--space-2); padding: 7px 10px; border: 1px solid var(--rule); border-radius: var(--radius-sm); color: var(--ink-2); font-size: .76rem; background: var(--surface); }
+.secondaryButton:hover { color: var(--accent); border-color: var(--accent); }
+
 .backButton {
   display: inline-flex;
   align-items: center;
@@ -26,6 +30,10 @@
 
 .header {
   padding-bottom: var(--space-3);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
 }
 
 .headerTitle {
@@ -37,6 +45,20 @@
   line-height: 1;
   letter-spacing: -0.03em;
 }
+
+.matchBadge { flex-shrink: 0; padding: 3px 8px; border-radius: 999px; background: color-mix(in srgb, var(--positive) 14%, transparent); color: var(--positive); font-size: .7rem; font-weight: 700; white-space: nowrap; }
+.matchOther { background: color-mix(in srgb, var(--negative) 12%, transparent); color: var(--negative); }
+.warning { display: flex; align-items: flex-start; gap: var(--space-2); padding: var(--space-3) var(--space-4); background: color-mix(in srgb, var(--negative) 8%, var(--surface)); border: 1px solid color-mix(in srgb, var(--negative) 28%, var(--rule)); border-radius: var(--radius-md); color: var(--ink-2); font-size: .82rem; }
+.warning svg { flex: 0 0 auto; color: var(--negative); }
+
+.summaryCard { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(300px, 1fr); gap: var(--space-6); padding: var(--space-5); border-radius: var(--radius-lg); background: linear-gradient(130deg, color-mix(in srgb, var(--accent-2) 12%, var(--surface)), var(--surface)); border: 1px solid color-mix(in srgb, var(--accent-2) 30%, var(--rule)); }
+.eyebrow { color: var(--ink-3); font-size: .66rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.summaryHeadline { margin-top: var(--space-1); font-family: var(--font-hero); font-size: clamp(1.8rem, 5vw, 3rem); font-weight: 850; color: var(--ink); letter-spacing: -.04em; }
+.summaryText { margin: var(--space-2) 0 0; color: var(--ink-2); font-size: .85rem; }
+.whereGrid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
+.whereGrid > div { padding: var(--space-3); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--surface) 78%, transparent); border: 1px solid var(--rule); display: flex; flex-direction: column; gap: 3px; }
+.whereGrid span { color: var(--ink-3); font-size: .65rem; text-transform: uppercase; letter-spacing: .05em; }
+.whereGrid strong { color: var(--ink); font-family: var(--font-mono); font-size: .85rem; }
 
 /* Dual Header */
 .dualHeader {
@@ -125,6 +147,12 @@
   font-variant-numeric: tabular-nums;
 }
 
+.metricCardGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--space-3); }
+.metricDeltaCard { display: flex; flex-direction: column; gap: 4px; padding: var(--space-3) var(--space-4); background: var(--surface); border: 1px solid var(--rule); border-radius: var(--radius-md); }
+.metricDeltaCard span { color: var(--ink-3); text-transform: uppercase; font-size: .63rem; font-weight: 700; letter-spacing: .05em; }
+.metricDeltaCard strong { font-family: var(--font-mono); color: var(--ink); }
+.metricDeltaCard small { color: var(--ink-3); }
+
 .statUnit {
   font-family: var(--font-body);
   font-size: 0.7rem;
@@ -176,7 +204,21 @@
   padding: var(--space-4) var(--space-5);
 }
 
+.chartHeader { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) var(--space-5); border-bottom: 1px solid var(--rule); }
+.metricTabs { display: flex; padding: 3px; background: var(--surface-alt); border-radius: var(--radius-sm); }
+.metricTabs button { padding: 5px 9px; border-radius: calc(var(--radius-sm) - 2px); color: var(--ink-3); font-size: .7rem; }
+.metricTabs button.metricTabActive { color: var(--ink); background: var(--surface); box-shadow: var(--shadow-sm); }
+.deltaChart { height: 90px; position: relative; padding: 0 var(--space-5) var(--space-4); }
+.deltaLabel { position: absolute; left: var(--space-5); top: 2px; color: var(--ink-3); font-size: .62rem; z-index: 1; }
+.emptyState { padding: var(--space-7); text-align: center; color: var(--ink-3); font-size: .82rem; }
+.tooltip { min-width: 160px; padding: var(--space-2) var(--space-3); background: var(--surface); border: 1px solid var(--rule); border-radius: var(--radius-sm); box-shadow: var(--shadow-md); }
+.tooltip small { color: var(--ink-3); }
+.tooltip div { display: flex; justify-content: space-between; gap: var(--space-4); margin-top: 3px; font-size: .72rem; }
+.tooltip strong { font-family: var(--font-mono); }
+
 @media (max-width: 768px) {
+  .header { align-items: flex-start; flex-direction: column; }
+
   .dualHeader {
     grid-template-columns: 1fr;
   }
@@ -185,6 +227,12 @@
     height: 280px;
     padding: var(--space-3);
   }
+
+  .summaryCard { grid-template-columns: 1fr; gap: var(--space-4); }
+  .chartHeader { align-items: flex-start; flex-direction: column; }
+  .metricTabs { width: 100%; }
+  .metricTabs button { flex: 1; }
+  .secondaryButton { font-size: 0; gap: 0; }
 }
 
 .cardHeader {

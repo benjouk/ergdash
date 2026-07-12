@@ -76,6 +76,7 @@ export const api = {
 
   getWorkouts: (params = {}) => request(`/api/workouts?${new URLSearchParams(params)}`),
   getWorkout: (id) => request(`/api/workouts/${id}`),
+  getComparisonCandidates: (id, params = {}) => request(`/api/workouts/${id}/comparison-candidates?${new URLSearchParams(params)}`),
   createWorkout: (data) => request('/api/workouts', {
     method: 'POST',
     body: JSON.stringify(data),

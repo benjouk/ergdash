@@ -18,7 +18,7 @@ export default function PlanAdherenceChart() {
   if (loading) return <ChartSkeleton />;
   if (error) return <ChartEmpty title="Plan Adherence" message="Couldn't load chart data." error onRetry={retry} />;
   if (data.length === 0) {
-    return <ChartEmpty title="Plan Adherence" message="No planned workouts yet — schedule sessions on the Plan page to track adherence." />;
+    return <ChartEmpty title="Plan Adherence" message="No planned workouts yet. Schedule sessions on the Plan page to track adherence." />;
   }
 
   const completed = data.reduce((s, w) => s + w.completed, 0);

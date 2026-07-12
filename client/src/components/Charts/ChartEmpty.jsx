@@ -1,6 +1,6 @@
 import styles from './Charts.module.css';
 
-const DEFAULT_MESSAGE = 'Not enough data yet — row a few more sessions.';
+const DEFAULT_MESSAGE = 'Not enough data yet. Row a few more sessions.';
 
 export default function ChartEmpty({
   title,
