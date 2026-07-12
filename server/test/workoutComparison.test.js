@@ -18,6 +18,36 @@ describe('workout comparison matching', () => {
     expect(classifyComparison(current, workout({ id: 3, workout_type: 'FixedTimeSplits', time_ms: 1870000 }))).toMatchObject({ level: 'close' });
   });
 
+  it('matches an endurance JustRow to a fixed-distance piece, but not an equal-distance interval set', () => {
+    const justRow = workout({
+      id: 105118097,
+      workout_type: 'JustRow',
+      distance: 5002,
+      time_ms: 1371300,
+    });
+    const fixedDistance = workout({
+      id: 86877101,
+      workout_type: 'FixedDistanceSplits',
+      distance: 5000,
+      time_ms: 1490700,
+    });
+
+    expect(classifyComparison(justRow, fixedDistance)).toMatchObject({
+      level: 'exact', reason: 'Same distance', axis: 'distance',
+    });
+    expect(classifyComparison(fixedDistance, justRow)).toMatchObject({
+      level: 'exact', reason: 'Same distance', axis: 'distance',
+    });
+
+    const fiveByOneK = workout({
+      id: 3,
+      inferred_tag: 'interval',
+      workout_type: 'FixedDistanceInterval',
+      distance: 5000,
+    });
+    expect(classifyComparison(justRow, fiveByOneK)).toMatchObject({ level: 'other' });
+  });
+
   it('requires interval work and rest structures to align', () => {
     const current = workout({ inferred_tag: 'interval', workout_type: 'FixedDistanceInterval' });
     const work = [{ type: 'work', distance: 500 }, { type: 'rest', time_ms: 90000 }, { type: 'work', distance: 500 }];

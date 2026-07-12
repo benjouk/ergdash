@@ -84,6 +84,21 @@ export function classifyComparison(current, candidate, currentIntervals = [], ca
     return { level: 'other', reason: 'Different interval structure', axis: 'percent' };
   }
 
+  // Concept2 can record an otherwise ordinary distance piece as JustRow
+  // (for example when the athlete rows through the target rather than
+  // programming it on the monitor). Treat that as comparable with a fixed
+  // distance endurance piece when the achieved distances align. The tag
+  // check deliberately keeps interval totals such as 5x1k out of this path.
+  const justRowDistancePair = (
+    (currentFamily === 'open' && candidateFamily === 'distance')
+    || (currentFamily === 'distance' && candidateFamily === 'open')
+  );
+  if (sameTag && justRowDistancePair) {
+    const difference = relativeDifference(current.distance, candidate.distance);
+    if (difference <= 0.01) return { level: 'exact', reason: 'Same distance', axis: 'distance' };
+    if (difference <= 0.05) return { level: 'close', reason: 'Similar distance', axis: 'percent' };
+  }
+
   if (sameTag && currentFamily === candidateFamily && currentFamily === 'distance') {
     const difference = relativeDifference(current.distance, candidate.distance);
     if (difference <= 0.01) return { level: 'exact', reason: 'Same distance', axis: 'distance' };
