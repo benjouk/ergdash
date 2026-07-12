@@ -452,3 +452,52 @@ describe('profile management and isolation (unit)', () => {
     expect(db.prepare('SELECT status FROM planned_workouts WHERE profile_id = ?').get(a.id).status).toBe('planned');
   });
 });
+
+describe('profiles route: last-profile deletion guard', () => {
+  let db;
+  let closeDb;
+  let auth;
+  let server;
+  let base;
+
+  beforeEach(async () => {
+    dataDir = mkdtempSync(join(tmpdir(), 'ergdash-lastprofile-test-'));
+    process.env.DATA_DIR = dataDir;
+
+    vi.resetModules();
+    const dbModule = await import('../src/db.js');
+    auth = await import('../src/auth.js');
+    const profilesRouter = (await import('../src/routes/profiles.js')).default;
+    ({ closeDb } = dbModule);
+    db = dbModule.initDb();
+    auth.initAuth();
+
+    const app = express();
+    app.use(express.json());
+    app.use('/api/profiles', profilesRouter);
+    await new Promise(resolve => { server = app.listen(0, resolve); });
+    base = `http://localhost:${server.address().port}`;
+  });
+
+  afterEach(async () => {
+    await new Promise(resolve => server.close(resolve));
+    closeDb();
+  });
+
+  async function del(id) {
+    const res = await fetch(`${base}/api/profiles/${id}`, { method: 'DELETE' });
+    return res.status;
+  }
+
+  it('refuses to delete the only remaining profile', async () => {
+    const a = auth.createProfile('A');
+    const b = auth.createProfile('B');
+
+    expect(await del(a.id)).toBe(200);          // two → one is fine
+    expect(auth.listProfiles().length).toBe(1);
+
+    expect(await del(b.id)).toBe(409);           // one → zero is refused
+    expect(auth.listProfiles().length).toBe(1);
+    expect(auth.getProfile(b.id)).not.toBeNull();
+  });
+});

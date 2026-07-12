@@ -36,6 +36,11 @@ router.delete('/:id', (req, res) => {
   if (isSyncInProgress(id)) {
     return res.status(409).json({ error: 'Profile is currently syncing; try again shortly' });
   }
+  // Deleting the only profile would wipe its data and strand the (still-valid)
+  // session with nothing to show. Require at least one profile to remain.
+  if (listProfiles().length <= 1) {
+    return res.status(409).json({ error: 'Cannot delete the only profile.' });
+  }
   deleteProfile(id);
   res.json({ ok: true });
 });

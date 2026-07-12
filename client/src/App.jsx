@@ -33,7 +33,7 @@ function usePageTitle(isAuthenticated) {
 }
 
 export default function App() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, profiles } = useAuth();
   const { defaultLanding } = usePrefs();
   usePageTitle(isAuthenticated);
 
@@ -47,7 +47,10 @@ export default function App() {
     );
   }
 
-  if (!isAuthenticated) {
+  // A valid session with no profiles (e.g. the last one was removed) has
+  // nothing to render — send them to Connect to add one rather than a shell
+  // of 409s.
+  if (!isAuthenticated || (profiles && profiles.length === 0)) {
     return <Connect />;
   }
 
