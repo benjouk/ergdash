@@ -92,7 +92,7 @@ function generateEndurance(id, date, factor, isDouble = false, paceScale = 1) {
   };
 }
 
-function generateInterval(id, date, factor, paceScale = 1) {
+export function generateInterval(id, date, factor, paceScale = 1) {
   const numIntervals = pick([4, 5, 6, 8]);
   const intDistance = pick([500, 750, 1000]);
   const distance = numIntervals * intDistance;
@@ -136,7 +136,7 @@ function generateInterval(id, date, factor, paceScale = 1) {
     strokeCount: strokes.length,
     hrAvg, hrMax: hrAvg + randInt(10, 18), dragFactor: randInt(118, 128),
     calories: Math.round(distance / 22 + randBetween(-5, 5)),
-    type: 'interval', workoutType: 'FixedDistanceSplits',
+    type: 'interval', workoutType: 'FixedDistanceInterval',
     restTimeMs: totalRestTimeMs, restDistance: totalRestDistance,
     intervals, strokes,
   };
