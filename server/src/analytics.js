@@ -18,6 +18,13 @@ export const BEST_EFFORT_DURATIONS = [60, 240, 600, 1800, 3600];
 export const METRICS_VERSION = 2;
 
 const MIN_DRIFT_DURATION_MS = 15 * 60 * 1000;
+const INTERVAL_WORKOUT_TYPES = new Set([
+  'FixedDistanceInterval',
+  'FixedTimeInterval',
+  'FixedCalorieInterval',
+  'VariableInterval',
+  'VariableIntervalUndefinedRest',
+]);
 
 function getRateBandTolerance(db, profileId) {
   const row = db.prepare("SELECT value FROM settings WHERE profile_id = ? AND key = 'rate_band_tolerance'").get(profileId);
@@ -410,7 +417,7 @@ export function inferWorkoutTag(workout) {
 
   const hasRest = restCount > 0 || workout.rest_time_ms > 0 || workout.rest_distance > 0;
 
-  if (hasRest) {
+  if (hasRest || INTERVAL_WORKOUT_TYPES.has(workout.workout_type)) {
     return 'interval';
   }
 

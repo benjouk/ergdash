@@ -151,6 +151,24 @@
   color: var(--accent-2);
 }
 
+.classification {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+}
+
+.classification .tag {
+  align-self: flex-end;
+}
+
+.workoutType {
+  color: var(--ink-3);
+  font-size: 0.65rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
 .summaryCellSubtitle {
   font-size: 0.65rem;
   font-weight: 500;
