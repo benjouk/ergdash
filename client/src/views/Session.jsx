@@ -340,6 +340,10 @@ export default function Session() {
     setSearchParams({}, { replace: true });
   }, [setSearchParams]);
 
+  const handleCloseComparisonPicker = useCallback(() => {
+    setCompareMenuOpen(false);
+  }, []);
+
   const strokeData = useMemo(() => buildStrokeSeries(workout?.strokes), [workout?.strokes]);
   const splitRows = useMemo(() => buildSplitRows(workout), [workout]);
   const maxStrokeDistance = strokeData.length ? Math.max(...strokeData.map(p => p.distance)) : 0;
@@ -386,7 +390,7 @@ export default function Session() {
         onSearch={setCandidateSearch}
         onScope={loadCandidateScope}
         onSelect={handleCompare}
-        onClose={() => setCompareMenuOpen(false)}
+        onClose={handleCloseComparisonPicker}
       />}
     </>;
   }
@@ -898,7 +902,7 @@ export default function Session() {
         onSearch={setCandidateSearch}
         onScope={loadCandidateScope}
         onSelect={handleCompare}
-        onClose={() => setCompareMenuOpen(false)}
+        onClose={handleCloseComparisonPicker}
       />}
     </div>
   );
@@ -909,10 +913,17 @@ function ComparisonPicker({ options, scope, search, loading, formatDistance, for
     const onKeyDown = event => { if (event.key === 'Escape') onClose(); };
     document.addEventListener('keydown', onKeyDown);
     const previousOverflow = document.body.style.overflow;
+    const previousPaddingRight = document.body.style.paddingRight;
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+    if (scrollbarWidth > 0) {
+      const currentPaddingRight = Number.parseFloat(window.getComputedStyle(document.body).paddingRight) || 0;
+      document.body.style.paddingRight = `${currentPaddingRight + scrollbarWidth}px`;
+    }
     document.body.style.overflow = 'hidden';
     return () => {
       document.removeEventListener('keydown', onKeyDown);
       document.body.style.overflow = previousOverflow;
+      document.body.style.paddingRight = previousPaddingRight;
     };
   }, [onClose]);
 
