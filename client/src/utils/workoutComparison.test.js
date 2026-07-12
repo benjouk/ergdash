@@ -28,6 +28,7 @@ describe('workout comparison analysis', () => {
       workout({ pace_ms: 118000, heart_rate_avg: 155 }), workout(), { level: 'exact', axis: 'distance' }, [],
     );
     expect(summary.effort).toContain('improved efficiency');
+    expect(summary.effort).not.toContain('—');
     const slower = buildComparisonSummary(workout({ pace_ms: 122000, heart_rate_avg: 150 }), workout(), { level: 'exact', axis: 'distance' }, []);
     expect(slower.effort).not.toContain('improved efficiency');
   });
