@@ -81,7 +81,7 @@ router.get('/status', (req, res) => {
   res.json({
     authenticated,
     connected: hasConnectedProfile(),
-    profiles: authenticated ? listProfiles() : null,
+    profiles: authenticated ? listProfiles() : [],
   });
 });
 

@@ -590,3 +590,55 @@ describe('sync auth failure disconnects the profile', () => {
     expect(auth.listProfiles().find(x => x.id === p.id).connected).toBe(true);
   });
 });
+
+describe('manual sync requires a connected active profile', () => {
+  let db;
+  let closeDb;
+  let auth;
+  let server;
+  let base;
+
+  beforeEach(async () => {
+    dataDir = mkdtempSync(join(tmpdir(), 'ergdash-syncgate-test-'));
+    process.env.DATA_DIR = dataDir;
+
+    vi.resetModules();
+    const dbModule = await import('../src/db.js');
+    auth = await import('../src/auth.js');
+    const { resolveProfile } = await import('../src/middleware/profile.js');
+    const syncRouter = (await import('../src/routes/sync.js')).default;
+    ({ closeDb } = dbModule);
+    db = dbModule.initDb();
+    auth.initAuth();
+
+    const app = express();
+    app.use(express.json());
+    app.use('/api/sync', resolveProfile, syncRouter);
+    await new Promise(resolve => { server = app.listen(0, resolve); });
+    base = `http://localhost:${server.address().port}`;
+  });
+
+  afterEach(async () => {
+    await new Promise(resolve => server.close(resolve));
+    closeDb();
+  });
+
+  const post = (profileId) => fetch(`${base}/api/sync`, {
+    method: 'POST',
+    headers: { 'X-Profile-Id': String(profileId) },
+  });
+
+  it('409s when the active profile has no Concept2 connection', async () => {
+    const p = auth.createProfile('Disconnected'); // created but never connected
+    const res = await post(p.id);
+    expect(res.status).toBe(409);
+  });
+
+  it('starts a sync for a connected profile', async () => {
+    const p = auth.createProfile('Connected');
+    auth.storeTokens(p.id, { access_token: 'tok', refresh_token: 'ref', expires_in: 3600 });
+    const res = await post(p.id);
+    expect(res.status).toBe(200);
+    expect((await res.json()).status).toBe('started');
+  });
+});

@@ -855,8 +855,8 @@ export default function Settings() {
           <h3 className={styles.sectionTitle}>Danger Zone</h3>
           <div className={styles.row}>
             <div>
-              <div className={styles.label}>Disconnect Concept2 Account</div>
-              <div className={styles.subtext}>Type DISCONNECT to remove OAuth tokens and end this session</div>
+              <div className={styles.label}>Disconnect this profile from Concept2</div>
+              <div className={styles.subtext}>Type DISCONNECT to remove this profile&apos;s Concept2 tokens. Your local data and browser session stay.</div>
             </div>
             <div className={styles.inlineControls}>
               <input

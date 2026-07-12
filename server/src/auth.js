@@ -247,6 +247,13 @@ export function hasConnectedProfile() {
   return !!row;
 }
 
+export function isProfileConnected(profileId) {
+  const row = getDb()
+    .prepare('SELECT 1 FROM profiles WHERE id = ? AND access_token IS NOT NULL')
+    .get(profileId);
+  return !!row;
+}
+
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
 
 export function createAuthSession(res) {
