@@ -33,6 +33,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-3);
+  flex-wrap: wrap;
 }
 
 .headerTitle {
@@ -45,7 +46,7 @@
   letter-spacing: -0.03em;
 }
 
-.matchBadge { padding: 3px 8px; border-radius: 999px; background: color-mix(in srgb, var(--positive) 14%, transparent); color: var(--positive); font-size: .7rem; font-weight: 700; }
+.matchBadge { flex-shrink: 0; padding: 3px 8px; border-radius: 999px; background: color-mix(in srgb, var(--positive) 14%, transparent); color: var(--positive); font-size: .7rem; font-weight: 700; white-space: nowrap; }
 .matchOther { background: color-mix(in srgb, var(--negative) 12%, transparent); color: var(--negative); }
 .warning { display: flex; align-items: flex-start; gap: var(--space-2); padding: var(--space-3) var(--space-4); background: color-mix(in srgb, var(--negative) 8%, var(--surface)); border: 1px solid color-mix(in srgb, var(--negative) 28%, var(--rule)); border-radius: var(--radius-md); color: var(--ink-2); font-size: .82rem; }
 .warning svg { flex: 0 0 auto; color: var(--negative); }
@@ -216,6 +217,8 @@
 .tooltip strong { font-family: var(--font-mono); }
 
 @media (max-width: 768px) {
+  .header { align-items: flex-start; flex-direction: column; }
+
   .dualHeader {
     grid-template-columns: 1fr;
   }

@@ -674,8 +674,8 @@
 .pickerEmpty { display: flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: 160px; color: var(--ink-3); font-size: .8rem; }
 
 @media (max-width: 600px) {
-  .pickerBackdrop { place-items: end center; padding: 0; }
-  .pickerDialog { max-height: 92vh; border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+  .pickerBackdrop { place-items: start center; padding: max(12px, env(safe-area-inset-top)) 0 0; }
+  .pickerDialog { max-height: calc(100vh - 12px); max-height: calc(100dvh - max(12px, env(safe-area-inset-top))); border-radius: var(--radius-lg); }
   .pickerTools { align-items: stretch; flex-direction: column; }
   .pickerSearch input { font-size: 16px; }
   .pickerScopes button { flex: 1; }
