@@ -20,6 +20,8 @@ function initialsOf(name) {
     .toUpperCase();
 }
 
+const isDemo = import.meta.env.VITE_DEMO === '1';
+
 export default function Ticker() {
   const { toggleTheme, theme } = useTheme();
   const { profiles, activeProfile, switchProfile } = useAuth();
@@ -215,12 +217,14 @@ export default function Ticker() {
                   </button>
                 </li>
               ))}
-              <li>
-                <a href="/auth/login?profile=new" className={styles.profileOption}>
-                  <UserPlus size={13} aria-hidden="true" />
-                  <span>Add profile…</span>
-                </a>
-              </li>
+              {!isDemo && (
+                <li>
+                  <a href="/auth/login?profile=new" className={styles.profileOption}>
+                    <UserPlus size={13} aria-hidden="true" />
+                    <span>Add profile…</span>
+                  </a>
+                </li>
+              )}
             </ul>
           )}
         </div>
