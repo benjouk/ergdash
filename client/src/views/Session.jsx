@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
 import {
   Area,
@@ -906,7 +907,12 @@ function ComparisonPicker({ options, scope, search, loading, formatDistance, for
   useEffect(() => {
     const onKeyDown = event => { if (event.key === 'Escape') onClose(); };
     document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
   }, [onClose]);
 
   const query = search.trim().toLowerCase();
@@ -915,7 +921,7 @@ function ComparisonPicker({ options, scope, search, loading, formatDistance, for
     option.comparison_match?.reason, ...(option.comparison_labels || []),
   ].filter(Boolean).join(' ').toLowerCase().includes(query));
 
-  return <div className={styles.pickerBackdrop} role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
+  const picker = <div className={styles.pickerBackdrop} role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
     <section className={styles.pickerDialog} role="dialog" aria-modal="true" aria-labelledby="compare-picker-title">
       <div className={styles.pickerHeader}>
         <div><h3 id="compare-picker-title">Choose a workout</h3><p>Best matches are ranked by format, target, and recency.</p></div>
@@ -942,6 +948,7 @@ function ComparisonPicker({ options, scope, search, loading, formatDistance, for
       </div>
     </section>
   </div>;
+  return typeof document === 'undefined' ? picker : createPortal(picker, document.body);
 }
 
 async function loadAllComparisonCandidates(workoutId, scope) {

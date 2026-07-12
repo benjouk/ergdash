@@ -625,21 +625,25 @@
 .pickerBackdrop {
   position: fixed;
   inset: 0;
-  z-index: 80;
+  z-index: 1000;
   display: grid;
   place-items: center;
   padding: var(--space-4);
-  background: rgba(5, 10, 18, .68);
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
   backdrop-filter: blur(5px);
+  isolation: isolate;
 }
 
 .pickerDialog {
+  position: relative;
+  z-index: 1;
   width: min(620px, 100%);
   max-height: min(760px, 88vh);
   display: flex;
   flex-direction: column;
   overflow: hidden;
   background: var(--surface);
+  color: var(--ink);
   border: 1px solid var(--rule);
   border-radius: var(--radius-lg);
   box-shadow: 0 24px 80px rgba(0, 0, 0, .35);
