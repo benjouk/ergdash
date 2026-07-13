@@ -51,7 +51,7 @@ export default function WeekList({
                 day === today ? styles.rowToday : '',
                 day === selectedDate ? styles.rowSelected : '',
               ].join(' ')}
-              aria-label={`${day}${summary ? `, ${summary}` : ', rest day'}${status ? `, ${status}` : ''}`}
+              aria-label={`${day}${summary ? `, ${summary}` : entry ? `, ${formatDistance(entry.meters)} rowed` : ', rest day'}${status ? `, ${status}` : ''}`}
             >
               <span className={styles.day}>
                 <span className={styles.dayName}>
@@ -61,10 +61,10 @@ export default function WeekList({
               </span>
               {plans.length > 0 ? (
                 <span className={styles.summary}>{summary}</span>
+              ) : entry ? (
+                <span className={styles.summary}>{formatDistance(entry.meters)} rowed</span>
               ) : (
-                <span className={styles.rest}>
-                  {entry ? `Rest · ${formatDistance(entry.meters)} rowed` : 'Rest'}
-                </span>
+                <span className={styles.rest}>Rest</span>
               )}
               {status && (
                 <span className={styles.status}>
