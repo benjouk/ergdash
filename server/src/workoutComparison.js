@@ -1,14 +1,11 @@
-const INTERVAL_TYPES = new Set([
-  'FixedDistanceInterval', 'FixedTimeInterval', 'FixedCalorieInterval',
-  'VariableInterval', 'VariableIntervalUndefinedRest',
-]);
+import { isIntervalWorkoutType } from './workoutTypes.js';
 
 export function workoutTag(workout) {
   return workout?.inferred_tag === 'interval' ? 'interval' : 'endurance';
 }
 
 export function isIntervalWorkout(workout) {
-  return workoutTag(workout) === 'interval' || INTERVAL_TYPES.has(workout?.workout_type);
+  return workoutTag(workout) === 'interval' || isIntervalWorkoutType(workout?.workout_type);
 }
 
 function family(workout) {

@@ -10,12 +10,13 @@ import {
   bestEfforts,
 } from './strokeMetrics.js';
 import { getZoneModel, zoneForHr } from './hrZones.js';
+import { isIntervalWorkoutType } from './workoutTypes.js';
 
 export const BEST_EFFORT_DURATIONS = [60, 240, 600, 1800, 3600];
 
 // Bump whenever computed_metrics gains columns or an algorithm changes;
 // computeAllMetrics() recomputes any row written with an older version.
-export const METRICS_VERSION = 2;
+export const METRICS_VERSION = 3;
 
 const MIN_DRIFT_DURATION_MS = 15 * 60 * 1000;
 
@@ -410,7 +411,7 @@ export function inferWorkoutTag(workout) {
 
   const hasRest = restCount > 0 || workout.rest_time_ms > 0 || workout.rest_distance > 0;
 
-  if (hasRest) {
+  if (hasRest || isIntervalWorkoutType(workout.workout_type)) {
     return 'interval';
   }
 
@@ -420,16 +421,20 @@ export function inferWorkoutTag(workout) {
 export function tagAllWorkouts(profileId) {
   const db = getDb();
   const workouts = db.prepare(
-    'SELECT id, distance, time_ms, workout_type, rest_time_ms, rest_distance FROM workouts WHERE profile_id = ?'
+    'SELECT id, distance, time_ms, workout_type, rest_time_ms, rest_distance, inferred_tag FROM workouts WHERE profile_id = ?'
   ).all(profileId);
 
   const update = db.prepare('UPDATE workouts SET inferred_tag = ? WHERE id = ?');
+  const changedDistances = [];
   db.transaction(() => {
     for (const w of workouts) {
       const tag = inferWorkoutTag(w);
+      const previousTag = w.inferred_tag === 'interval' ? 'interval' : 'endurance';
+      if (tag !== previousTag) changedDistances.push(w.distance);
       update.run(tag, w.id);
     }
   })();
+  return changedDistances;
 }
 
 function avg(arr) {
