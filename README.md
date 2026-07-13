@@ -14,7 +14,7 @@ ErgDash connects to the Concept2 Logbook API to sync your workout history and di
 
 - **Dashboard:** Weekly coach summary, season metres and streak stats, volume vs goal, weekly volume chart, personal bests with new-PB notifications, calendar heatmap
 - **Profiles (household):** Connect several Concept2 Logbook accounts to one instance, with one profile per household member, each with its own workouts, PBs, goals, plans, and settings. Switch profiles from the header; rename, reconnect, disconnect, or remove members in Settings. Existing single-user installs upgrade in place
-- **Session Detail:** Per-stroke pace and rate/HR charts, interval rep chart with HR recovery, rate-vs-pace scatter, HR zone bar, splits table, smart side-by-side comparison with ranked equivalent workouts and pacing diagnostics, downloadable session card, computed metrics (fade index, consistency, effort, distance per stroke, watts/beat, HR drift, rate discipline)
+- **Session Detail:** Per-stroke pace and rate/HR charts, interval rep chart with HR recovery and a structure summary (e.g. 6×500m / 1:30r), rate-vs-pace scatter, HR zone bar, splits table, smart side-by-side comparison with ranked equivalent workouts and pacing diagnostics, downloadable session card, computed metrics (fade index, consistency, effort, distance per stroke, watts/beat, HR drift, rate discipline)
 - **Workouts:** Filterable/sortable table with CSV/JSON export
 - **Manual entry & file import:** Add rows that never reached the Logbook (old PM3/PM4 pieces, club machines, races) by hand, including work/rest splits, or import CSV (Concept2 Logbook export or generic), TCX, and FIT (PM5 USB / ErgData) files with a preview step, duplicate detection against synced workouts, and enrich-merge that fills in missing HR/drag/splits/stroke data
 - **Result correction:** Edit distance/time/HR/drag/rate on any workout; corrections to synced workouts are tracked per-field, survive future syncs, and can be reverted to the Concept2 values at any time. Manual and imported workouts can be deleted
@@ -24,7 +24,7 @@ ErgDash connects to the Concept2 Logbook API to sync your workout history and di
 - **Tools:** Pace / watts / cal-per-hour converter, a Concept2 weight-adjusted score calculator, and a race plan builder with even, negative, and aggressive pacing strategies
 - **HR Zones:** Five configurable zones in Settings (% of max HR), estimated from observed data until set
 - **Body weight:** Optional setting that adds weight-adjusted equivalents to personal bests and Tools
-- **Feed:** Always-visible sidebar of recent sessions with sparklines
+- **Feed:** Always-visible sidebar of recent sessions with sparklines and interval summaries
 - **Ticker:** Sticky header with key stats, pace trace, profile switcher, and navigation
 - **Light/Dark theme:** System-aware with manual override
 - **Units:** Toggle between /500m pace, watts, and cal/hr
