@@ -481,7 +481,7 @@ export async function runIncrementalSync(profileId) {
 
 export function runPostSyncAnalytics(profileId, insertedWorkoutIds = [], updatedWorkoutIds = [], affectedPbDistances = []) {
   try {
-    tagAllWorkouts(profileId);
+    const retaggedPbDistances = tagAllWorkouts(profileId);
     computeAllMetrics(profileId);
     computeFitnessLog(profileId);
     computePredictions(profileId);
@@ -495,8 +495,9 @@ export function runPostSyncAnalytics(profileId, insertedWorkoutIds = [], updated
     // A correction to an existing workout's distance/pace/time can invalidate
     // or restore PBs at that distance, so rebuild pb_history for it rather
     // than relying on detectNewPbs (which only looks at new workouts).
-    if (affectedPbDistances.length > 0) {
-      reconcilePbDistances(profileId, affectedPbDistances);
+    const pbDistancesToReconcile = [...affectedPbDistances, ...retaggedPbDistances];
+    if (pbDistancesToReconcile.length > 0) {
+      reconcilePbDistances(profileId, pbDistancesToReconcile);
     }
     const newPbs = detectNewPbs(profileId, insertedWorkoutIds);
     if (newPbs.length > 0) {

@@ -11,26 +11,14 @@ import {
 } from './sync.js';
 import { reconcilePbDistances } from './pbDetection.js';
 import { tagAllWorkouts, computeFitnessLog, computePredictions } from './analytics.js';
+import { WORKOUT_TYPES } from './workoutTypes.js';
 import {
   parseEditedFields,
   serializeEditedFields,
   computePaceMs,
 } from './workoutFields.js';
 
-export const WORKOUT_TYPES = [
-  'JustRow',
-  'FixedDistanceSplits',
-  'FixedTimeSplits',
-  'FixedCalorie',
-  'FixedWattMinute',
-  'FixedDistanceInterval',
-  'FixedTimeInterval',
-  'FixedCalorieInterval',
-  'FixedWattMinuteInterval',
-  'VariableInterval',
-  'VariableIntervalUndefinedRest',
-  'unknown',
-];
+export { WORKOUT_TYPES };
 
 // C2 result IDs are always positive, so user-created rows live in the
 // negative range and can never collide with a future sync.

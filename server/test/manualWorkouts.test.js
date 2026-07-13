@@ -265,10 +265,13 @@ describe('validateWorkoutFields', () => {
   it('uses the workout types defined by the Concept2 Logbook API', () => {
     expect(workoutTypes).toContain('FixedWattMinute');
     expect(workoutTypes).toContain('FixedWattMinuteInterval');
-    expect(workoutTypes).not.toContain('FixedWattMinutes');
+    // The plural spelling stays accepted so rows synced before the rename
+    // can still be edited.
+    expect(workoutTypes).toContain('FixedWattMinutes');
 
     expect(validateWorkoutFields({ workout_type: 'FixedWattMinute' }).errors).toEqual([]);
     expect(validateWorkoutFields({ workout_type: 'FixedWattMinuteInterval' }).errors).toEqual([]);
+    expect(validateWorkoutFields({ workout_type: 'FixedWattMinutes' }).errors).toEqual([]);
   });
 
   it('accepts partial bodies for PATCH and rejects invalid dates', () => {
