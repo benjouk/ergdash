@@ -71,6 +71,7 @@
   --warn: #8A6D1A;
   --warn-bg: #F4F0DD;
   --warn-border: #E0D9B4;
+  --track: #ECEADE;
   --hr: #B04A3A;
   --hr-bg: rgba(176, 74, 58, 0.09);
   --hot: var(--hr);
@@ -170,6 +171,7 @@
   --warn: #D9B04A;
   --warn-bg: #2B2211;
   --warn-border: #4A3D1A;
+  --track: #272727;
   --hr: #C96A74;
   --hr-bg: rgba(201, 106, 116, 0.10);
 
