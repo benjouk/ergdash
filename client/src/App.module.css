@@ -2,6 +2,7 @@
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  isolation: isolate;
 }
 
 .loading {
@@ -42,6 +43,8 @@
   width: var(--feed-width);
   flex-shrink: 0;
   border-right: 1px solid var(--rule);
+  background: color-mix(in srgb, var(--surface) 76%, transparent);
+  backdrop-filter: blur(var(--glass-blur));
   overflow-y: auto;
   height: calc(100vh - var(--ticker-height));
   position: sticky;
@@ -53,6 +56,7 @@
   min-width: 0;
   max-width: var(--main-content-max-width);
   padding: var(--space-6);
+  position: relative;
 }
 
 @media (min-width: 1600px) {

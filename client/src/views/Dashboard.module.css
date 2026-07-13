@@ -2,7 +2,22 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
+  align-items: stretch;
 }
+
+.dashboard::before {
+  content: 'ErgDash';
+  display: block;
+  font-family: var(--font-hero);
+  font-size: clamp(2.6rem, 5vw, 5.8rem);
+  font-weight: 900;
+  font-stretch: 112%;
+  letter-spacing: -0.07em;
+  line-height: 0.9;
+  color: color-mix(in srgb, var(--ink) 8%, transparent);
+  margin-bottom: calc(-1 * var(--space-3));
+}
+
 
 .sectionHeader {
   display: flex;
@@ -32,10 +47,10 @@
   justify-content: space-between;
   gap: var(--space-4);
   padding: var(--space-4) var(--space-5);
-  border: 1px solid var(--accent-3);
-  border-radius: var(--radius-lg);
-  background: var(--accent-3-bg);
-  box-shadow: var(--shadow-sm);
+  border: 1px solid color-mix(in srgb, var(--accent-3) 58%, var(--rule));
+  border-radius: var(--radius-xl);
+  background: linear-gradient(135deg, var(--accent-3-bg), color-mix(in srgb, var(--surface-raised) 86%, transparent));
+  box-shadow: var(--shadow-md);
 }
 
 .pbBannerKicker {
@@ -70,7 +85,7 @@
   flex: 0 0 auto;
   border: 1px solid var(--accent-3);
   border-radius: 999px;
-  background: var(--surface);
+  background: var(--surface-raised);
   color: var(--accent-3);
   padding: var(--space-2) var(--space-4);
   font-size: 0.8rem;
