@@ -6,6 +6,7 @@ import { AXIS_TICK, AXIS_LINE, SERIES, TOOLTIP_PROPS } from '../../styles/chartT
 import { ChartSkeleton } from '../Skeleton/Skeleton.jsx';
 import ChartEmpty from './ChartEmpty.jsx';
 import ChartInfo from './ChartInfo.jsx';
+import TrendChip, { seriesDelta } from './TrendChip.jsx';
 import { useChartData } from './useChartData.js';
 import styles from './Charts.module.css';
 
@@ -48,6 +49,8 @@ export default function PaceChart() {
   });
 
   const latest = data[data.length - 1];
+  // Lower pace_ms is faster, so an improving trend reads as a downward delta.
+  const paceDelta = seriesDelta(formatted, 'pace_avg');
 
   return (
     <div className={styles.chartCard}>
@@ -55,9 +58,14 @@ export default function PaceChart() {
         <div className={styles.chartTitle}>
           Pace Trend
         </div>
-        <div className={styles.chartValue}>
-          {formatPace(latest.pace_ms)}
-          <span className={styles.chartValueUnit}>latest</span>
+        <div className={styles.chartMetric}>
+          <div className={styles.chartValue}>
+            {formatPace(latest.pace_ms)}
+            <span className={styles.chartValueUnit}>latest</span>
+          </div>
+          <TrendChip delta={paceDelta} betterWhenUp={false}>
+            {paceDelta != null ? `${(Math.abs(paceDelta) / 1000).toFixed(1)}s` : ''}
+          </TrendChip>
         </div>
       </div>
       <ResponsiveContainer width="100%" height={170}>
