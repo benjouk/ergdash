@@ -163,10 +163,9 @@
   padding: var(--space-4) var(--space-5);
   border-right: 1px solid rgba(255, 255, 255, 0.08);
   color: var(--ticker-accent);
-  font-family: var(--font-hero);
+  font-family: var(--font-mono);
   font-size: 1.35rem;
-  font-weight: 850;
-  font-stretch: 108%;
+  font-weight: 600;
   letter-spacing: -0.02em;
   text-align: center;
 }
@@ -214,10 +213,9 @@
 
 .planSummary strong {
   color: var(--accent);
-  font-family: var(--font-hero);
+  font-family: var(--font-mono);
   font-size: 1.9rem;
-  font-weight: 850;
-  font-stretch: 108%;
+  font-weight: 600;
   letter-spacing: -0.02em;
 }
 

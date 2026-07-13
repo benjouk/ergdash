@@ -332,8 +332,8 @@
   font-size: 0.6rem;
   font-weight: 700;
   border-radius: 50%;
-  background: var(--accent, #C3D500);
-  color: #14170a;
+  background: var(--ticker-accent);
+  color: #15150D;
   flex-shrink: 0;
 }
 

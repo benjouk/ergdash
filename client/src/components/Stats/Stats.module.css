@@ -48,9 +48,8 @@
 }
 
 .statValue {
-  font-family: var(--font-hero);
-  font-weight: 800;
-  font-stretch: 108%;
+  font-family: var(--font-mono);
+  font-weight: 600;
   font-size: var(--text-xl);
   color: var(--ink);
   letter-spacing: -0.02em;

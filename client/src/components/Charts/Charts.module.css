@@ -93,9 +93,8 @@
 }
 
 .chartValue {
-  font-family: var(--font-hero);
-  font-weight: 800;
-  font-stretch: 108%;
+  font-family: var(--font-mono);
+  font-weight: 600;
   font-size: 1.05rem;
   color: var(--ink);
   letter-spacing: -0.02em;

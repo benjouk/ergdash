@@ -408,10 +408,9 @@
 }
 
 .cardPace {
-  font-family: var(--font-hero);
+  font-family: var(--font-mono);
   font-size: 1.4rem;
-  font-weight: 800;
-  font-stretch: 108%;
+  font-weight: 600;
   color: var(--accent);
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
