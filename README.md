@@ -10,6 +10,10 @@ ErgDash connects to the Concept2 Logbook API to sync your workout history and di
 
 ![ErgDash dashboard](.github/screenshot.png)
 
+| Session detail | Progress |
+|---|---|
+| ![Session detail](.github/screenshot-session.png) | ![Progress](.github/screenshot-progress.png) |
+
 ## Features
 
 - **Dashboard:** Weekly coach summary, season metres and streak stats, volume vs goal, weekly volume chart, personal bests with new-PB notifications, calendar heatmap
