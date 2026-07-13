@@ -578,8 +578,15 @@ export default function Session() {
           <div className={styles.heroBadges}>
             <PBBadges distances={workout.pb_distances} />
             {tag && (
-              <span className={`${styles.tag} ${isInterval ? styles.tagInterval : ''}`}>
-                {tag}
+              <span className={styles.classification}>
+                <span className={`${styles.tag} ${isInterval ? styles.tagInterval : ''}`}>
+                  {tag}
+                </span>
+                {workout.workout_type && (
+                  <span className={styles.workoutType} title={workout.workout_type}>
+                    {formatWorkoutType(workout.workout_type)}
+                  </span>
+                )}
               </span>
             )}
             {workout.source && workout.source !== 'c2' && (
@@ -971,6 +978,26 @@ function safeComparisonDate(value) {
 
 function safeLabels(value) {
   return Array.isArray(value) ? value.filter(label => typeof label === 'string') : [];
+}
+
+const WORKOUT_TYPE_LABELS = {
+  JustRow: 'Just row',
+  FixedDistanceSplits: 'Fixed distance',
+  FixedTimeSplits: 'Fixed time',
+  FixedCalorie: 'Fixed calorie',
+  FixedWattMinute: 'Fixed watt-minute',
+  FixedWattMinutes: 'Fixed watt-minute',
+  FixedDistanceInterval: 'Distance intervals',
+  FixedTimeInterval: 'Time intervals',
+  FixedCalorieInterval: 'Calorie intervals',
+  FixedWattMinuteInterval: 'Watt-minute intervals',
+  VariableInterval: 'Variable intervals',
+  VariableIntervalUndefinedRest: 'Variable intervals',
+  unknown: 'Unknown format',
+};
+
+function formatWorkoutType(value) {
+  return WORKOUT_TYPE_LABELS[value] || value;
 }
 
 async function loadAllComparisonCandidates(workoutId, scope) {

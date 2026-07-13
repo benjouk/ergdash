@@ -16,6 +16,7 @@ let revertWorkoutToC2;
 let deleteUserWorkout;
 let allocateManualId;
 let detectNewPbs;
+let workoutTypes;
 
 beforeEach(async () => {
   dataDir = mkdtempSync(join(tmpdir(), 'ergdash-manual-test-'));
@@ -33,6 +34,7 @@ beforeEach(async () => {
     createManualWorkout, validateWorkoutFields, applyWorkoutCorrection,
     revertWorkoutToC2, deleteUserWorkout, allocateManualId,
   } = mutationsModule);
+  workoutTypes = mutationsModule.WORKOUT_TYPES;
 
   initDb();
   db = getDb();
@@ -260,6 +262,18 @@ describe('deleteUserWorkout', () => {
 });
 
 describe('validateWorkoutFields', () => {
+  it('uses the workout types defined by the Concept2 Logbook API', () => {
+    expect(workoutTypes).toContain('FixedWattMinute');
+    expect(workoutTypes).toContain('FixedWattMinuteInterval');
+    // The plural spelling stays accepted so rows synced before the rename
+    // can still be edited.
+    expect(workoutTypes).toContain('FixedWattMinutes');
+
+    expect(validateWorkoutFields({ workout_type: 'FixedWattMinute' }).errors).toEqual([]);
+    expect(validateWorkoutFields({ workout_type: 'FixedWattMinuteInterval' }).errors).toEqual([]);
+    expect(validateWorkoutFields({ workout_type: 'FixedWattMinutes' }).errors).toEqual([]);
+  });
+
   it('accepts partial bodies for PATCH and rejects invalid dates', () => {
     const ok = validateWorkoutFields({ heart_rate_avg: 150 });
     expect(ok.errors).toEqual([]);

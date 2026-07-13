@@ -441,6 +441,39 @@ describe('profile management and isolation (unit)', () => {
     expect(hrZones.getObservedMaxHr(db, b.id)).toBe(160);
   });
 
+  it('tags explicit interval formats as intervals even when no rest was completed', () => {
+    const profile = auth.createProfile('Tagging');
+    const explicitIntervalTypes = [
+      'FixedDistanceInterval',
+      'FixedTimeInterval',
+      'FixedCalorieInterval',
+      'FixedWattMinuteInterval',
+      'VariableInterval',
+      'VariableIntervalUndefinedRest',
+    ];
+    explicitIntervalTypes.forEach((workoutType, index) => {
+      const id = index + 1;
+      addWorkout(profile.id, id);
+      db.prepare('UPDATE workouts SET workout_type = ? WHERE id = ?').run(workoutType, id);
+    });
+    const restWorkoutId = explicitIntervalTypes.length + 1;
+    const enduranceWorkoutId = restWorkoutId + 1;
+    addWorkout(profile.id, restWorkoutId);
+    addWorkout(profile.id, enduranceWorkoutId);
+    db.prepare("UPDATE workouts SET workout_type = 'FixedDistanceSplits', rest_time_ms = 120000 WHERE id = ?")
+      .run(restWorkoutId);
+
+    analytics.tagAllWorkouts(profile.id);
+
+    const tags = db.prepare('SELECT id, inferred_tag FROM workouts WHERE profile_id = ? ORDER BY id').all(profile.id)
+      .map(row => row.inferred_tag);
+    expect(tags).toEqual([
+      ...explicitIntervalTypes.map(() => 'interval'),
+      'interval',
+      'endurance',
+    ]);
+  });
+
   it('PB history is computed independently per profile', () => {
     const a = auth.createProfile('A');
     const b = auth.createProfile('B');
