@@ -6,7 +6,7 @@ A self-hosted dashboard for your Concept2 rower.
 [![ghcr.io](https://img.shields.io/badge/ghcr.io-benjouk%2Fergdash-2496ed?logo=docker&logoColor=white)](https://github.com/benjouk/ergdash/pkgs/container/ergdash)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-ErgDash connects to the Concept2 Logbook API to sync your workout history and display training analytics: volume trends, pace tracking, personal bests, and fitness modelling. Try the [live demo](https://ergdash.com/demo/), loaded with a season of sample data.
+ErgDash connects to the Concept2 Logbook API to sync your workout history and display training analytics: volume trends, pace tracking, personal bests, and fitness modelling. Build and track training plans — schedule sessions on a calendar or start a ready-made multi-week program like [The Pete Plan](https://thepeteplan.wordpress.com/the-pete-plan/) — with adherence tracked automatically against your synced workouts. Try the [live demo](https://ergdash.com/demo/), loaded with a season of sample data.
 
 ![ErgDash dashboard](.github/screenshot.png)
 
@@ -24,6 +24,7 @@ ErgDash connects to the Concept2 Logbook API to sync your workout history and di
 - **Result correction:** Edit distance/time/HR/drag/rate on any workout; corrections to synced workouts are tracked per-field, survive future syncs, and can be reverted to the Concept2 values at any time. Manual and imported workouts can be deleted
 - **Goals & Targets:** Weekly/monthly/season/annual volume goals overlaid on the dashboard, plus performance targets per benchmark distance compared against current PBs and trend-based race predictions, with an optional race-day countdown
 - **Plan:** Month calendar to schedule future sessions (type, target distance/duration, pace, rate, notes) with interval structure (e.g. 4×2000m / 5:00r), common-session presets, and weekly repeat; synced workouts auto-match same-day plans with manual link/unlink, missed days are flagged, and a Progress chart tracks plan adherence over time
+- **Programs:** Start a ready-made multi-week training program in one click — including **The Pete Plan**, Beginner Pete Plan, 2k Race Prep, and Marathon Build — which schedules every session for you; track a week-by-week completed/missed view, pause and resume, shift the whole schedule, or edit training days and future sessions remap automatically
 - **Progress:** Fitness (CTL/ATL/TSB), pace trend, power-duration curve with 90-day ghost, time-in-zone and polarization stacks, efficiency (watts/beat), distance per stroke, stroke quality, HR drift, cumulative metres race line, drag factor timeline, PB progression, fade fingerprint, all in an editable layout
 - **Tools:** Pace / watts / cal-per-hour converter, a Concept2 weight-adjusted score calculator, and a race plan builder with even, negative, and aggressive pacing strategies
 - **HR Zones:** Five configurable zones in Settings (% of max HR), estimated from observed data until set
