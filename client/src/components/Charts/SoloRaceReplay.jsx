@@ -8,7 +8,10 @@ import styles from './RaceReplay.module.css';
 // a previous personal best at the distance, or a pace the user types in.
 export default function SoloRaceReplay({ workout, formatPace }) {
   const [kind, setKind] = useState('even');
-  const [customPace, setCustomPace] = useState(() => formatPace(workout.pace_ms));
+  // The "/500m" target input is always a pace, so seed and parse it in
+  // canonical m:ss.s regardless of the user's display units (formatPace can
+  // emit watts or Cal/hr). formatPace stays for the read-only stat readouts.
+  const [customPace, setCustomPace] = useState(() => formatPaceMs(workout.pace_ms));
   const [pb, setPb] = useState(null);
   const lastCustomMs = useRef(workout.pace_ms);
 
@@ -108,6 +111,16 @@ function parsePaceToMs(value) {
 function formatMs(ms) {
   const seconds = Math.round(ms / 1000);
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+}
+
+// Canonical pace per 500m (m:ss.s), unit-independent - mirrors the pace branch
+// of UnitsContext.formatPace so a round-trip through parsePaceToMs is stable.
+function formatPaceMs(ms) {
+  if (!(ms > 0)) return '';
+  const totalSeconds = ms / 1000;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toFixed(1).padStart(4, '0')}`;
 }
 
 function formatDate(date) {
