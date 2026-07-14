@@ -5,9 +5,9 @@ import styles from './CoachCard.module.css';
 // A weekly headline status, derived purely from the insight kinds already on
 // screen — no new data. Amber = easing/fatigued, olive = building, grey = steady.
 const STATUS = {
-  easing: { label: 'Easing off', note: 'Volume down, form fresh — a good test window.', tone: 'warn' },
+  easing: { label: 'Easing off', note: 'Volume down, form fresh. A good test window.', tone: 'warn' },
   building: { label: 'Building', note: 'Volume and fitness are trending up.', tone: 'pos' },
-  fatigued: { label: 'Fatigued', note: 'Fatigue is elevated — favour easy sessions.', tone: 'warn' },
+  fatigued: { label: 'Fatigued', note: 'Fatigue is elevated. Favour easy sessions.', tone: 'warn' },
   steady: { label: 'Steady', note: 'Training is landing well this week.', tone: 'neu' },
 };
 
