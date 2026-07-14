@@ -619,6 +619,11 @@ export function buildSoloRacePlayback(workout, opponent = {}) {
   };
 }
 
+// Finish detection tolerates a millisecond of slop: the scrubber rounds its
+// value, so an exact `>=` against a float finish time can miss the end of a
+// tie race by an epsilon.
+const FINISH_EPS_S = 1e-3;
+
 export function sampleRacePlayback(playback, raceT) {
   const boats = playback.boats.map(({ track, finish_s }) => {
     const clamped = Math.min(Math.max(raceT, 0), finish_s);
@@ -633,14 +638,14 @@ export function sampleRacePlayback(playback, raceT) {
       pace_ms: windowMean(track.paces, index),
       stroke_rate: windowMean(track.rates, index),
       heart_rate: windowMean(track.hrs, index),
-      finished: raceT >= finish_s,
+      finished: raceT >= finish_s - FINISH_EPS_S,
       finish_s,
     };
   });
   return {
     boats,
     gap_m: boats[0].distance_m - boats[1].distance_m,
-    complete: raceT >= playback.duration_s,
+    complete: raceT >= playback.duration_s - FINISH_EPS_S,
   };
 }
 

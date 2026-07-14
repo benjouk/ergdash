@@ -264,6 +264,15 @@ describe('solo race playback', () => {
     expect(buildSoloRacePlayback(workout(), {})).toBeNull();
     expect(buildSoloRacePlayback(workout({ strokes: [] }), { paceMs: 120000 })).toBeNull();
   });
+
+  it('reports complete when scrubbed to a float-rounded end of a tie race', () => {
+    const playback = buildSoloRacePlayback(workout(), { paceMs: 120000 });
+    // A scrubber rounds duration_s (e.g. 456.0000001) down a hair; the race
+    // must still read as finished rather than one epsilon short.
+    const scrubbed = Number(String(playback.duration_s).slice(0, 8));
+    expect(sampleRacePlayback(playback, scrubbed).complete).toBe(true);
+    expect(sampleRacePlayback(playback, playback.duration_s).boats.every(b => b.finished)).toBe(true);
+  });
 });
 
 describe('comparisonMetricCards', () => {

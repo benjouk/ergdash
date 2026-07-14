@@ -10,7 +10,7 @@ const SPEEDS = [15, 30, 60, 120, 240];
 // laneOne/laneTwo are { label, chip }; resultText and subControls let the solo
 // (single-session vs pace boat) caller reword the outcome and add an opponent
 // picker without duplicating the animation machinery.
-export default function RaceReplay({ playback, laneOne, laneTwo, formatPace, resultText, subControls }) {
+export default function RaceReplay({ playback, laneOne, laneTwo, formatPace, resultText, subControls, photoFinishBand = 0.1 }) {
   const defaultSpeed = useMemo(
     () => SPEEDS.find(speed => playback.duration_s / speed <= 45) || SPEEDS[SPEEDS.length - 1],
     [playback],
@@ -54,15 +54,19 @@ export default function RaceReplay({ playback, laneOne, laneTwo, formatPace, res
   }, [playback]);
 
   const frame = useMemo(() => sampleRacePlayback(playback, raceT), [playback, raceT]);
-  const atEnd = raceT >= playback.duration_s;
+  const atEnd = raceT >= playback.duration_s - 1e-3;
   const finishGapS = Math.abs(playback.boats[0].finish_s - playback.boats[1].finish_s);
   const winnerIsOne = playback.boats[0].finish_s <= playback.boats[1].finish_s;
-  const tie = finishGapS < 0.1;
+  // A dead heat is essentially zero; a photo finish is any margin too close to
+  // call at this precision (the band widens for solo pace-boat races, where the
+  // typed pace can only differ from your own by rounding).
+  const tie = finishGapS < 0.05;
+  const photoFinish = finishGapS < photoFinishBand;
   const winnerLabel = winnerIsOne ? laneOne.label : laneTwo.label;
   const leaderLabel = Math.abs(frame.gap_m) < 1 ? null : frame.gap_m > 0 ? laneOne.label : laneTwo.label;
   const resultLabel = resultText
-    ? resultText({ winnerIsOne, gapS: finishGapS, tie })
-    : tie ? 'Dead heat' : `${winnerLabel} wins by ${finishGapS.toFixed(1)}s`;
+    ? resultText({ winnerIsOne, gapS: finishGapS, tie, photoFinish })
+    : photoFinish ? 'Photo finish' : `${winnerLabel} wins by ${finishGapS.toFixed(1)}s`;
 
   const togglePlay = () => {
     if (atEnd) {

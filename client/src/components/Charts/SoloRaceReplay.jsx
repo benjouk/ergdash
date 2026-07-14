@@ -44,8 +44,11 @@ export default function SoloRaceReplay({ workout, formatPace }) {
   if (!playback) return null;
 
   const oppShort = kind === 'pb' && pbRaceable ? 'your PB' : kind === 'custom' ? 'target' : 'even pace';
-  const resultText = ({ winnerIsOne, gapS, tie }) => {
-    if (kind === 'even' || tie) return kind === 'even' ? 'Matched your even split' : 'Dead heat';
+  const resultText = ({ winnerIsOne, gapS, photoFinish }) => {
+    if (kind === 'even') return 'Matched your even split';
+    // Keep the exact margin visible, but frame a sub-second gap as the photo
+    // finish it is - typing your own (rounded) pace can only differ by a hair.
+    if (photoFinish) return `Photo finish · ${winnerIsOne ? 'you' : oppShort} by ${gapS.toFixed(1)}s`;
     return winnerIsOne ? `You beat ${oppShort} by ${gapS.toFixed(1)}s` : `${oppShort} beat you by ${gapS.toFixed(1)}s`;
   };
 
@@ -88,6 +91,7 @@ export default function SoloRaceReplay({ workout, formatPace }) {
       formatPace={formatPace}
       resultText={resultText}
       subControls={subControls}
+      photoFinishBand={0.5}
     />
   );
 }
