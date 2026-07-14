@@ -1,0 +1,256 @@
+.card {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-5);
+  border-bottom: 1px solid var(--rule);
+  flex-wrap: wrap;
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-display);
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: var(--ink-2);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.title::before {
+  content: '';
+  width: 14px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.clock {
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.scrub {
+  width: 160px;
+  accent-color: var(--accent);
+}
+
+.controlButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 5px 9px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  color: var(--ink-2);
+  font-size: 0.72rem;
+  background: var(--surface);
+}
+
+.controlButton:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.playButton {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* Course */
+.course {
+  position: relative;
+  padding: var(--space-5) var(--space-5) var(--space-3);
+}
+
+.markers {
+  position: absolute;
+  inset: 0 var(--space-5);
+  pointer-events: none;
+}
+
+.marker {
+  position: absolute;
+  top: var(--space-2);
+  bottom: var(--space-2);
+  border-left: 1px dashed var(--rule);
+}
+
+.marker span {
+  position: absolute;
+  top: -4px;
+  left: 4px;
+  color: var(--ink-3);
+  font-size: 0.6rem;
+  font-family: var(--font-mono);
+}
+
+.finishLine {
+  position: absolute;
+  top: var(--space-4);
+  bottom: var(--space-3);
+  right: var(--space-5);
+  border-left: 3px double var(--ink-3);
+}
+
+.lane {
+  position: relative;
+  padding: var(--space-3) 0 var(--space-2);
+}
+
+.laneLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--ink-2);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.laneChip,
+.finishChip {
+  font-size: 0.6rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-3);
+  background: var(--surface-alt);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  padding: 0 5px;
+}
+
+.finishChip {
+  font-family: var(--font-mono);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.water {
+  position: relative;
+  height: 26px;
+  margin-top: var(--space-1);
+  border-bottom: 1px solid var(--rule);
+}
+
+.wake {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  height: 2px;
+  transform: translateY(-50%);
+  border-radius: 2px;
+  opacity: 0.35;
+}
+
+.boat {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  line-height: 0;
+}
+
+.laneOne .wake { background: var(--accent-2); }
+.laneOne .boat path { fill: var(--accent-2); }
+.laneTwo .wake { background: var(--accent); }
+.laneTwo .boat path { fill: var(--accent); }
+
+/* Stats strip */
+.statsRow {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-5) var(--space-4);
+  border-top: 1px solid var(--rule);
+}
+
+.boatStats {
+  display: flex;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.boatStatsRight {
+  justify-content: flex-end;
+}
+
+.boatStats div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.boatStats span {
+  color: var(--ink-3);
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.boatStats strong {
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.raceStatus {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  text-align: center;
+  min-width: 160px;
+}
+
+.statusLabel {
+  color: var(--ink-3);
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.raceStatus strong {
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+}
+
+@media (max-width: 768px) {
+  .statsRow {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+
+  .boatStatsRight {
+    justify-content: center;
+  }
+
+  .scrub {
+    width: 110px;
+  }
+}

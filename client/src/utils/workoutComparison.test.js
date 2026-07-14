@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  buildComparisonSplits, buildComparisonSummary, buildMetricSeries,
-  comparisonMetricCards, normalizeComparisonWorkout,
+  buildComparisonSplits, buildComparisonSummary, buildMetricSeries, buildRacePlayback,
+  comparisonMetricCards, normalizeComparisonWorkout, sampleRacePlayback,
 } from './workoutComparison.js';
 
 const workout = (overrides = {}) => ({
@@ -168,6 +168,48 @@ describe('workout comparison analysis', () => {
     expect(summary.effort).not.toContain('—');
     const slower = buildComparisonSummary(workout({ pace_ms: 122000, heart_rate_avg: 150 }), workout(), { level: 'exact', axis: 'distance' }, []);
     expect(slower.effort).not.toContain('improved efficiency');
+  });
+});
+
+describe('race replay playback', () => {
+  it('races both boats over the shared distance on the session clocks', () => {
+    // Boat 1 rows 2:00/500 (24s per 100m stroke), boat 2 rows 2:05/500 (25s)
+    const playback = buildRacePlayback(workout(), workout({ strokes: strokesAtPace(125000) }));
+    expect(playback).not.toBeNull();
+    expect(playback.distance).toBeCloseTo(1900);
+    expect(playback.boats[0].finish_s).toBeCloseTo(456);
+    expect(playback.boats[1].finish_s).toBeCloseTo(475);
+    expect(playback.duration_s).toBeCloseTo(475);
+
+    const start = sampleRacePlayback(playback, 0);
+    expect(start.boats[0].distance_m).toBe(0);
+    expect(start.boats[1].distance_m).toBe(0);
+
+    const mid = sampleRacePlayback(playback, 100);
+    expect(mid.boats[0].distance_m).toBeCloseTo(100 / 24 * 100, 0);
+    expect(mid.boats[1].distance_m).toBeCloseTo(400, 0);
+    expect(mid.gap_m).toBeGreaterThan(0); // this session leads
+
+    const end = sampleRacePlayback(playback, playback.duration_s);
+    expect(end.complete).toBe(true);
+    expect(end.boats[0].finished).toBe(true);
+    expect(end.boats[0].distance_m).toBeCloseTo(1900);
+    expect(end.boats[1].distance_m).toBeCloseTo(1900);
+  });
+
+  it('races the scored piece of an odometer-contaminated recording', () => {
+    const playback = buildRacePlayback(odometerWorkout(), workout());
+    expect(playback).not.toBeNull();
+    expect(playback.distance).toBeLessThanOrEqual(2000);
+    // Piece pace is 2:00/500 for both, so finish times are close, and the
+    // contaminated boat must not spend its opening metres at warmup pace.
+    const early = sampleRacePlayback(playback, 60);
+    expect(early.boats[0].pace_ms).toBeCloseTo(120000, -3);
+  });
+
+  it('declines to race unlike distances or workouts without strokes', () => {
+    expect(buildRacePlayback(workout(), workout({ distance: 5000, strokes: Array.from({ length: 20 }, (_, index) => ({ distance_m: index * 250, time_s: index * 60, pace_ms: 120000 })) }))).toBeNull();
+    expect(buildRacePlayback(workout(), workout({ strokes: [] }))).toBeNull();
   });
 });
 

@@ -7,9 +7,10 @@ import { ArrowLeft, ArrowLeftRight, ChevronsUpDown, Info } from 'lucide-react';
 import { useUnits } from '../../context/UnitsContext.jsx';
 import { AXIS_TICK } from '../../styles/chartTheme.js';
 import {
-  buildComparisonSplits, buildComparisonSummary, buildMetricSeries,
+  buildComparisonSplits, buildComparisonSummary, buildMetricSeries, buildRacePlayback,
   comparisonMetricCards, COMPARISON_METRICS,
 } from '../../utils/workoutComparison.js';
+import RaceReplay from './RaceReplay.jsx';
 import styles from './ComparisonOverlay.module.css';
 
 export default function ComparisonOverlay({ workout1, workout2, match = {}, onBack, onChange, onSwap }) {
@@ -32,6 +33,7 @@ export default function ComparisonOverlay({ workout1, workout2, match = {}, onBa
         : { ...point, deltaGood: 0, deltaBad: point.delta });
   }, [series, betterDelta]);
   const showGap = splits.some(row => row.gap_s != null);
+  const racePlayback = useMemo(() => buildRacePlayback(workout1, workout2), [workout1, workout2]);
   const date1 = formatDate(workout1.date);
   const date2 = formatDate(workout2.date);
   const formatMetric = value => metric === 'pace' ? formatPace(value) : value == null ? '—' : Math.round(value);
@@ -89,6 +91,10 @@ export default function ComparisonOverlay({ workout1, workout2, match = {}, onBa
             </div>
           ))}
         </div>
+      )}
+
+      {racePlayback && (
+        <RaceReplay playback={racePlayback} date1={date1} date2={date2} formatPace={formatPace} />
       )}
 
       <section className={styles.card}>

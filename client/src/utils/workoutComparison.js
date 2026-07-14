@@ -456,6 +456,122 @@ export function buildComparisonSummary(workout1, workout2, match, splits = []) {
   return { headline, paceDelta, where, effort, pacing: buildPacingInsight(workout1, workout2) };
 }
 
+// --- Race replay --------------------------------------------------------------
+// A head-to-head playback of the two sessions: boat position is interpolated
+// from the normalized stroke stream, so both boats race the scored piece on a
+// shared clock regardless of what the raw recordings contained.
+
+function interpolateSeries(xs, ys, x) {
+  const n = xs.length;
+  if (x <= xs[0]) return ys[0];
+  if (x >= xs[n - 1]) return ys[n - 1];
+  let lo = 0;
+  let hi = n - 1;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (xs[mid] <= x) lo = mid; else hi = mid;
+  }
+  const span = xs[hi] - xs[lo];
+  const ratio = span > 0 ? (x - xs[lo]) / span : 0;
+  return ys[lo] + (ys[hi] - ys[lo]) * ratio;
+}
+
+function indexAtTime(times, t) {
+  let lo = 0;
+  let hi = times.length - 1;
+  if (t <= times[0]) return 0;
+  if (t >= times[hi]) return hi;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (times[mid] <= t) lo = mid; else hi = mid;
+  }
+  return lo;
+}
+
+// Trailing mean so the live readouts don't flicker stroke to stroke.
+function windowMean(values, endIndex, size = 5) {
+  const window = values.slice(Math.max(0, endIndex - size + 1), endIndex + 1)
+    .filter(value => value != null);
+  return window.length ? window.reduce((sum, value) => sum + value, 0) / window.length : null;
+}
+
+function raceTrack(workout) {
+  const strokes = (workout?.strokes || []);
+  const times = [];
+  const dists = [];
+  const paces = [];
+  const rates = [];
+  const hrs = [];
+  let lastTime = -Infinity;
+  let lastDist = -Infinity;
+  for (const stroke of strokes) {
+    const time = Number(stroke?.time_s);
+    const dist = Number(stroke?.distance_m);
+    if (!Number.isFinite(time) || !Number.isFinite(dist)) continue;
+    if (time <= lastTime || dist < lastDist) continue;
+    times.push(time);
+    dists.push(dist);
+    paces.push(validNumber(stroke.pace_ms) ? Number(stroke.pace_ms) : null);
+    rates.push(validNumber(stroke.stroke_rate) ? Number(stroke.stroke_rate) : null);
+    hrs.push(validNumber(stroke.heart_rate) ? Number(stroke.heart_rate) : null);
+    lastTime = time;
+    lastDist = dist;
+  }
+  if (times.length < 8) return null;
+  const distance = dists[dists.length - 1] - dists[0];
+  if (!(distance > 0)) return null;
+  return { times, dists, paces, rates, hrs, distance };
+}
+
+function timeAtDistance(track, distance) {
+  return interpolateSeries(track.dists, track.times, track.dists[0] + distance) - track.times[0];
+}
+
+export function buildRacePlayback(workout1, workout2) {
+  const track1 = raceTrack(normalizeComparisonWorkout(workout1));
+  const track2 = raceTrack(normalizeComparisonWorkout(workout2));
+  if (!track1 || !track2) return null;
+  // Racing only makes sense over (near) equal ground.
+  if (Math.abs(track1.distance - track2.distance) > Math.max(track1.distance, track2.distance) * 0.05) return null;
+  const distance = Math.min(track1.distance, track2.distance);
+  const finish1 = timeAtDistance(track1, distance);
+  const finish2 = timeAtDistance(track2, distance);
+  if (!(finish1 > 0) || !(finish2 > 0)) return null;
+  return {
+    distance,
+    duration_s: Math.max(finish1, finish2),
+    boats: [
+      { track: track1, finish_s: finish1 },
+      { track: track2, finish_s: finish2 },
+    ],
+  };
+}
+
+export function sampleRacePlayback(playback, raceT) {
+  const boats = playback.boats.map(({ track, finish_s }) => {
+    const clamped = Math.min(Math.max(raceT, 0), finish_s);
+    const absTime = track.times[0] + clamped;
+    const distance = Math.min(
+      interpolateSeries(track.times, track.dists, absTime) - track.dists[0],
+      playback.distance,
+    );
+    const index = indexAtTime(track.times, absTime);
+    return {
+      distance_m: distance,
+      pace_ms: windowMean(track.paces, index),
+      stroke_rate: windowMean(track.rates, index),
+      heart_rate: windowMean(track.hrs, index),
+      finished: raceT >= finish_s,
+      finish_s,
+    };
+  });
+  return {
+    boats,
+    gap_m: boats[0].distance_m - boats[1].distance_m,
+    complete: raceT >= playback.duration_s,
+  };
+}
+
 // --- Metric tiles -------------------------------------------------------------
 
 export function comparisonMetricCards(workout1, workout2) {
