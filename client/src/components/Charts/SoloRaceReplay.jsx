@@ -22,9 +22,15 @@ export default function SoloRaceReplay({ workout, formatPace }) {
     api.getPersonalBests()
       .then(data => {
         if (!active) return;
-        const match = (data.personal_bests || []).find(
-          entry => entry.distance === workout.distance && entry.tag === tag,
-        );
+        // Match on the nearest same-tag PB rather than an exact metre count: a
+        // monitor records a couple of metres past the scored line, so a "2k" row
+        // often stores 2,006m and would never equal the 2,000m PB. Standard PB
+        // distances sit >=2x apart, so a 5% window (the same 1,900-2,100m band
+        // the Workouts filter calls a 2k) resolves the distance without ever
+        // conflating 1k/2k/5k.
+        const match = (data.personal_bests || [])
+          .filter(entry => entry.tag === tag && isNearDistance(entry.distance, workout.distance))
+          .sort((a, b) => Math.abs(a.distance - workout.distance) - Math.abs(b.distance - workout.distance))[0];
         setPb(match || null);
       })
       .catch(() => {});
@@ -65,7 +71,7 @@ export default function SoloRaceReplay({ workout, formatPace }) {
           className={kind === 'pb' ? styles.segmentActive : ''}
           onClick={() => setKind('pb')}
           disabled={!pbRaceable}
-          title={pbRaceable ? `Previous best: ${formatMs(pb.time_ms)}` : pb ? 'This session is your PB' : 'No previous best at this distance'}
+          title={pbRaceable ? `Previous best: ${formatMs(pb.time_ms)}` : pb ? 'This session is your PB - nothing to chase' : 'No personal best at this distance yet'}
         >
           PB
         </button>
@@ -97,6 +103,14 @@ export default function SoloRaceReplay({ workout, formatPace }) {
       photoFinishBand={0.5}
     />
   );
+}
+
+// True when a session sits within 5% of a standard PB distance - enough to
+// absorb the few metres a monitor logs past the line, tight enough to keep the
+// widely spaced standard distances (500/1k/2k/5k/...) from ever overlapping.
+export function isNearDistance(pbDistance, sessionDistance) {
+  if (!(pbDistance > 0) || !(sessionDistance > 0)) return false;
+  return Math.abs(pbDistance - sessionDistance) <= pbDistance * 0.05;
 }
 
 function parsePaceToMs(value) {
