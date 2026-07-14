@@ -413,6 +413,8 @@ function formatWorkout(row, intervalSummary = null) {
     date: row.date,
     type: row.type,
     workout_type: row.workout_type,
+    raw_workout_type: row.raw_workout_type ?? null,
+    workout_type_source: row.workout_type_source ?? null,
     inferred_tag: normalizeWorkoutTag(row.inferred_tag),
     interval_summary: intervalSummary,
     distance: row.distance,

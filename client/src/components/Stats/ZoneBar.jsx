@@ -4,10 +4,16 @@ import styles from './ZoneBar.module.css';
 
 const ZONE_NAMES = ['Recovery', 'Endurance', 'Moderate', 'Threshold', 'Max'];
 
-function formatDuration(seconds) {
-  const mins = Math.round(seconds / 60);
-  if (mins < 60) return `${mins}m`;
-  return `${Math.floor(mins / 60)}h ${mins % 60}m`;
+// mm:ss (h:mm:ss past an hour). Whole-minute rounding hid short zones entirely —
+// a 20s zone showed "0m" — which matters most for short sessions.
+export function formatDuration(seconds) {
+  const total = Math.max(0, Math.round(seconds));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const ss = String(s).padStart(2, '0');
+  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${ss}`;
+  return `${m}:${ss}`;
 }
 
 // Proportional five-segment strip of a session's time in each HR zone.

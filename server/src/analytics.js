@@ -10,7 +10,7 @@ import {
   bestEfforts,
 } from './strokeMetrics.js';
 import { getZoneModel, zoneForHr } from './hrZones.js';
-import { isIntervalWorkoutType } from './workoutTypes.js';
+import { isIntervalWorkoutType, isContinuousWorkoutType, workoutSubtype } from './workoutTypes.js';
 
 export const BEST_EFFORT_DURATIONS = [60, 240, 600, 1800, 3600];
 
@@ -403,19 +403,43 @@ export function computeWeekStreak(db, profileId) {
   return streak;
 }
 
-export function inferWorkoutTag(workout) {
+// Classifies a workout's *structure* (how the session was shaped), independent
+// of training intensity or intent. This is the source of truth; inferWorkoutTag()
+// below is a thin legacy wrapper over it.
+//   value:   'continuous' | 'interval' | 'unknown'
+//   subtype: session format (fixed_distance/fixed_time/.../variable/unknown)
+//   reasons: human-readable basis for the classification
+export function inferWorkoutStructure(workout) {
   const db = getDb();
   const restCount = db.prepare(
     "SELECT COUNT(*) as count FROM intervals WHERE workout_id = ? AND type = 'rest'"
   ).get(workout.id)?.count || 0;
 
   const hasRest = restCount > 0 || workout.rest_time_ms > 0 || workout.rest_distance > 0;
+  const workoutType = workout.workout_type;
+  const subtype = workoutSubtype(workoutType);
+  const result = (value, reasons) => ({ value, subtype, source: 'inferred', confidence: value === 'unknown' ? 0.5 : 1, reasons });
 
-  if (hasRest || isIntervalWorkoutType(workout.workout_type)) {
-    return 'interval';
+  // Rest evidence takes precedence over a non-interval workout type: a
+  // FixedDistanceSplits piece with real rest periods is still an interval.
+  if (hasRest) {
+    return result('interval', [restCount > 0 ? 'Rest interval detected' : 'Rest time or distance was recorded']);
   }
+  if (isIntervalWorkoutType(workoutType)) {
+    return result('interval', [`Concept2 workout type is ${workoutType}`]);
+  }
+  if (isContinuousWorkoutType(workoutType)) {
+    return result('continuous', [`Concept2 workout type is ${workoutType}`, 'No rest periods were detected']);
+  }
+  return result('unknown', ['Workout type is unknown or unsupported and no rest was detected']);
+}
 
-  return 'endurance';
+// Legacy structural label kept for backward compatibility and still persisted to
+// the workouts.inferred_tag column. `endurance` here means only "continuous
+// structure" (no detected rest / non-interval type) — it is NOT a training
+// intensity label. New code should call inferWorkoutStructure() instead.
+export function inferWorkoutTag(workout) {
+  return inferWorkoutStructure(workout).value === 'interval' ? 'interval' : 'endurance';
 }
 
 export function tagAllWorkouts(profileId) {

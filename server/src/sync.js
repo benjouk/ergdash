@@ -239,7 +239,12 @@ export function c2ColumnValues(workout) {
     date: workout.date ?? null,
     timezone: workout.timezone ?? null,
     type: workout.type || 'rower',
+    // Keep the historical normalized value, but record provenance: when Concept2
+    // omits the type we still fall back to FixedDistanceSplits, now flagged so it
+    // isn't mistaken for a value Concept2 actually supplied.
     workout_type: workout.workout_type || 'FixedDistanceSplits',
+    raw_workout_type: workout.workout_type ?? null,
+    workout_type_source: workout.workout_type ? 'concept2' : 'fallback',
     distance: workout.distance ?? null,
     time_ms: timeMs,
     stroke_rate: workout.stroke_rate ?? null,
@@ -322,17 +327,20 @@ export function insertWorkout(db, workout, profileId) {
   db.prepare(`
     INSERT INTO workouts (
       id, profile_id, user_id, date, timezone, type, workout_type,
+      raw_workout_type, workout_type_source,
       distance, time_ms, pace_ms, stroke_rate, stroke_count,
       calories, heart_rate_avg, heart_rate_max, drag_factor,
       comments, rest_distance, rest_time_ms, raw_json, synced_at
     ) VALUES (
       ?, ?, ?, ?, ?, ?, ?,
+      ?, ?,
       ?, ?, ?, ?, ?,
       ?, ?, ?, ?,
       ?, ?, ?, ?, datetime('now')
     )
   `).run(
     workout.id, profileId, cols.user_id, cols.date, cols.timezone, cols.type, cols.workout_type,
+    cols.raw_workout_type, cols.workout_type_source,
     cols.distance, cols.time_ms, paceMs, cols.stroke_rate, cols.stroke_count,
     cols.calories, cols.heart_rate_avg, cols.heart_rate_max, cols.drag_factor,
     cols.comments, cols.rest_distance, cols.rest_time_ms, rawJson,
