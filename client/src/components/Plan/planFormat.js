@@ -1,6 +1,6 @@
 // Shared Plan-view helpers: session summaries, the add/edit form shape, and
 // form<->payload marshalling. Interval totals are intentionally NOT derived
-// here — the server owns that (deriveIntervalTotals / mergeIntervalPatch in
+// here - the server owns that (deriveIntervalTotals / mergeIntervalPatch in
 // server/src/routes/plans.js), so the client just sends the raw interval spec.
 import {
   parsePaceInput, parseTimeInput, formatPaceSeconds, formatDuration,
@@ -109,7 +109,7 @@ export function formFromPlan(plan) {
 
 // Turn form fields into an API payload. Returns { payload, error }; error is a
 // user-facing string when the form is incomplete. Does not derive interval
-// totals — the server recomputes those from the interval spec.
+// totals - the server recomputes those from the interval spec.
 export function formToPayload(form) {
   const payload = { type: form.type };
 

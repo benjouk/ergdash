@@ -72,7 +72,7 @@
   color: var(--ink-3);
 }
 
-/* Insight lines — two columns on wide, one column when cramped */
+/* Insight lines - two columns on wide, one column when cramped */
 .list {
   list-style: none;
   margin: 0;
@@ -101,7 +101,7 @@
   background: var(--ink-3);
 }
 
-/* Bright accent is earned — only genuine progress gets the olive dot. */
+/* Bright accent is earned - only genuine progress gets the olive dot. */
 .positive .dot {
   background: var(--accent);
 }

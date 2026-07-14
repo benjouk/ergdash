@@ -237,7 +237,7 @@ export function zoneTimes(strokes = [], bounds = []) {
 }
 
 // Best sustained average watts over each duration window, via prefix sums of
-// time-weighted power and a two-pointer sweep — O(n) per duration.
+// time-weighted power and a two-pointer sweep - O(n) per duration.
 export function bestEfforts(strokes = [], durations = []) {
   const points = strokes
     .map(s => ({ t: s?.time_s, w: s ? strokeWatts(s) : null }))

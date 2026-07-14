@@ -54,7 +54,7 @@ function getPlan(db, id) {
 }
 
 // Weekly planned-vs-done series for the Progress adherence chart. Only
-// weeks up to today count — future plans aren't "missed" yet.
+// weeks up to today count - future plans aren't "missed" yet.
 router.get('/adherence', (req, res) => {
   const db = getDb();
   const weeks = Math.min(104, Math.max(1, Number(req.query.weeks) || 12));
@@ -168,7 +168,7 @@ function validatePlanBody(body, { partial = false } = {}) {
   return { errors, fields };
 }
 
-// An interval plan implies its own totals (work only — rest doesn't count
+// An interval plan implies its own totals (work only - rest doesn't count
 // toward target meters), so a "4×2000m" plan matches an 8000m interval
 // workout without the caller having to do the multiplication.
 export function deriveIntervalTotals(fields) {
@@ -215,7 +215,7 @@ export function mergeIntervalPatch(existing, fields) {
 export const MAX_REPEAT_WEEKS = 25;
 
 // Weekly recurrence: the plan's date plus N more weekly occurrences. Each
-// occurrence becomes an independent row — no recurrence entity to manage,
+// occurrence becomes an independent row - no recurrence entity to manage,
 // and editing/deleting one never touches its siblings.
 export function expandRepeatDates(date, repeatWeeks) {
   const dates = [date];

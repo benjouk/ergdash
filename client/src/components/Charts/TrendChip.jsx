@@ -13,7 +13,7 @@ export function seriesDelta(rows, key) {
 // A consistent trend indicator for chart-card headers. `delta` is the signed
 // change over the shown range in the metric's own units; `betterWhenUp` says
 // which direction is an improvement. Colour follows the app-wide semantic
-// mapping — olive = improvement, amber = regression, grey = flat — using the
+// mapping - olive = improvement, amber = regression, grey = flat - using the
 // same chip tokens as the dashboard KPI chips. `children` is the pre-formatted
 // magnitude to show (e.g. "1.9", "2.8s").
 export default function TrendChip({ delta, betterWhenUp, children }) {

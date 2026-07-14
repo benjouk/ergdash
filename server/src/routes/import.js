@@ -1,7 +1,7 @@
 // File import: POST /preview parses an uploaded CSV/TCX/FIT file and returns
 // normalized workouts + duplicate analysis without writing anything; POST
 // /commit takes the (client-reviewed) rows back and writes them. The preview
-// is stateless — no staging table — so commit re-validates everything.
+// is stateless - no staging table - so commit re-validates everything.
 import express, { Router } from 'express';
 import { createHash } from 'crypto';
 import { getDb } from '../db.js';
@@ -60,7 +60,7 @@ router.post(
     }
     const format = detectFormat(req);
     if (!format) {
-      return res.status(400).json({ error: 'Unknown file format — expected .csv, .tcx or .fit' });
+      return res.status(400).json({ error: 'Unknown file format - expected .csv, .tcx or .fit' });
     }
 
     const filename = String(req.query.filename || `upload.${format}`);
@@ -193,7 +193,7 @@ router.post(
           created.push(insertNormalizedWorkout(db, normalized, fingerprint, req.profileId));
         } else {
           // Re-run duplicate detection rather than trusting the echoed
-          // target_id — merging must only ever hit the row this import
+          // target_id - merging must only ever hit the row this import
           // actually duplicates.
           const resolved = resolveMergeTarget(db, normalized, fingerprint, Number(row.target_id), req.profileId);
           if (resolved.error) {

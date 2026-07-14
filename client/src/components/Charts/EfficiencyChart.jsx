@@ -12,7 +12,7 @@ import styles from './Charts.module.css';
 
 const SMOOTH_WINDOW = 7;
 
-// Watts per heartbeat — the slow-moving "am I getting fitter?" line.
+// Watts per heartbeat - the slow-moving "am I getting fitter?" line.
 export default function EfficiencyChart() {
   const { from, to } = useTimeRange();
   const { data = [], loading, error, retry } = useChartData(() => {

@@ -61,7 +61,7 @@
   }
 }
 
-/* Tablet and below: feed sidebar disappears — Dashboard renders recent
+/* Tablet and below: feed sidebar disappears - Dashboard renders recent
    sessions inline instead. */
 @media (max-width: 1099px) {
   .feed {

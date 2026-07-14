@@ -47,7 +47,7 @@ export default function App() {
     if (!code) return;
     const messages = {
       logbook_in_use: 'That Concept2 account is already linked to another profile.',
-      wrong_account: 'That is a different Concept2 account than this profile uses — reconnect the original account, or add a new profile.',
+      wrong_account: 'That is a different Concept2 account than this profile uses - reconnect the original account, or add a new profile.',
       profile_not_found: 'That profile no longer exists.',
       auth_failed: 'Connecting to Concept2 failed. Please try again.',
     };
@@ -68,7 +68,7 @@ export default function App() {
   }
 
   // A valid session with no profiles (e.g. the last one was removed) has
-  // nothing to render — send them to Connect to add one rather than a shell
+  // nothing to render - send them to Connect to add one rather than a shell
   // of 409s.
   if (!isAuthenticated || (profiles && profiles.length === 0)) {
     return <Connect />;

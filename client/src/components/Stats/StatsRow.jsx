@@ -14,7 +14,7 @@ function formatRelative(dateStr) {
 }
 
 // Week-on-week volume change, as a delta chip. Down reads as caution (amber),
-// up as progress (olive) — matching the app's semantic colour mapping.
+// up as progress (olive) - matching the app's semantic colour mapping.
 function weekDeltaChip(summary) {
   const now = summary.weekly_meters;
   const prev = summary.prev_weekly_meters;

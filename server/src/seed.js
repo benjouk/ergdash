@@ -290,7 +290,7 @@ function seedGoals(db, profileId) {
 
 // A few weeks of plans around today: most past plans linked to the seeded
 // sessions they "predicted", a couple missed or skipped, and open plans for
-// the two weeks ahead — enough to exercise the Plan calendar and adherence.
+// the two weeks ahead - enough to exercise the Plan calendar and adherence.
 // A mid-flight Pete Plan so the dev/demo calendar shows a real program with
 // matched history. Seeded before the ad-hoc plans so it claims its own
 // completed sessions first.

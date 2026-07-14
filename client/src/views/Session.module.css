@@ -184,7 +184,7 @@
   flex-wrap: wrap;
 }
 
-/* Summary strip — same surface treatment as other cards, accent as a rule */
+/* Summary strip - same surface treatment as other cards, accent as a rule */
 .summaryStrip {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
@@ -237,7 +237,7 @@
   color: var(--accent);
 }
 
-/* Card — matches dashboard chartCard */
+/* Card - matches dashboard chartCard */
 .card {
   position: relative;
   background: var(--surface);

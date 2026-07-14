@@ -1,4 +1,4 @@
-// Centralized Recharts theming — all colors resolve through CSS variables so
+// Centralized Recharts theming - all colors resolve through CSS variables so
 // light/dark themes apply without re-rendering charts.
 
 export const AXIS_TICK = { fontSize: 11, fill: 'var(--ink-3)', fontFamily: 'var(--font-mono)' };
@@ -36,7 +36,7 @@ export const TOOLTIP_LABEL_STYLE = {
   marginBottom: 4,
 };
 
-// Spread onto Recharts <Tooltip {...TOOLTIP_PROPS} /> — Recharts identifies
+// Spread onto Recharts <Tooltip {...TOOLTIP_PROPS} /> - Recharts identifies
 // children by element type, so a wrapper component would not be detected.
 export const TOOLTIP_PROPS = {
   contentStyle: TOOLTIP_STYLE,

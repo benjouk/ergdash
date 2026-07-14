@@ -15,7 +15,7 @@ const TAG_COLORS = {
   interval: SERIES.secondary,
 };
 
-// Trailing sessions folded into the rolling-average line — enough to smooth
+// Trailing sessions folded into the rolling-average line - enough to smooth
 // session-to-session noise without lagging behind real trends.
 const SMOOTH_WINDOW = 7;
 

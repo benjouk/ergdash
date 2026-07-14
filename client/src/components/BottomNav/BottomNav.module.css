@@ -39,7 +39,7 @@
   color: var(--accent);
 }
 
-/* Speed rule — signature 3px accent bar on the active tab */
+/* Speed rule - signature 3px accent bar on the active tab */
 .itemActive::before {
   content: '';
   position: absolute;

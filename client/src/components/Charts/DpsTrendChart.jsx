@@ -17,7 +17,7 @@ const TAG_COLORS = {
   interval: SERIES.secondary,
 };
 
-// Per-session distance per stroke — a stroke-length proxy that surfaces
+// Per-session distance per stroke - a stroke-length proxy that surfaces
 // technique changes. Interval sessions naturally sit lower (higher rating,
 // shorter strokes), so dots are coloured by session type.
 export default function DpsTrendChart() {

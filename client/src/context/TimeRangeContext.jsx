@@ -6,7 +6,7 @@ const TimeRangeContext = createContext();
 
 // The period selector always opens on the saved default. It lives in account
 // settings (not localStorage) so a self-hosted user gets the same default
-// across every device. Until the setting loads — and on a fresh install — we
+// across every device. Until the setting loads - and on a fresh install - we
 // fall back to the last 30 days.
 const FALLBACK_DEFAULT_RANGE = '30d';
 

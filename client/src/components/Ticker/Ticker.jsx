@@ -35,7 +35,7 @@ export default function Ticker() {
   const [rangeMenuOpen, setRangeMenuOpen] = useState(false);
   const rangeMenuRef = useRef(null);
   const location = useLocation();
-  // A single session is a fixed slice of time — the global range selector has
+  // A single session is a fixed slice of time - the global range selector has
   // nothing to scope there, so it greys out rather than pretending to apply.
   const onSessionPage = location.pathname.startsWith('/session/');
 

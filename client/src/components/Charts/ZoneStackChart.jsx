@@ -60,7 +60,7 @@ export default function ZoneStackChart({ compact = false }) {
           {zoneModel.estimated && (
             <span
               className={styles.chartValueUnit}
-              title="Max HR estimated from observed data — set it in Settings"
+              title="Max HR estimated from observed data - set it in Settings"
             >
               est. max {zoneModel.max_hr}
             </span>

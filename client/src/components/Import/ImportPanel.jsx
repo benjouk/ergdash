@@ -136,7 +136,7 @@ export default function ImportPanel({ onImported, onClose }) {
           <div className={styles.previewHeader}>
             <strong>{preview.filename}</strong>
             <span className={styles.hint}>
-              {preview.workouts.length} workout{preview.workouts.length === 1 ? '' : 's'} found — review before saving
+              {preview.workouts.length} workout{preview.workouts.length === 1 ? '' : 's'} found - review before saving
             </span>
           </div>
 

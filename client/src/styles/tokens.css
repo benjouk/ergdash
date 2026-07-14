@@ -1,4 +1,4 @@
-/* IBM Plex Sans — variable weight axis (100–700), all UI text */
+/* IBM Plex Sans - variable weight axis (100–700), all UI text */
 @font-face {
   font-family: 'IBM Plex Sans';
   src: url('/fonts/IBMPlexSans-Variable.woff2') format('woff2');
@@ -6,7 +6,7 @@
   font-display: swap;
 }
 
-/* IBM Plex Mono — static weights 400/500/600, all numerals & data */
+/* IBM Plex Mono - static weights 400/500/600, all numerals & data */
 @font-face {
   font-family: 'IBM Plex Mono';
   src: url('/fonts/IBMPlexMono-400.woff2') format('woff2');
@@ -30,14 +30,14 @@
 
 /*
  * Breakpoints (used consistently across all modules):
- *   < 768px      mobile   — bottom nav, single column, compact 48px header
- *   768–1099px   tablet   — no feed sidebar, top nav
- *   >= 1100px    desktop  — ticker + feed sidebar + main
- *   >= 1600px    wide     — larger paddings, side-by-side charts
+ *   < 768px      mobile   - bottom nav, single column, compact 48px header
+ *   768–1099px   tablet   - no feed sidebar, top nav
+ *   >= 1100px    desktop  - ticker + feed sidebar + main
+ *   >= 1600px    wide     - larger paddings, side-by-side charts
  */
 
 :root {
-  /* Warm paper canvas — "instrument panel" light mode */
+  /* Warm paper canvas - "instrument panel" light mode */
   --bg: #F3F2EA;
   --bg-sidebar: #F0EFE6;
   --surface: #FFFFFF;
@@ -58,11 +58,11 @@
   --accent-2-bg: rgba(91, 132, 168, 0.10);
   --accent-3: #A8862E;
   --accent-3-bg: rgba(168, 134, 46, 0.1);
-  /* Text on accent-filled surfaces — olive is dark, so paper reads on it */
+  /* Text on accent-filled surfaces - olive is dark, so paper reads on it */
   --on-accent: #F5F5EE;
   --on-accent-dim: rgba(245, 245, 238, 0.72);
 
-  /* Semantic colors — olive/green = positive, amber = caution/behind,
+  /* Semantic colors - olive/green = positive, amber = caution/behind,
      red = missed/danger, blue = secondary session type */
   --positive: #4D6410;
   --positive-bg: #EEF2D8;
@@ -91,7 +91,7 @@
   --zone-4: #C08A4A;
   --zone-5: #B5525C;
 
-  /* Nav bar stays near-black in both themes — brand anchor. Chartreuse is the
+  /* Nav bar stays near-black in both themes - brand anchor. Chartreuse is the
      signature accent, reserved for the wordmark, active-tab rule, sync dot and
      avatar chip. */
   --ticker-bg: #15150D;
@@ -104,7 +104,7 @@
   --font-mono: 'IBM Plex Mono', ui-monospace, 'Fira Mono', monospace;
   --font-hero: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
 
-  /* Fluid type scale — compact */
+  /* Fluid type scale - compact */
   --text-xs: 0.68rem;
   --text-sm: 0.78rem;
   --text-base: 0.92rem;
@@ -153,7 +153,7 @@
   --rule: #272727;
 
   /* Quieter olive for data/positive; chartreuse stays nav-only. Green/olive is
-     reserved for values that are actually positive — neutral elements use gray. */
+     reserved for values that are actually positive - neutral elements use gray. */
   --accent: #AEC53F;
   --accent-bg: #232914;
   --accent-deep: #C9D93C;

@@ -204,7 +204,7 @@ export function computeAllZoneTimes(profileId) {
   }
 }
 
-// Full recompute — called when the zone model itself changes (max HR or
+// Full recompute - called when the zone model itself changes (max HR or
 // thresholds edited in Settings). Household data is small enough to do
 // synchronously.
 export function recomputeAllZoneTimes(profileId) {

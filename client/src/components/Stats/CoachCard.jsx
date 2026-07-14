@@ -3,7 +3,7 @@ import { useChartData } from '../Charts/useChartData.js';
 import styles from './CoachCard.module.css';
 
 // A weekly headline status, derived purely from the insight kinds already on
-// screen — no new data. Amber = easing/fatigued, olive = building, grey = steady.
+// screen - no new data. Amber = easing/fatigued, olive = building, grey = steady.
 const STATUS = {
   easing: { label: 'Easing off', note: 'Volume down, form fresh. A good test window.', tone: 'warn' },
   building: { label: 'Building', note: 'Volume and fitness are trending up.', tone: 'pos' },
@@ -28,7 +28,7 @@ export default function CoachCard() {
     [],
   );
 
-  // Stay quiet rather than showing an error card — this sits at the very top of
+  // Stay quiet rather than showing an error card - this sits at the very top of
   // the dashboard and shouldn't shout if the endpoint is unavailable.
   if (error) return null;
 

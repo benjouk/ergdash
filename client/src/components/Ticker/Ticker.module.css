@@ -246,7 +246,7 @@
   }
 }
 
-/* Mobile: compact 48px header — wordmark, headline stat, range, sync, theme.
+/* Mobile: compact 48px header - wordmark, headline stat, range, sync, theme.
    Navigation moves to the bottom nav. */
 @media (max-width: 767px) {
   .ticker {

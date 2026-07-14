@@ -141,7 +141,7 @@
   padding: var(--space-1) 0;
 }
 
-/* Trophy cards — volt-lime rule marks a best */
+/* Trophy cards - volt-lime rule marks a best */
 .pbCard {
   flex-shrink: 0;
   background: var(--surface);

@@ -57,7 +57,7 @@ export default function Workouts() {
   const [compareMode, setCompareMode] = useState(false);
   const [compareSelection, setCompareSelection] = useState([]);
   const [loadError, setLoadError] = useState('');
-  // 'add' | 'import' | null — which inline panel is open above the list.
+  // 'add' | 'import' | null - which inline panel is open above the list.
   const [panel, setPanel] = useState(null);
   const navigate = useNavigate();
   const { formatPace, formatDistanceFull, formatDistance, formatTime } = useUnits();
@@ -155,7 +155,7 @@ export default function Workouts() {
       const data = await api.getWorkouts(params);
       const rows = data.data || [];
       // An empty page means the server has nothing more regardless of what
-      // meta.total claims — bail rather than loop forever.
+      // meta.total claims - bail rather than loop forever.
       if (rows.length === 0) break;
       allRows = allRows.concat(rows);
       expectedTotal = data.meta?.total ?? allRows.length;
@@ -270,7 +270,7 @@ export default function Workouts() {
             className={styles.exportButton}
             aria-expanded={panel === 'add'}
             disabled={IS_DEMO}
-            title={IS_DEMO ? 'Demo mode — run ErgDash self-hosted to add workouts' : undefined}
+            title={IS_DEMO ? 'Demo mode - run ErgDash self-hosted to add workouts' : undefined}
           >
             <Plus size={14} /> Add
           </button>
@@ -279,7 +279,7 @@ export default function Workouts() {
             className={styles.exportButton}
             aria-expanded={panel === 'import'}
             disabled={IS_DEMO}
-            title={IS_DEMO ? 'Demo mode — run ErgDash self-hosted to import workout files' : undefined}
+            title={IS_DEMO ? 'Demo mode - run ErgDash self-hosted to import workout files' : undefined}
           >
             <Upload size={14} /> Import
           </button>

@@ -147,7 +147,7 @@ export function formToPayload(form) {
   return { payload, error: null };
 }
 
-// The subset of payload fields that differ from the stored workout — PATCH
+// The subset of payload fields that differ from the stored workout - PATCH
 // sends only these so edited_fields stays minimal on c2 rows.
 export function diffPayload(payload, workout) {
   const diff = {};

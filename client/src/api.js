@@ -95,7 +95,7 @@ export const api = {
   previewImport: (file, format) => uploadRaw(
     `/api/import/preview?format=${encodeURIComponent(format)}&filename=${encodeURIComponent(file.name)}`,
     file,
-    'Demo mode — run ErgDash self-hosted to import workout files',
+    'Demo mode - run ErgDash self-hosted to import workout files',
   ),
   commitImport: (payload) => request('/api/import/commit', {
     method: 'POST',
@@ -172,7 +172,7 @@ export const api = {
     body: JSON.stringify(data),
   }),
   resetSettings: () => request('/api/settings/reset', { method: 'POST' }),
-  restoreDatabase: (file) => uploadRaw('/api/admin/restore', file, 'Demo mode — run ErgDash self-hosted to restore a backup'),
+  restoreDatabase: (file) => uploadRaw('/api/admin/restore', file, 'Demo mode - run ErgDash self-hosted to restore a backup'),
   disconnectAccount: () => request('/api/admin/disconnect', { method: 'POST' }),
   wipeLocalData: () => request('/api/admin/wipe', { method: 'POST' }),
 };

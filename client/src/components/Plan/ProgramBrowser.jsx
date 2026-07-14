@@ -16,7 +16,7 @@ const isoToday = () => new Date().toISOString().slice(0, 10);
 const weekdayOf = (iso) => (new Date(Date.parse(iso)).getUTCDay() + 6) % 7;
 
 // The first date on/after `fromIso` that falls on the earliest training day
-// (sortedDays[0]) — the program always begins there so week 1 is a clean,
+// (sortedDays[0]) - the program always begins there so week 1 is a clean,
 // full cycle-week 1. `days` is kept sorted by the DayPicker.
 function firstTrainingDay(fromIso, days) {
   if (!days.length) return fromIso;
@@ -96,7 +96,7 @@ function StartProgramForm({ preset, onStarted }) {
   return (
     <form className={styles.form} onSubmit={submit}>
       <div className={styles.field}>
-        <span className={styles.fieldLabel}>Training days — pick {preset.sessionsPerWeek}</span>
+        <span className={styles.fieldLabel}>Training days - pick {preset.sessionsPerWeek}</span>
         <DayPicker value={days} onChange={setDaysAndSnap} weekStart={weekStart} max={preset.sessionsPerWeek} />
       </div>
 

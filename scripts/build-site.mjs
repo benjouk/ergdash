@@ -54,7 +54,7 @@ writeFileSync(demoIndex, demoHtml.replace('</head>', '  <meta name="robots" cont
 copyFileSync(join(demoOut, 'index.html'), join(demoOut, '200.htm'));
 
 if (!existsSync(join(distSite, '_redirects'))) {
-  throw new Error('_redirects missing from site/ — SPA routing for /demo will break');
+  throw new Error('_redirects missing from site/ - SPA routing for /demo will break');
 }
 
 console.log(`\nSite assembled at ${distSite}`);
