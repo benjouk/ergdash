@@ -78,16 +78,25 @@
   font-weight: 600;
 }
 
-/* Course */
+/* Course. The extra left padding leaves room for a boat hull sitting
+   behind the start line before the gun. */
 .course {
   position: relative;
-  padding: var(--space-5) var(--space-5) var(--space-3);
+  padding: var(--space-5) var(--space-5) var(--space-3) calc(var(--space-5) + 56px);
 }
 
 .markers {
   position: absolute;
-  inset: 0 var(--space-5);
+  inset: 0 var(--space-5) 0 calc(var(--space-5) + 56px);
   pointer-events: none;
+}
+
+.startLine {
+  position: absolute;
+  top: var(--space-4);
+  bottom: var(--space-3);
+  left: calc(var(--space-5) + 56px);
+  border-left: 1px solid var(--ink-3);
 }
 
 .marker {
@@ -164,10 +173,12 @@
   opacity: 0.35;
 }
 
+/* Bow sits exactly on the boat's position: on the start line before the
+   gun, on the finish line at the end - never across it. */
 .boat {
   position: absolute;
   top: 50%;
-  transform: translate(-50%, -50%);
+  transform: translate(-100%, -50%);
   line-height: 0;
 }
 

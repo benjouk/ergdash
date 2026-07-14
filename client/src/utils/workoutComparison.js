@@ -518,8 +518,37 @@ function raceTrack(workout) {
     lastDist = dist;
   }
   if (times.length < 8) return null;
-  const distance = dists[dists.length - 1] - dists[0];
+  let distance = dists[dists.length - 1] - dists[0];
   if (!(distance > 0)) return null;
+  // Stroke streams usually stop one stroke short of the scored distance;
+  // extend to the real finish at the closing speed so boats and readouts
+  // reach exactly workout.distance instead of e.g. 2,995m of a 3k.
+  const target = Number(workout.distance);
+  if (validNumber(target) && distance < target && distance >= target * 0.98) {
+    const n = dists.length;
+    const dd = dists[n - 1] - dists[n - 2];
+    const dt = times[n - 1] - times[n - 2];
+    if (dd > 0 && dt > 0) {
+      times.push(times[n - 1] + (target - distance) * (dt / dd));
+      dists.push(dists[0] + target);
+      paces.push(paces[n - 1]);
+      rates.push(rates[n - 1]);
+      hrs.push(hrs[n - 1]);
+      distance = target;
+    }
+  }
+  // Anchor the race clock to the official total: accumulated stroke timing
+  // drifts a few seconds from workout.time_ms, and the summary headline uses
+  // the official times, so the race margin must match them too.
+  if (validNumber(workout.time_ms) && validNumber(target) && distance >= target * 0.98) {
+    const trackS = interpolateSeries(dists, times, dists[0] + Math.min(target, distance)) - times[0];
+    const factor = trackS > 0 ? (workout.time_ms / 1000) / trackS : 0;
+    if (factor > 0.8 && factor < 1.25) {
+      for (let i = 1; i < times.length; i++) {
+        times[i] = times[0] + (times[i] - times[0]) * factor;
+      }
+    }
+  }
   return { times, dists, paces, rates, hrs, distance };
 }
 

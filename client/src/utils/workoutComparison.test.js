@@ -207,6 +207,34 @@ describe('race replay playback', () => {
     expect(early.boats[0].pace_ms).toBeCloseTo(120000, -3);
   });
 
+  it('extends a stroke stream that stops one stroke short of the scored distance', () => {
+    // Recordings typically end at the last stroke (e.g. 2,970m of a 3k);
+    // the race must still finish at exactly 3,000m.
+    const short3k = (secondsPerStroke, overrides = {}) => ({
+      distance: 3000, time_ms: secondsPerStroke * 100000, pace_ms: 120000, heart_rate_avg: 150,
+      strokes: Array.from({ length: 100 }, (_, index) => ({
+        distance_m: index * 30, time_s: index * secondsPerStroke, pace_ms: 120000, stroke_rate: 24, heart_rate: 150,
+      })), intervals: [], ...overrides,
+    });
+    const playback = buildRacePlayback(short3k(7.2), short3k(7.5));
+    expect(playback.distance).toBe(3000);
+    expect(playback.boats[0].finish_s).toBeCloseTo(720);
+    expect(playback.boats[1].finish_s).toBeCloseTo(750);
+    const end = sampleRacePlayback(playback, playback.duration_s);
+    expect(end.boats[0].distance_m).toBe(3000);
+    expect(end.boats[1].distance_m).toBe(3000);
+
+    // Stroke clocks drift from the official totals; the race margin must
+    // match the official time_ms the headline is built from.
+    const drifted = buildRacePlayback(
+      short3k(7.25, { time_ms: 696000 }), // strokes say 725s, official 11:36.0
+      short3k(7.28, { time_ms: 700700 }), // strokes say 728s, official 11:40.7
+    );
+    expect(drifted.boats[0].finish_s).toBeCloseTo(696, 1);
+    expect(drifted.boats[1].finish_s).toBeCloseTo(700.7, 1);
+    expect(drifted.boats[1].finish_s - drifted.boats[0].finish_s).toBeCloseTo(4.7, 1);
+  });
+
   it('declines to race unlike distances or workouts without strokes', () => {
     expect(buildRacePlayback(workout(), workout({ distance: 5000, strokes: Array.from({ length: 20 }, (_, index) => ({ distance_m: index * 250, time_s: index * 60, pace_ms: 120000 })) }))).toBeNull();
     expect(buildRacePlayback(workout(), workout({ strokes: [] }))).toBeNull();

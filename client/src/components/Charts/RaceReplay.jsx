@@ -81,7 +81,7 @@ export default function RaceReplay({ playback, date1, date2, formatPace }) {
             type="range"
             min={0}
             max={playback.duration_s}
-            step={playback.duration_s / 500}
+            step="any"
             value={raceT}
             aria-label="Race position"
             onChange={event => { setPlaying(false); setRaceT(Number(event.target.value)); }}
@@ -100,6 +100,7 @@ export default function RaceReplay({ playback, date1, date2, formatPace }) {
       </div>
 
       <div className={styles.course}>
+        <div className={styles.startLine} aria-hidden="true" />
         <div className={styles.markers}>
           {ticks.map(mark => (
             <div className={styles.marker} key={mark} style={{ left: `${(mark / playback.distance) * 100}%` }}>
@@ -162,7 +163,7 @@ function Lane({ label, chip, boat, distance, tone }) {
         <div className={styles.wake} style={{ width: `${pct}%` }} />
         <div className={styles.boat} style={{ left: `${pct}%` }} aria-hidden="true">
           <svg viewBox="0 0 56 12" width="56" height="12">
-            <path d="M1 6 Q10 1 30 1 L50 1 Q55 1 55 6 Q55 11 50 11 L30 11 Q10 11 1 6 Z" />
+            <path d="M55 6 Q46 1 26 1 L6 1 Q1 1 1 6 Q1 11 6 11 L26 11 Q46 11 55 6 Z" />
           </svg>
         </div>
       </div>
@@ -181,8 +182,10 @@ function BoatStats({ boat, formatPace, align }) {
   );
 }
 
+// Matches the session card's formatTime rounding so finish chips agree with
+// the official times shown above the race.
 function formatClock(seconds) {
-  const whole = Math.floor(seconds);
+  const whole = Math.round(seconds);
   const minutes = Math.floor(whole / 60);
   return `${minutes}:${String(whole % 60).padStart(2, '0')}`;
 }
