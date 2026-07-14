@@ -513,6 +513,29 @@ export function runPostSyncAnalytics(profileId, insertedWorkoutIds = [], updated
   }
 }
 
+// Concept2's compact stroke stream reports time in tenths of a second and
+// distance in tenths of a metre (decimetres), so both `t` and `d` need /10 to
+// reach seconds and metres. The verbose `time`/`distance` fields are already in
+// base units. Missing `t`/`d` fall through to those, and `distance` is treated
+// as metres. Getting `d` wrong scales the per-stroke distance axis by 10 - a
+// 2000 m piece would otherwise plot strokes out to 20000 m.
+export function parseC2Stroke(s, idx = 0, strokeData = []) {
+  const timeS = s.t != null ? s.t / 10 : s.time || null;
+  const distM = s.d != null ? s.d / 10 : s.distance || null;
+  let paceMs = s.p ? Math.round(s.p * 100) : null;
+  if (!paceMs && timeS > 0 && distM > 0 && idx > 0) {
+    const prev = strokeData[idx - 1] || {};
+    const prevD = prev.d != null ? prev.d / 10 : prev.distance ?? 0;
+    const prevT = prev.t != null ? prev.t / 10 : prev.time ?? 0;
+    const deltaD = distM - prevD;
+    const deltaT = timeS - prevT;
+    if (deltaD > 0 && deltaT > 0) {
+      paceMs = Math.round((deltaT / deltaD) * 500 * 1000);
+    }
+  }
+  return { timeS, distM, paceMs };
+}
+
 async function fetchAndStoreStrokes(db, id, token) {
   let strokeData = [];
 
@@ -535,20 +558,9 @@ async function fetchAndStoreStrokes(db, id, token) {
   if (strokeData.length > 0) {
     db.transaction(() => {
       strokeData.forEach((s, idx) => {
-        const timeS = s.t != null ? s.t / 10 : s.time || null;
-        const distM = s.d != null ? s.d : s.distance || null;
-        let sPaceMs = s.p ? Math.round(s.p * 100) : null;
-        if (!sPaceMs && timeS > 0 && distM > 0 && idx > 0) {
-          const prevD = strokeData[idx - 1]?.d ?? strokeData[idx - 1]?.distance ?? 0;
-          const prevT = strokeData[idx - 1]?.t != null ? strokeData[idx - 1].t / 10 : strokeData[idx - 1]?.time ?? 0;
-          const deltaD = distM - prevD;
-          const deltaT = timeS - prevT;
-          if (deltaD > 0 && deltaT > 0) {
-            sPaceMs = Math.round((deltaT / deltaD) * 500 * 1000);
-          }
-        }
+        const { timeS, distM, paceMs } = parseC2Stroke(s, idx, strokeData);
         strokeStmt.run(
-          id, idx, timeS, distM, sPaceMs,
+          id, idx, timeS, distM, paceMs,
           s.watts || null, s.cal_hr || null,
           s.spm || s.stroke_rate || null,
           s.hr || s.heart_rate || null
