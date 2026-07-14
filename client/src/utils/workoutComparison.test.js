@@ -278,6 +278,27 @@ describe('race replay playback', () => {
     expect(playback.boats[0].finish_s).toBeLessThan(playback.boats[1].finish_s); // 8:29 wins
   });
 
+  it('finishes at the scored distance when the stream runs past the line', () => {
+    // A 2,000m piece (8:28.8) whose odometer keeps recording a few winding-down
+    // strokes past the line, ending at 2,089m. The race must finish at exactly
+    // 2,000m on the official clock, not overshoot to 2,089m / 8:51.
+    // Even 2:07.2/500m: ~48.6m and ~12.36s per stroke, run out to 2,089m.
+    const overshoot = {
+      distance: 2000, time_ms: 508800, pace_ms: 127200, heart_rate_avg: 158,
+      strokes: Array.from({ length: 44 }, (_, index) => ({
+        distance_m: index * (2089 / 43), time_s: index * (2089 / 43 / 500) * 127.2,
+        pace_ms: 127200, stroke_rate: 25, heart_rate: 158,
+      })), intervals: [],
+    };
+    const playback = buildSoloRacePlayback(overshoot, { paceMs: 127200 });
+    expect(playback.distance).toBe(2000);
+    expect(playback.boats[0].finish_s).toBeCloseTo(508.8, 0);
+    expect(playback.duration_s).toBeCloseTo(508.8, 0);
+    const end = sampleRacePlayback(playback, playback.duration_s);
+    expect(end.boats[0].distance_m).toBeCloseTo(2000);
+    expect(end.boats[1].distance_m).toBeCloseTo(2000);
+  });
+
   it('leaves an accurate partial stream on its own clock despite uneven pacing', () => {
     // A truthful, uncompressed recording that only covers the first 1000m of a
     // 2000m piece, rowed as a hard positive split (first 1k in 260s of the 500s

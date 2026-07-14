@@ -568,6 +568,16 @@ function raceTrack(workout) {
       }
     }
   }
+  // Mirror of the extend-up above: a stream can also run *past* the scored line
+  // (you kept pulling a few strokes after 2,000m, so the odometer ends at, say,
+  // 2,089m). The scored piece is workout.distance, so the race must finish there
+  // - not at the raw odometer span, which would otherwise overshoot both boats
+  // and the finish readout. The times/dists arrays keep their extra tail; every
+  // consumer clamps to this returned distance, and the anchor above has already
+  // pinned the clock to the official time at exactly workout.distance.
+  if (validNumber(target) && distance > target) {
+    distance = target;
+  }
   return { times, dists, paces, rates, hrs, distance };
 }
 
