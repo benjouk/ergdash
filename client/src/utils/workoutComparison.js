@@ -537,13 +537,17 @@ function raceTrack(workout) {
       distance = target;
     }
   }
-  // Anchor the race clock to the official total: accumulated stroke timing
-  // drifts a few seconds from workout.time_ms, and the summary headline uses
-  // the official times, so the race margin must match them too.
+  // Anchor the race clock to the official total. workout.time_ms is the
+  // authoritative duration (the headline and clock are built from it), so scale
+  // the stroke clock to match it - not just for the few-second drift of clean
+  // data, but also when a recording's stroke timestamps are on a wrong scale
+  // (some imports store time compressed ~10x, which otherwise races a 9-minute
+  // 2k in under a minute). Only a finite, positive, non-degenerate factor is
+  // trusted, to avoid amplifying junk from a near-zero stroke span.
   if (validNumber(workout.time_ms) && validNumber(target) && distance >= target * 0.98) {
     const trackS = interpolateSeries(dists, times, dists[0] + Math.min(target, distance)) - times[0];
     const factor = trackS > 0 ? (workout.time_ms / 1000) / trackS : 0;
-    if (factor > 0.8 && factor < 1.25) {
+    if (Number.isFinite(factor) && factor > 0.02 && factor < 50 && Math.abs(factor - 1) > 1e-4) {
       for (let i = 1; i < times.length; i++) {
         times[i] = times[0] + (times[i] - times[0]) * factor;
       }

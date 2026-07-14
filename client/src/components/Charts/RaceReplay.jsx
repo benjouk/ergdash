@@ -3,7 +3,12 @@ import { Pause, Play, RotateCcw } from 'lucide-react';
 import { sampleRacePlayback } from '../../utils/workoutComparison.js';
 import styles from './RaceReplay.module.css';
 
-const SPEEDS = [15, 30, 60, 120, 240];
+const SPEEDS = [5, 10, 15, 30, 60, 120, 240];
+
+// Aim to replay a piece in roughly this many seconds when picking the default
+// speed. ~60s keeps a 2k around 10x (a 7-8 min row plays in ~45-50s) rather
+// than the too-brisk 15x, while long pieces still auto-pick a faster speed.
+const TARGET_PLAYBACK_S = 60;
 
 // Head-to-head playback: a top-down two-lane course where each boat moves at
 // the pace its session was actually rowed, on a shared accelerated clock.
@@ -12,7 +17,7 @@ const SPEEDS = [15, 30, 60, 120, 240];
 // picker without duplicating the animation machinery.
 export default function RaceReplay({ playback, laneOne, laneTwo, formatPace, resultText, subControls, photoFinishBand = 0.1 }) {
   const defaultSpeed = useMemo(
-    () => SPEEDS.find(speed => playback.duration_s / speed <= 45) || SPEEDS[SPEEDS.length - 1],
+    () => SPEEDS.find(speed => playback.duration_s / speed <= TARGET_PLAYBACK_S) || SPEEDS[SPEEDS.length - 1],
     [playback],
   );
   const [speed, setSpeed] = useState(defaultSpeed);
