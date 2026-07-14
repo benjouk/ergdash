@@ -545,16 +545,24 @@ function raceTrack(workout) {
   // 2k in under a minute). The stream need not reach workout.distance: it can
   // stop short of the scored distance (last stroke before the line, or a
   // slightly larger stored distance), so anchor to the covered fraction of the
-  // piece rather than the whole - otherwise a stream ending a few percent short
-  // is left on its raw (possibly compressed) clock and the race margin is
-  // wrong. Only a finite, positive, non-degenerate factor is trusted, to avoid
-  // amplifying junk from a near-zero stroke span.
+  // piece rather than the whole. Only a finite, positive, non-degenerate factor
+  // is trusted, to avoid amplifying junk from a near-zero stroke span.
   if (validNumber(workout.time_ms) && validNumber(target) && distance >= target * 0.5) {
     const anchorDist = Math.min(target, distance);
     const trackS = interpolateSeries(dists, times, dists[0] + anchorDist) - times[0];
     const expectedS = (workout.time_ms / 1000) * (anchorDist / target);
     const factor = trackS > 0 ? expectedS / trackS : 0;
-    if (Number.isFinite(factor) && factor > 0.02 && factor < 50 && Math.abs(factor - 1) > 1e-4) {
+    // Covered-fraction scaling assumes even pace, which is fine for a
+    // (near-)complete stream but would distort a partial one that was simply
+    // paced unevenly. So when the stream stops materially short, only rescale
+    // if the factor is clearly a wrong-scale clock (e.g. ~10x compressed
+    // imports) rather than pacing variation: reaching half the distance in
+    // under a quarter, or over the whole, of the official time is not physically
+    // rowable, so a factor outside [0.5, 2] can only be a bad time scale.
+    const nearComplete = distance >= target * 0.98;
+    const wrongScale = factor > 2 || factor < 0.5;
+    if (Number.isFinite(factor) && factor > 0.02 && factor < 50 && Math.abs(factor - 1) > 1e-4
+      && (nearComplete || wrongScale)) {
       for (let i = 1; i < times.length; i++) {
         times[i] = times[0] + (times[i] - times[0]) * factor;
       }

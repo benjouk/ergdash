@@ -278,6 +278,24 @@ describe('race replay playback', () => {
     expect(playback.boats[0].finish_s).toBeLessThan(playback.boats[1].finish_s); // 8:29 wins
   });
 
+  it('leaves an accurate partial stream on its own clock despite uneven pacing', () => {
+    // A truthful, uncompressed recording that only covers the first 1000m of a
+    // 2000m piece, rowed as a hard positive split (first 1k in 260s of the 500s
+    // total). Covered-fraction scaling would wrongly pull it toward 250s; the
+    // factor (~0.96) is normal pacing variance, not a wrong-scale clock, so the
+    // raw stroke timing must be preserved.
+    const partial = {
+      distance: 2000, time_ms: 500000, pace_ms: 125000, heart_rate_avg: 160,
+      strokes: Array.from({ length: 21 }, (_, index) => ({
+        distance_m: index * 50, time_s: index * (260 / 20), pace_ms: 130000, stroke_rate: 26, heart_rate: 160,
+      })), intervals: [],
+    };
+    const track = normalizeComparisonWorkout(partial);
+    const playback = buildRacePlayback(track, { ...track });
+    // Finish over the raced 1000m stays at the true 260s, not the scaled 250s.
+    expect(playback.boats[0].finish_s).toBeCloseTo(260, 0);
+  });
+
   it('declines to race unlike distances or workouts without strokes', () => {
     expect(buildRacePlayback(workout(), workout({ distance: 5000, strokes: Array.from({ length: 20 }, (_, index) => ({ distance_m: index * 250, time_s: index * 60, pace_ms: 120000 })) }))).toBeNull();
     expect(buildRacePlayback(workout(), workout({ strokes: [] }))).toBeNull();
