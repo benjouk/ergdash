@@ -63,7 +63,7 @@ export const EDITABLE_FIELDS = Object.keys(FIELD_RULES);
 
 // Validates the editable summary fields present in `body`. With
 // requireCore=true (create), date/distance/time_ms must be present.
-// Returns { fields, errors } — fields only contains validated values.
+// Returns { fields, errors } - fields only contains validated values.
 export function validateWorkoutFields(body, { requireCore = false } = {}) {
   const fields = {};
   const errors = [];
@@ -157,7 +157,7 @@ export function validateIntervals(body) {
   return { intervals, errors };
 }
 
-// Cross-checks that never reject — the athlete's file/memory wins — but are
+// Cross-checks that never reject - the athlete's file/memory wins - but are
 // surfaced to the UI so obvious typos get a second look.
 export function intervalWarnings(fields, intervals) {
   const warnings = [];
@@ -177,7 +177,7 @@ export function intervalWarnings(fields, intervals) {
 }
 
 // Inserts a user-owned workout row (manual entry or file import commit).
-// Caller is responsible for running post-insert analytics — imports batch
+// Caller is responsible for running post-insert analytics - imports batch
 // many inserts into one analytics pass.
 export function insertUserWorkout(db, {
   fields,
@@ -216,7 +216,7 @@ export function insertUserWorkout(db, {
 }
 
 // Applies a validated correction to an existing workout. Returns
-// { workoutId, changedFields, perfChanged } — analytics/PB recompute happens
+// { workoutId, changedFields, perfChanged } - analytics/PB recompute happens
 // here so every caller (PATCH route) gets consistent behavior.
 export function applyWorkoutCorrection(db, workout, fields) {
   const changedFields = Object.keys(fields).filter(name => workout[name] !== fields[name]);
@@ -240,7 +240,7 @@ export function applyWorkoutCorrection(db, workout, fields) {
   db.transaction(() => {
     if (workout.source === 'c2') {
       // Record the override so sync stops updating these columns. pace_ms is
-      // derived, and pinned/notes are already user-owned — never tracked.
+      // derived, and pinned/notes are already user-owned - never tracked.
       const edited = new Set(parseEditedFields(workout.edited_fields));
       changedFields.forEach(name => edited.add(name));
       updates.edited_fields = serializeEditedFields([...edited]);
@@ -321,7 +321,7 @@ export function revertWorkoutToC2(db, workout, fieldNames = null) {
   return { workoutId: workout.id, revertedFields: targets };
 }
 
-// Deletes a user-owned workout. C2 rows are refused — deleting them just
+// Deletes a user-owned workout. C2 rows are refused - deleting them just
 // makes the next sync re-create the row, so it would silently "un-delete".
 export function deleteUserWorkout(db, workout) {
   if (workout.source === 'c2') {
@@ -336,7 +336,7 @@ export function deleteUserWorkout(db, workout) {
           updated_at = datetime('now')
       WHERE completed_workout_id = ?
     `).run(workout.id);
-    // pb_history has no ON DELETE CASCADE — clean it explicitly.
+    // pb_history has no ON DELETE CASCADE - clean it explicitly.
     db.prepare('DELETE FROM pb_history WHERE workout_id = ?').run(workout.id);
     db.prepare('DELETE FROM workouts WHERE id = ?').run(workout.id);
   })();

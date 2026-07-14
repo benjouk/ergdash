@@ -98,7 +98,7 @@ router.post('/logout', (req, res) => {
 if (process.env.NODE_ENV !== 'production') {
   // Dev "skip auth": establishes a session and marks every existing profile
   // connected with a mock identity. Profiles come from the seed (the demo
-  // seeds two) — mock-login must NOT invent its own, or throwaway profiles
+  // seeds two) - mock-login must NOT invent its own, or throwaway profiles
   // leak into the captured demo fixtures. Only when the DB has no profiles at
   // all does it create one (?profiles=2 for local multi-profile testing).
   router.get('/mock-login', (req, res) => {

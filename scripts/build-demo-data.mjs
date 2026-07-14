@@ -246,7 +246,7 @@ async function captureProfile(profileId) {
   }
 
   // Decay-curve: FadeFingerprint.jsx queries the most recent workout at
-  // each of these fixed distances, independently — not a single "latest".
+  // each of these fixed distances, independently - not a single "latest".
   for (const distance of [2000, 5000, 10000]) {
     const workout = [...allWorkouts]
       .filter(w => w.distance === distance)

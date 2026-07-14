@@ -61,7 +61,7 @@ function HrZonesSection() {
               ? 'Used to compute your five training zones'
               : estimatedMax
                 ? `Estimated from your data: ${estimatedMax} bpm`
-                : 'No HR data yet — enter it manually'}
+                : 'No HR data yet - enter it manually'}
           </div>
         </div>
         <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
@@ -101,7 +101,7 @@ function HrZonesSection() {
                 Z{i + 1}
               </div>
               {i === 4 ? (
-                // Z5 always tops out at 100% of max — show it, don't edit it.
+                // Z5 always tops out at 100% of max - show it, don't edit it.
                 <div className={styles.zoneFixed} aria-label="Zone 5 upper bound is 100 percent">
                   {p}
                 </div>
@@ -162,7 +162,7 @@ function AthleteSection() {
         <div>
           <div className={styles.label}>Body Weight</div>
           <div className={styles.subtext}>
-            Enables weight-adjusted paces on personal bests and in Tools — leave empty to disable
+            Enables weight-adjusted paces on personal bests and in Tools - leave empty to disable
           </div>
         </div>
         <input
@@ -263,7 +263,7 @@ function GoalsSection() {
         <div className={styles.row} key={period}>
           <div>
             <div className={styles.label}>{label}</div>
-            <div className={styles.subtext}>{subtext} — leave empty for none</div>
+            <div className={styles.subtext}>{subtext} - leave empty for none</div>
           </div>
           <input
             type="number"
@@ -287,7 +287,7 @@ function GoalsSection() {
               {goal.label ? ` · ${goal.label}` : ''}
             </div>
             <div className={styles.subtext}>
-              {goal.achieved_at ? 'Achieved — congratulations' : 'Goal time for this distance'}
+              {goal.achieved_at ? 'Achieved - congratulations' : 'Goal time for this distance'}
             </div>
           </div>
           <div className={styles.inlineControls}>
@@ -774,7 +774,7 @@ export default function Settings() {
       {isDemo ? (
         <div className={styles.section}>
           <h3 className={styles.sectionTitle}>Backup & Restore</h3>
-          <div className={styles.subtext}>Not available in the demo — self-host ErgDash to back up and restore your own data.</div>
+          <div className={styles.subtext}>Not available in the demo - self-host ErgDash to back up and restore your own data.</div>
         </div>
       ) : (
         <div className={styles.section}>
@@ -848,7 +848,7 @@ export default function Settings() {
       {isDemo ? (
         <div className={`${styles.section} ${styles.dangerSection}`}>
           <h3 className={styles.sectionTitle}>Danger Zone</h3>
-          <div className={styles.subtext}>Not available in the demo — self-host ErgDash to manage your own Concept2 connection.</div>
+          <div className={styles.subtext}>Not available in the demo - self-host ErgDash to manage your own Concept2 connection.</div>
         </div>
       ) : (
         <div className={`${styles.section} ${styles.dangerSection}`}>

@@ -39,9 +39,8 @@
 .headerTitle {
   color: var(--ink);
   font-family: var(--font-hero);
-  font-size: var(--text-xl);
-  font-weight: 850;
-  font-stretch: 110%;
+  font-size: clamp(1.5rem, 1.35rem + 0.9vw, 1.85rem);
+  font-weight: 700;
   line-height: 1;
   letter-spacing: -0.03em;
 }
@@ -51,13 +50,15 @@
 .warning { display: flex; align-items: flex-start; gap: var(--space-2); padding: var(--space-3) var(--space-4); background: color-mix(in srgb, var(--negative) 8%, var(--surface)); border: 1px solid color-mix(in srgb, var(--negative) 28%, var(--rule)); border-radius: var(--radius-md); color: var(--ink-2); font-size: .82rem; }
 .warning svg { flex: 0 0 auto; color: var(--negative); }
 
-.summaryCard { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(300px, 1fr); gap: var(--space-6); padding: var(--space-5); border-radius: var(--radius-lg); background: linear-gradient(130deg, color-mix(in srgb, var(--accent-2) 12%, var(--surface)), var(--surface)); border: 1px solid color-mix(in srgb, var(--accent-2) 30%, var(--rule)); }
-.eyebrow { color: var(--ink-3); font-size: .66rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
-.summaryHeadline { margin-top: var(--space-1); font-family: var(--font-hero); font-size: clamp(1.8rem, 5vw, 3rem); font-weight: 850; color: var(--ink); letter-spacing: -.04em; }
+/* Neutral surface with a blue top rule tying it to the "this session" series,
+   matching the accent-rule card treatment used elsewhere (Session summary). */
+.summaryCard { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(300px, 1fr); gap: var(--space-6); padding: var(--space-5); border-radius: var(--radius-lg); background: var(--surface); border: 1px solid var(--rule); border-top: 3px solid var(--accent-2); box-shadow: var(--shadow-sm); }
+.eyebrow { color: var(--ink-2); font-size: .625rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.summaryHeadline { margin-top: var(--space-1); font-family: var(--font-mono); font-size: clamp(1.8rem, 5vw, 3rem); font-weight: 600; color: var(--ink); letter-spacing: -.04em; }
 .summaryText { margin: var(--space-2) 0 0; color: var(--ink-2); font-size: .85rem; }
 .whereGrid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
-.whereGrid > div { padding: var(--space-3); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--surface) 78%, transparent); border: 1px solid var(--rule); display: flex; flex-direction: column; gap: 3px; }
-.whereGrid span { color: var(--ink-3); font-size: .65rem; text-transform: uppercase; letter-spacing: .05em; }
+.whereGrid > div { padding: var(--space-3); border-radius: var(--radius-sm); background: var(--surface-alt); border: 1px solid var(--rule); display: flex; flex-direction: column; gap: 3px; }
+.whereGrid span { color: var(--ink-2); font-size: .625rem; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; }
 .whereGrid strong { color: var(--ink); font-family: var(--font-mono); font-size: .85rem; }
 
 /* Dual Header */
@@ -78,7 +79,7 @@
   gap: var(--space-3);
 }
 
-/* Series identity: column 1 = blue (accent-2), column 2 = orange (accent) */
+/* Series identity: column 1 = blue (accent-2), column 2 = olive (accent) */
 .sessionColumn:first-child {
   border-top: 3px solid var(--accent-2);
 }
@@ -130,18 +131,17 @@
 }
 
 .statLabel {
-  color: var(--ink-3);
-  font-size: 0.65rem;
-  font-weight: 600;
+  color: var(--ink-2);
+  font-size: 0.625rem;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.1em;
 }
 
 .statValue {
-  font-family: var(--font-hero);
+  font-family: var(--font-mono);
   font-size: 1.2rem;
-  font-weight: 800;
-  font-stretch: 108%;
+  font-weight: 600;
   color: var(--ink);
   letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
@@ -149,7 +149,7 @@
 
 .metricCardGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--space-3); }
 .metricDeltaCard { display: flex; flex-direction: column; gap: 4px; padding: var(--space-3) var(--space-4); background: var(--surface); border: 1px solid var(--rule); border-radius: var(--radius-md); }
-.metricDeltaCard span { color: var(--ink-3); text-transform: uppercase; font-size: .63rem; font-weight: 700; letter-spacing: .05em; }
+.metricDeltaCard span { color: var(--ink-2); text-transform: uppercase; font-size: .625rem; font-weight: 700; letter-spacing: .1em; }
 .metricDeltaCard strong { font-family: var(--font-mono); color: var(--ink); }
 .metricDeltaCard small { color: var(--ink-3); }
 
@@ -245,12 +245,23 @@
 }
 
 .cardTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   font-family: var(--font-display);
-  font-size: 0.8rem;
-  font-weight: 600;
+  font-size: 0.66rem;
+  font-weight: 700;
   color: var(--ink-2);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.12em;
+}
+
+.cardTitle::before {
+  content: '';
+  width: 14px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
 }
 
 /* Splits Table */

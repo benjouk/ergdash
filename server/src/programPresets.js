@@ -1,7 +1,7 @@
 // Preset training programs. These are code-versioned templates, not DB rows:
 // starting one materialises its sessions into planned_workouts (see
 // programGenerator.js). Session objects use planned_workouts column names so
-// generation is a straight insert. Interval totals are NOT set here — the
+// generation is a straight insert. Interval totals are NOT set here - the
 // server derives them (deriveIntervalTotals) at insert time.
 //
 // Pace is intentionally left null: presets express *relative* intensity ("2k
@@ -43,24 +43,24 @@ const petePlan = {
   weeks: [
     { sessions: [
       reps(8, 500, '3:30', 'Speed intervals. Around 2k pace; keep the splits even and build confidence, not heroics.'),
-      steady(8000, 'Steady distance, 18–20 spm, conversational (UT2).'),
-      reps(5, 1500, '5:00', 'Endurance intervals at ~2k pace + 4–5s. Controlled, repeatable splits.'),
-      steady(10000, 'Steady distance, 18–20 spm.'),
-      steady(5000, 'Hard distance: 5k at ~2k pace + 8–10s. Treat it as a benchmark.'),
+      steady(8000, 'Steady distance, 18-20 spm, conversational (UT2).'),
+      reps(5, 1500, '5:00', 'Endurance intervals at ~2k pace + 4-5s. Controlled, repeatable splits.'),
+      steady(10000, 'Steady distance, 18-20 spm.'),
+      steady(5000, 'Hard distance: 5k at ~2k pace + 8-10s. Treat it as a benchmark.'),
     ] },
     { sessions: [
       reps(12, 250, '1:45', 'Short speed. Faster than 2k pace; sharp and relaxed, full recovery.'),
-      steady(8000, 'Steady distance, 18–20 spm.'),
+      steady(8000, 'Steady distance, 18-20 spm.'),
       reps(4, 2000, '5:00', 'Endurance intervals at ~2k pace + 5s. Hold form as fatigue builds.'),
-      steady(10000, 'Steady distance, 18–20 spm.'),
+      steady(10000, 'Steady distance, 18-20 spm.'),
       steady(6000, 'Hard distance: 6k at ~2k pace + 8s.'),
     ] },
     { sessions: [
-      reps(4, 1000, '5:00', 'Speed/endurance at ~2k pace + 2–3s.'),
-      steady(8000, 'Steady distance, 18–20 spm.'),
+      reps(4, 1000, '5:00', 'Speed/endurance at ~2k pace + 2-3s.'),
+      steady(8000, 'Steady distance, 18-20 spm.'),
       { type: 'intervals', interval_reps: 3, interval_distance: 2500, interval_rest_ms: R('5:00'),
         notes: 'Waterfall: 3000m, 2500m, 2000m with 5:00 rest. Around 2k pace + 3s; negative-split the set.' },
-      steady(10000, 'Steady distance, 18–20 spm.'),
+      steady(10000, 'Steady distance, 18-20 spm.'),
       { type: 'intervals', interval_reps: 2, interval_distance: 6000, interval_rest_ms: R('10:00'),
         notes: '2×6k at ~2k pace + 10s, 10:00 rest. A hard aerobic squeeze.' },
     ] },
@@ -73,27 +73,27 @@ const petePlan = {
 function beginnerWeeks() {
   const weeks = [];
   for (let w = 0; w < 24; w++) {
-    // Session 1 — endurance base, grows 5k → ~9k.
+    // Session 1 - endurance base, grows 5k → ~9k.
     const baseMeters = 5000 + Math.min(w, 16) * 250;
-    const s1 = steady(baseMeters, 'Easy aerobic base. Rate 18–22 spm, nose-breathing pace.');
+    const s1 = steady(baseMeters, 'Easy aerobic base. Rate 18-22 spm, nose-breathing pace.');
 
-    // Session 2 — intervals introduced from week 3, lengthening over the plan.
+    // Session 2 - intervals introduced from week 3, lengthening over the plan.
     let s2;
     if (w < 2) {
       s2 = steadyTime('20:00', 'Relaxed 20 minutes. Focus on the drive sequence and a clean finish.');
     } else {
       const n = 4 + Math.floor(w / 8);          // 4 → 6 reps
       const dist = w < 8 ? 500 : w < 16 ? 750 : 1000;
-      s2 = reps(n, dist, '2:00', 'Introductory intervals. Comfortably hard — you should want one more, not fewer.');
+      s2 = reps(n, dist, '2:00', 'Introductory intervals. Comfortably hard - you should want one more, not fewer.');
     }
 
-    // Session 3 — a longer steady piece; every 6th week is a short test.
+    // Session 3 - a longer steady piece; every 6th week is a short test.
     let s3;
     if (w % 6 === 5) {
       s3 = test(w < 12 ? 2000 : 5000, 'Benchmark test. Warm up well, pick a pace you can hold, and record it.');
     } else {
       const longMeters = 6000 + Math.min(w, 18) * 350;
-      s3 = steady(longMeters, 'Longer steady distance. Settle in and keep the rate low, 18–20 spm.');
+      s3 = steady(longMeters, 'Longer steady distance. Settle in and keep the rate low, 18-20 spm.');
     }
 
     weeks.push({ sessions: [s1, s2, s3] });
@@ -126,7 +126,7 @@ const twoKPrep = {
   sessionsPerWeek: 4,
   weeks: [
     { sessions: [ // W1 base
-      steady(10000, 'Aerobic base, 18–20 spm.'),
+      steady(10000, 'Aerobic base, 18-20 spm.'),
       reps(4, 2000, '5:00', 'Threshold intervals at ~2k pace + 6s.'),
       steady(8000, 'Steady distance.'),
       reps(6, 500, '3:30', 'Speed primer around 2k pace.'),
@@ -147,7 +147,7 @@ const twoKPrep = {
       steady(10000, 'Aerobic base.'),
       reps(6, 750, '3:00', 'Sharpening at ~2k pace − 1s.'),
       steady(6000, 'Easy steady, legs fresh.'),
-      test(2000, 'Mid-block 2k test. Pace it evenly — this sets your race target.'),
+      test(2000, 'Mid-block 2k test. Pace it evenly - this sets your race target.'),
     ] },
     { sessions: [ // W5 sharpen
       steady(8000, 'Aerobic base, rate down.'),
@@ -169,8 +169,8 @@ const twoKPrep = {
     ] },
     { sessions: [ // W8 taper + race
       steady(5000, 'Easy shake-out row.'),
-      reps(4, 500, '3:00', 'Race-pace primer — just enough to feel sharp.'),
-      steadyTime('20:00', 'Light pre-race loosener, 2–3 days out. Include a few 10-stroke bursts.'),
+      reps(4, 500, '3:00', 'Race-pace primer - just enough to feel sharp.'),
+      steadyTime('20:00', 'Light pre-race loosener, 2-3 days out. Include a few 10-stroke bursts.'),
       { type: 'race', target_distance: 2000, anchor: 'race_date',
         notes: 'Race day. Warm up thoroughly, commit to your pace plan, and negative-split the second half.' },
     ] },
@@ -193,11 +193,11 @@ function marathonWeeks() {
     const s1 = isRace
       ? { type: 'race', target_distance: 42195,
           notes: 'Marathon: 42,195m. Even pacing from the gun, fuel and hydrate on a schedule, keep the rate low.' }
-      : steady(meters, 'Long row. Low and steady, 18–20 spm — build time on the handle, not intensity.');
+      : steady(meters, 'Long row. Low and steady, 18-20 spm - build time on the handle, not intensity.');
     const s2 = steady(8000 + Math.min(w, 10) * 500, 'Mid-week steady distance to top up aerobic volume.');
     const s3 = isRace
       ? steadyTime('20:00', 'Pre-marathon shake-out. Easy, with a few relaxed bursts.')
-      : reps(3, 3000 + Math.min(w, 8) * 250, '3:00', 'Low-rate intervals, 18–20 spm at steady effort — strength endurance.');
+      : reps(3, 3000 + Math.min(w, 8) * 250, '3:00', 'Low-rate intervals, 18-20 spm at steady effort - strength endurance.');
     return { sessions: [s1, s2, s3] };
   });
 }

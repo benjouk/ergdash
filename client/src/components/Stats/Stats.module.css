@@ -1,82 +1,137 @@
 .statsRow {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   gap: var(--space-4);
 }
 
 .statCell {
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-4) var(--space-4) var(--space-3);
   display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
+  flex-direction: column;
+  gap: var(--space-2);
   background: var(--surface);
   border: 1px solid var(--rule);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
 }
 
-/* Lead cell (season/total metres) */
-.statCellLead {
-}
-
-.statIcon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-  width: 28px;
-  height: 28px;
-  margin-top: 2px;
-  border-radius: var(--radius-md);
-  background: var(--surface-alt);
+.statLabel {
+  font-size: 0.625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
   color: var(--ink-2);
 }
 
-.statBody {
+.statValueRow {
   display: flex;
-  flex-direction: column;
-  gap: 1px;
+  align-items: baseline;
+  gap: var(--space-2);
   min-width: 0;
 }
 
-.statLabel {
-  font-size: 0.66rem;
+.statValue {
+  font-family: var(--font-mono);
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--ink-3);
+  font-size: clamp(1.5rem, 1.3rem + 0.9vw, 1.85rem);
+  color: var(--ink);
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.statValue {
-  font-family: var(--font-hero);
-  font-weight: 800;
-  font-stretch: 108%;
-  font-size: var(--text-xl);
-  color: var(--ink);
-  letter-spacing: -0.02em;
+.statUnit {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+.statMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.statChip {
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  padding: 2px 7px;
   font-variant-numeric: tabular-nums;
-  line-height: 1.1;
+}
+
+.chip_positive {
+  color: var(--positive);
+  background: var(--positive-bg);
+}
+
+.chip_warn {
+  color: var(--warn);
+  background: var(--warn-bg);
+}
+
+.chip_neutral {
+  color: var(--ink-2);
+  background: var(--surface-alt);
 }
 
 .statSub {
-  font-family: var(--font-mono);
-  font-size: 0.68rem;
-  line-height: 1.4;
-  color: var(--ink-3);
-  font-variant-numeric: tabular-nums;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: var(--ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.statDelta {
-  font-size: 0.7rem;
-  font-weight: 500;
+/* Micro-viz pinned to the card foot for a consistent baseline across cells */
+.statViz {
+  display: block;
+  margin-top: auto;
+  padding-top: var(--space-1);
 }
 
-.deltaPositive {
-  color: var(--positive);
+.vizSpacer {
+  display: block;
+  height: 22px;
 }
 
-.deltaNegative {
-  color: var(--negative);
+.progressTrack {
+  display: block;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--track, var(--surface-alt));
+  overflow: hidden;
+}
+
+.progressFill {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--accent);
+  transition: width 300ms ease;
+}
+
+.segmentBar {
+  display: flex;
+  gap: 3px;
+  height: 5px;
+}
+
+.segment {
+  flex: 1;
+  border-radius: 2px;
+  background: var(--surface-alt);
+}
+
+.segmentOn {
+  background: var(--accent);
 }
 
 .pbStrip {
@@ -86,7 +141,7 @@
   padding: var(--space-1) 0;
 }
 
-/* Trophy cards — volt-lime rule marks a best */
+/* Trophy cards - volt-lime rule marks a best */
 .pbCard {
   flex-shrink: 0;
   background: var(--surface);
@@ -308,19 +363,15 @@
     gap: var(--space-2);
   }
   .statCell {
-    padding: var(--space-2) var(--space-3);
-    min-width: 0;
-  }
-  .statBody {
+    padding: var(--space-3);
     min-width: 0;
   }
   .statValue {
-    font-size: 0.95rem;
-    font-stretch: 100%;
+    font-size: 1.35rem;
     letter-spacing: -0.03em;
   }
   .statSub {
-    font-size: 0.6rem;
+    font-size: 0.66rem;
   }
   .pbStrip {
     flex-wrap: wrap;

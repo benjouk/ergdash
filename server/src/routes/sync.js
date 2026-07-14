@@ -5,7 +5,7 @@ import { isProfileConnected } from '../auth.js';
 const router = Router();
 
 // A manual sync is one of the few actions that genuinely needs the active
-// profile connected — otherwise runIncrementalSync no-ops on a missing token
+// profile connected - otherwise runIncrementalSync no-ops on a missing token
 // and the caller gets a misleading "started". Reading status stays allowed.
 router.post('/', (req, res) => {
   if (!isProfileConnected(req.profileId)) {

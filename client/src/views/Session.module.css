@@ -184,7 +184,7 @@
   flex-wrap: wrap;
 }
 
-/* Summary strip — same surface treatment as other cards, accent as a rule */
+/* Summary strip - same surface treatment as other cards, accent as a rule */
 .summaryStrip {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
@@ -217,10 +217,9 @@
 }
 
 .summaryCellValue {
-  font-family: var(--font-hero);
+  font-family: var(--font-mono);
   font-size: 1.2rem;
-  font-weight: 800;
-  font-stretch: 108%;
+  font-weight: 600;
   color: var(--ink);
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
@@ -238,7 +237,7 @@
   color: var(--accent);
 }
 
-/* Card — matches dashboard chartCard */
+/* Card - matches dashboard chartCard */
 .card {
   position: relative;
   background: var(--surface);

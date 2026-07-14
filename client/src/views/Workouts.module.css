@@ -14,9 +14,8 @@
 
 .title {
   font-family: var(--font-hero);
-  font-size: var(--text-xl);
-  font-weight: 850;
-  font-stretch: 110%;
+  font-size: clamp(1.5rem, 1.35rem + 0.9vw, 1.85rem);
+  font-weight: 700;
   letter-spacing: -0.03em;
   color: var(--ink);
 }
@@ -408,10 +407,9 @@
 }
 
 .cardPace {
-  font-family: var(--font-hero);
+  font-family: var(--font-mono);
   font-size: 1.4rem;
-  font-weight: 800;
-  font-stretch: 108%;
+  font-weight: 600;
   color: var(--accent);
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;

@@ -6,6 +6,7 @@ import { AXIS_TICK, AXIS_LINE, SERIES, TOOLTIP_PROPS } from '../../styles/chartT
 import { ChartSkeleton } from '../Skeleton/Skeleton.jsx';
 import ChartEmpty from './ChartEmpty.jsx';
 import ChartInfo from './ChartInfo.jsx';
+import TrendChip, { seriesDelta } from './TrendChip.jsx';
 import { useChartData } from './useChartData.js';
 import styles from './Charts.module.css';
 
@@ -16,7 +17,7 @@ const TAG_COLORS = {
   interval: SERIES.secondary,
 };
 
-// Per-session distance per stroke — a stroke-length proxy that surfaces
+// Per-session distance per stroke - a stroke-length proxy that surfaces
 // technique changes. Interval sessions naturally sit lower (higher rating,
 // shorter strokes), so dots are coloured by session type.
 export default function DpsTrendChart() {
@@ -42,6 +43,7 @@ export default function DpsTrendChart() {
   if (formatted.length < 3) return <ChartEmpty title="Distance Per Stroke" />;
 
   const latest = formatted[formatted.length - 1];
+  const dpsDelta = seriesDelta(formatted, 'trend');
 
   return (
     <div className={styles.chartCard}>
@@ -49,9 +51,14 @@ export default function DpsTrendChart() {
         <div className={styles.chartTitle}>
           Distance Per Stroke
         </div>
-        <div className={styles.chartValue}>
-          {latest.trend.toFixed(2)}
-          <span className={styles.chartValueUnit}>m/stroke</span>
+        <div className={styles.chartMetric}>
+          <div className={styles.chartValue}>
+            {latest.trend.toFixed(2)}
+            <span className={styles.chartValueUnit}>m/stroke</span>
+          </div>
+          <TrendChip delta={dpsDelta} betterWhenUp>
+            {dpsDelta != null ? Math.abs(dpsDelta).toFixed(2) : ''}
+          </TrendChip>
         </div>
       </div>
       <ResponsiveContainer width="100%" height={170}>

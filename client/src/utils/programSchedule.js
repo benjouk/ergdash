@@ -6,7 +6,7 @@
 //   - server/src/programPresets.js   (anchorSlot)
 //   - server/src/routes/plans.js     (deriveIntervalTotals)
 //   - server/src/routes/programs.js  (RACE_MIN_LEAD_DAYS)
-// The real app never imports this — it hits the server. UTC date math,
+// The real app never imports this - it hits the server. UTC date math,
 // weekday convention 0=Mon..6=Sun.
 
 const DAY_MS = 86400000;
