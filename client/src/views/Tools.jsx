@@ -31,9 +31,9 @@ const STRATEGY_OPTIONS = [
 ];
 
 // Native <select> wheels avoid needing a colon key on a mobile keypad.
-const PACE_MINUTES = Array.from({ length: 10 }, (_, i) => i); // 0–9
-const TARGET_MINUTES = Array.from({ length: 100 }, (_, i) => i); // 0–99
-const SECONDS = Array.from({ length: 60 }, (_, i) => i); // 0–59
+const PACE_MINUTES = Array.from({ length: 10 }, (_, i) => i); // 0-9
+const TARGET_MINUTES = Array.from({ length: 100 }, (_, i) => i); // 0-99
+const SECONDS = Array.from({ length: 60 }, (_, i) => i); // 0-59
 
 function splitClock(totalSeconds) {
   const rounded = Math.max(0, Math.round(Number(totalSeconds) || 0));

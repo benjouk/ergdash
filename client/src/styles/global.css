@@ -66,9 +66,8 @@ input, select {
 }
 
 .heroNum {
-  font-family: var(--font-hero);
-  font-weight: 850;
-  font-stretch: 110%;
+  font-family: var(--font-mono);
+  font-weight: 600;
   letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
   line-height: 1;

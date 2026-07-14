@@ -54,7 +54,7 @@
   gap: var(--space-2);
 }
 
-/* Horizontal snap-scroll variant — used inline on Dashboard below 1100px */
+/* Horizontal snap-scroll variant - used inline on Dashboard below 1100px */
 .itemListRow {
   flex-direction: row;
   overflow-x: auto;

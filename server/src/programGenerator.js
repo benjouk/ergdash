@@ -1,4 +1,4 @@
-// Pure schedule generation for training programs. No DB access — takes a
+// Pure schedule generation for training programs. No DB access - takes a
 // preset (from programPresets.js) plus the user's choices and returns the
 // planned_workouts rows to insert. UTC date math, weekday convention
 // 0=Monday..6=Sunday (matches the client's planCalendar ordering).
@@ -54,7 +54,7 @@ function sessionFields(session) {
 }
 
 // Validate the user's program request against a preset. Returns a list of
-// human-readable errors (empty when valid). Structural only — today-relative
+// human-readable errors (empty when valid). Structural only - today-relative
 // checks (e.g. race not too soon) live in the route.
 export function validateProgramInput(preset, body) {
   const errors = [];
@@ -75,7 +75,7 @@ export function validateProgramInput(preset, body) {
   } else if (typeof body.start_date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(body.start_date)
       || Number.isNaN(Date.parse(body.start_date))) {
     // The start rolls forward to the first training day, so it need only be a
-    // valid date — it doesn't have to fall on a chosen training day.
+    // valid date - it doesn't have to fall on a chosen training day.
     errors.push('start_date must be an ISO 8601 date (YYYY-MM-DD)');
   }
 
@@ -101,7 +101,7 @@ export function generateProgramSessions(preset, { startDate, trainingDays, durat
   // Anchor the week-0 Monday. For race presets, work backwards from the race
   // date so the anchored session lands exactly on it. Otherwise roll the
   // chosen start forward to the earliest training day (slot 0) so week 0 is a
-  // full, clean cycle-week 1 — a mid-week start never skips earlier sessions.
+  // full, clean cycle-week 1 - a mid-week start never skips earlier sessions.
   let mondayWeek0;
   const anchor = preset.kind === 'race' ? anchorSlot(preset) : null;
   const alignedStart = anchor ? null : alignStart(startDate, days[0]);

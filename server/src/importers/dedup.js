@@ -67,7 +67,7 @@ export function findDuplicate(db, workout, fingerprint, profileId) {
     const byId = db.prepare('SELECT * FROM workouts WHERE id = ? AND profile_id = ?').get(logId, profileId);
     // The log id is client-supplied (parsed from the file, then round-tripped
     // through the preview), so it only counts as identity when the row's own
-    // numbers corroborate it — distance, time, AND when it happened. Erg
+    // numbers corroborate it - distance, time, AND when it happened. Erg
     // training repeats distances and times week after week, so without the
     // temporal check a crafted payload could name any workout id that shares
     // a common distance/time and merge into it.
@@ -129,7 +129,7 @@ export function resolveMergeTarget(db, workout, fingerprint, targetId, profileId
   }
   const found = findDuplicate(db, workout, fingerprint, profileId);
   if (!found || found.status === 'already_imported') {
-    return { error: 'no duplicate detected for this row — import as new instead' };
+    return { error: 'no duplicate detected for this row - import as new instead' };
   }
   if (found.match.id !== targetId) {
     return { error: `merge target ${targetId} does not match the detected duplicate (${found.match.id})` };

@@ -6,19 +6,20 @@ const CONTENT_LEFT = 88;
 const CONTENT_RIGHT = 1112;
 
 const COLORS = {
-  bg: '#0A0A0C',
-  surface: '#141418',
-  surfaceAlt: '#1C1C21',
-  ink: '#F2F2EF',
-  ink2: '#8E8E96',
-  ink3: '#55555E',
-  rule: '#26262C',
-  accent: '#C3D500',
-  accent2: '#38B6FF',
-  gold: '#FFB000',
+  bg: '#111111',
+  surface: '#191919',
+  surfaceAlt: '#202020',
+  ink: '#EAEAEA',
+  ink2: '#8F8F8F',
+  ink3: '#5A5A5A',
+  rule: '#272727',
+  brand: '#C9D93C',
+  accent: '#AEC53F',
+  accent2: '#6F9CC2',
+  gold: '#C7A254',
 };
 
-const LABEL_FONT = '800 18px Outfit, system-ui, sans-serif';
+const LABEL_FONT = '600 18px "IBM Plex Sans", system-ui, sans-serif';
 
 export async function renderSessionCard(workout, formatters) {
   if (document.fonts?.ready) {
@@ -62,17 +63,17 @@ function drawBackground(ctx) {
   roundRect(ctx, 56, 64, CARD_WIDTH - 112, CARD_HEIGHT - 128, 24);
   ctx.fill();
 
-  ctx.fillStyle = COLORS.accent;
+  ctx.fillStyle = COLORS.brand;
   roundRect(ctx, 56, 64, CARD_WIDTH - 112, 8, 4);
   ctx.fill();
 }
 
 function drawWordmark(ctx) {
-  ctx.font = '900 42px Archivo, Outfit, system-ui, sans-serif';
+  ctx.font = '700 42px "IBM Plex Sans", system-ui, sans-serif';
   ctx.fillStyle = COLORS.ink;
   ctx.fillText('Erg', CONTENT_LEFT, 136);
   const ergWidth = ctx.measureText('Erg').width;
-  ctx.fillStyle = COLORS.accent;
+  ctx.fillStyle = COLORS.brand;
   ctx.fillText('Dash', CONTENT_LEFT + ergWidth, 136);
 }
 
@@ -80,7 +81,7 @@ function drawMainStats(ctx, workout, formatters, tagColor) {
   drawLabel(ctx, 'AVERAGE PACE', CONTENT_LEFT, 250);
 
   ctx.fillStyle = COLORS.ink;
-  ctx.font = '900 116px Archivo, Outfit, system-ui, sans-serif';
+  ctx.font = '600 116px "IBM Plex Mono", ui-monospace, monospace';
   ctx.fillText(formatters.formatPace(workout.pace_ms), CONTENT_LEFT - 4, 360);
 
   const tag = (workout.inferred_tag || 'endurance').toUpperCase();
@@ -115,7 +116,7 @@ function drawMeta(ctx, workout, formatters) {
     const x = CONTENT_LEFT + index * colWidth;
     drawLabel(ctx, label, x, top, COLORS.ink3);
     ctx.fillStyle = COLORS.ink;
-    ctx.font = '800 32px Archivo, Outfit, system-ui, sans-serif';
+    ctx.font = '600 32px "IBM Plex Mono", ui-monospace, monospace';
     ctx.fillText(value, x, top + 44);
   }
 }
@@ -143,7 +144,7 @@ function drawPaceProfile(ctx, workout, formatters, lineColor) {
 
   // Best (fastest) split, right-aligned on the title row.
   const best = formatters.formatPace(min);
-  ctx.font = '800 18px Archivo, Outfit, system-ui, sans-serif';
+  ctx.font = '600 18px "IBM Plex Mono", ui-monospace, monospace';
   const bestWidth = ctx.measureText(best).width;
   ctx.fillStyle = lineColor;
   ctx.fillText(best, plotRight - bestWidth, panel.y + 42);

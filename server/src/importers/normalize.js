@@ -58,7 +58,7 @@ export function deriveSummaryFromSamples(workout) {
 }
 
 // Validate a NormalizedWorkout with the same rules as manual entry. Returns
-// { ok, errors, warnings, fields, intervals } — fields/intervals are the
+// { ok, errors, warnings, fields, intervals } - fields/intervals are the
 // validated shapes ready for insertUserWorkout.
 export function validateNormalized(workout) {
   const { fields, errors: fieldErrors } = validateWorkoutFields(workout, { requireCore: true });
@@ -76,7 +76,7 @@ export function validateNormalized(workout) {
 
 // Insert a NormalizedWorkout as a new source='import' row (negative id),
 // including its samples as stroke rows. Returns the new workout id.
-// Post-insert analytics are the caller's job — commits batch them.
+// Post-insert analytics are the caller's job - commits batch them.
 export function insertNormalizedWorkout(db, workout, fingerprint, profileId) {
   const { ok, errors, fields, intervals } = validateNormalized(workout);
   if (!ok) throw new Error(`Invalid workout: ${errors.join('; ')}`);
@@ -152,7 +152,7 @@ function toFiniteNumber(value) {
   return (typeof value === 'number' && Number.isFinite(value)) ? value : null;
 }
 
-// Derive pace_ms if the summary lacks it but distance/time are known — used
+// Derive pace_ms if the summary lacks it but distance/time are known - used
 // by preview display only (the DB derives its own on insert).
 export function withDerivedPace(workout) {
   return { ...workout, pace_ms: computePaceMs(workout.time_ms, workout.distance) };

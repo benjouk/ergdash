@@ -250,3 +250,41 @@ describe('insertWorkout with user overrides', () => {
     expect(pending).toEqual([5]);
   });
 });
+
+describe('parseC2Stroke', () => {
+  let parseC2Stroke;
+
+  beforeEach(async () => {
+    ({ parseC2Stroke } = await import('../src/sync.js'));
+  });
+
+  it('converts compact tenths: `t` to seconds and `d` to metres', () => {
+    // C2 compact stream: t in tenths of a second, d in tenths of a metre.
+    // A stroke 200 m into the piece at 90.5 s must read as 200 m, not 2000 m.
+    const { timeS, distM } = parseC2Stroke({ t: 905, d: 2000 });
+    expect(timeS).toBe(90.5);
+    expect(distM).toBe(200);
+  });
+
+  it('treats the verbose time/distance fields as base units', () => {
+    const { timeS, distM } = parseC2Stroke({ time: 90.5, distance: 200 });
+    expect(timeS).toBe(90.5);
+    expect(distM).toBe(200);
+  });
+
+  it('reads pace from `p` (tenths of a second per 500m) in ms', () => {
+    expect(parseC2Stroke({ t: 100, d: 100, p: 1200 }).paceMs).toBe(120000);
+  });
+
+  it('derives pace from the metre-scaled distance delta when `p` is absent', () => {
+    // +5 m (d 500->550, tenths of a metre) over +1.2 s (t 1000->1012, tenths of
+    // a second) is 2:00 /500m. Without the /10 on `d` the delta would read 50 m
+    // and the derived pace would come out 10x too fast.
+    const strokeData = [
+      { t: 1000, d: 500 },
+      { t: 1012, d: 550 },
+    ];
+    const { paceMs } = parseC2Stroke(strokeData[1], 1, strokeData);
+    expect(paceMs).toBe(120000);
+  });
+});

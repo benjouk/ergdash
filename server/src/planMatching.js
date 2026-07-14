@@ -9,7 +9,7 @@ import { getDb } from './db.js';
 export const TARGET_TOLERANCE = 0.2;
 
 // Score awarded when a plan's targets don't line up but it is the only
-// plan that day — a loosely specified plan still counts as followed.
+// plan that day - a loosely specified plan still counts as followed.
 const FLOOR_SCORE = 0.1;
 
 const TYPE_BONUS = 0.05;

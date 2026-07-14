@@ -13,8 +13,8 @@ const PACE_FASTER_S = 1.0; // s/500m improvement to highlight
 const PACE_SLOWER_S = 2.0; // s/500m regression to flag
 const WORKOUT_PACE_S = 1.5; // session vs personal median, s/500m
 const WORKOUT_HR_BPM = 4; // session HR vs median at similar effort
-const HR_DRIFT_LOW = 5; // % — tight aerobic control
-const HR_DRIFT_HIGH = 10; // % — faded in the back half
+const HR_DRIFT_LOW = 5; // % - tight aerobic control
+const HR_DRIFT_HIGH = 10; // % - faded in the back half
 const REP_SPREAD_TIGHT_S = 1.5; // s/500m fastest-to-slowest rep → even set
 const REP_SPREAD_WIDE_S = 4.0; // s/500m spread → pacing drifted
 const REP_RATE_SPIKE_SPM = 2.5; // spm above the set average → spike
@@ -73,7 +73,7 @@ export function buildWeeklyInsights(input = {}) {
 
   const out = [];
 
-  // Nothing rowed this week — say so plainly rather than inventing a trend.
+  // Nothing rowed this week - say so plainly rather than inventing a trend.
   if (weeklyMeters <= 0 && sessionsThisWeek <= 0) {
     out.push(insight('volume', 'watch', 'No rows logged in the last 7 days. Time to get back on the erg.'));
     return out;
@@ -155,7 +155,7 @@ export function buildWorkoutInsight(workout = {}, baseline = {}, session = {}) {
     }
   }
 
-  // Heart rate relative to normal — most meaningful at a comparable pace.
+  // Heart rate relative to normal - most meaningful at a comparable pace.
   if (
     workout.heart_rate_avg > 0 && medianHr > 0 && medianPaceMs > 0 &&
     Math.abs(workout.pace_ms - medianPaceMs) <= 3000 // within ~3s/500m

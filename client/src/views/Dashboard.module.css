@@ -9,19 +9,19 @@
   align-items: center;
   gap: var(--space-2);
   font-family: var(--font-display);
-  font-size: 0.8rem;
+  font-size: 0.66rem;
   font-weight: 700;
   color: var(--ink-2);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.12em;
   margin-bottom: var(--space-3);
 }
 
 /* Speed rule kicker before section titles */
 .sectionHeader::before {
   content: '';
-  width: 16px;
-  height: 3px;
+  width: 14px;
+  height: 2px;
   border-radius: 2px;
   background: var(--accent);
 }

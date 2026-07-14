@@ -285,7 +285,7 @@ async function findDemoProgram(id) {
 }
 
 // Future, still-planned sessions of a program (the only ones any mutation
-// moves or removes — completed/past rows are frozen).
+// moves or removes - completed/past rows are frozen).
 async function futureProgramSessions(id, fromDate = todayStr()) {
   const plans = await loadDemoPlans();
   return plans.filter(p => p.program_id === id && p.status === 'planned' && p.date >= fromDate);
@@ -585,7 +585,7 @@ async function handlePatch(route, body) {
   }
 
   if (route.startsWith('/api/goals')) {
-    throw new Error('Demo mode — goals are read-only in the live demo');
+    throw new Error('Demo mode - goals are read-only in the live demo');
   }
 
   const programMatch = route.match(/^\/api\/programs\/(\d+)$/);
@@ -615,7 +615,7 @@ async function handlePatch(route, body) {
     return applyWorkoutOverlay({ ...detail, ...merged });
   }
 
-  throw new Error('Demo mode — this action is not available in the live demo');
+  throw new Error('Demo mode - this action is not available in the live demo');
 }
 
 export async function demoRequest(path, options = {}) {
@@ -660,9 +660,9 @@ export async function demoRequest(path, options = {}) {
       return shiftDemoProgram(Number(shiftRoute[1]), Number(body.weeks));
     }
     if (route.startsWith('/api/goals')) {
-      throw new Error('Demo mode — goals are read-only in the live demo');
+      throw new Error('Demo mode - goals are read-only in the live demo');
     }
-    throw new Error('Demo mode — run ErgDash self-hosted to connect your own Concept2 account');
+    throw new Error('Demo mode - run ErgDash self-hosted to connect your own Concept2 account');
   }
 
   if (method === 'DELETE') {
@@ -689,11 +689,11 @@ export async function demoRequest(path, options = {}) {
       return deleteDemoProgram(Number(programRoute[1]));
     }
     if (route.startsWith('/api/goals')) {
-      throw new Error('Demo mode — goals are read-only in the live demo');
+      throw new Error('Demo mode - goals are read-only in the live demo');
     }
   }
 
-  throw new Error(`Demo mode — unsupported request: ${method} ${path}`);
+  throw new Error(`Demo mode - unsupported request: ${method} ${path}`);
 }
 
 async function createDemoPlan(body) {

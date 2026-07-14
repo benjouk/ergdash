@@ -69,7 +69,57 @@ function generateWorkouts({ idBase = 100000, paceScale = 1 } = {}) {
     currentDate = new Date(currentDate.getTime() + dayMs);
   }
 
+  // One recent session whose stroke stream is a raw odometer recording
+  // (warmup + piece + cooldown), the way FIT/TCX imports arrive. Keeps the
+  // comparison view's stroke rebasing exercised by dev/demo data.
+  workouts.push(generateOdometerTest(id++, new Date(now.getTime() - 2 * dayMs), 1, paceScale));
+
   return workouts;
+}
+
+// A 2k test recorded like a real device import: the stroke odometer and clock
+// span the whole outing (warmup + scored piece + cooldown) while the workout
+// totals describe the 2,000m piece only. As with real imports, the stored
+// per-stroke metrics for this workout include the warmup and cooldown.
+function generateOdometerTest(id, date, factor, paceScale = 1) {
+  const distance = 2000;
+  const paceMs = Math.round(105000 * paceScale * factor + randBetween(-2000, 2000));
+  const timeMs = Math.round((distance / 500) * (paceMs / 1000) * 1000);
+  const strokeRate = Math.round(randBetween(30, 34) * 10) / 10;
+  const hrAvg = randInt(172, 186);
+
+  const blocks = [
+    { distance: 1200, paceMs: paceMs + 45000, rate: 20, hr: hrAvg - 45 },
+    { distance, paceMs, rate: strokeRate, hr: hrAvg },
+    { distance: 600, paceMs: paceMs + 55000, rate: 18, hr: hrAvg - 40 },
+  ];
+
+  const strokes = [];
+  let number = 0;
+  let distanceOffset = 0;
+  let timeOffset = 0;
+  for (const block of blocks) {
+    for (const s of generateStrokeData(block.distance, block.paceMs, block.rate, block.hr)) {
+      strokes.push({
+        ...s,
+        number: number++,
+        distanceM: Math.round((s.distanceM + distanceOffset) * 10) / 10,
+        timeS: Math.round((s.timeS + timeOffset) * 100) / 100,
+      });
+    }
+    distanceOffset += block.distance;
+    timeOffset += (block.distance / 500) * (block.paceMs / 1000) + 30;
+  }
+
+  return {
+    id, date: sessionDate(date), distance, timeMs, paceMs,
+    strokeRate,
+    strokeCount: Math.round(timeMs / 60000 * strokeRate),
+    hrAvg, hrMax: hrAvg + randInt(5, 12), dragFactor: randInt(120, 130),
+    calories: Math.round(distance / 20),
+    type: 'test', workoutType: 'FixedDistanceSplits',
+    strokes,
+  };
 }
 
 function generateEndurance(id, date, factor, isDouble = false, paceScale = 1) {
@@ -290,7 +340,7 @@ function seedGoals(db, profileId) {
 
 // A few weeks of plans around today: most past plans linked to the seeded
 // sessions they "predicted", a couple missed or skipped, and open plans for
-// the two weeks ahead — enough to exercise the Plan calendar and adherence.
+// the two weeks ahead - enough to exercise the Plan calendar and adherence.
 // A mid-flight Pete Plan so the dev/demo calendar shows a real program with
 // matched history. Seeded before the ad-hoc plans so it claims its own
 // completed sessions first.

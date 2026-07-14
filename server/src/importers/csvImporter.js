@@ -81,7 +81,7 @@ export function parseDurationMs(value) {
 }
 
 // Accepts "2026-07-10 06:30:00", ISO with T/Z, and "10/07/2026"-style dates
-// are rejected (ambiguous day/month) — the preview shows the row error.
+// are rejected (ambiguous day/month) - the preview shows the row error.
 function parseCsvDate(value) {
   if (!value) return null;
   const text = value.trim();

@@ -41,7 +41,7 @@
 /* Hover styling only on devices that actually hover. On touch devices a
    :hover rule makes iOS Safari swallow the first tap (it shows the hover
    state instead of firing the click), so the button "just changes colour"
-   and does nothing — gating hover avoids that entirely. */
+   and does nothing - gating hover avoids that entirely. */
 @media (hover: hover) {
   .button:hover {
     color: var(--accent);

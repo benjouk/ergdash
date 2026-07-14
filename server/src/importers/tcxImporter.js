@@ -1,4 +1,4 @@
-// TCX import (Garmin Training Center XML — what ErgData and most training
+// TCX import (Garmin Training Center XML - what ErgData and most training
 // apps export for indoor rows). Each Activity becomes one workout: Laps map
 // to work intervals and Trackpoints become time-series samples.
 import { XMLParser } from 'fast-xml-parser';

@@ -47,6 +47,7 @@ import IntervalRepChart from '../components/Session/IntervalRepChart.jsx';
 import PaceProfileChart from '../components/Session/PaceProfileChart.jsx';
 import ChartInfo from '../components/Charts/ChartInfo.jsx';
 import RateVsPaceScatter from '../components/Charts/RateVsPaceScatter.jsx';
+import SoloRaceReplay from '../components/Charts/SoloRaceReplay.jsx';
 import { useIsMobile, niceTicksFromZero } from '../components/Charts/useChartData.js';
 import ZoneBar from '../components/Stats/ZoneBar.jsx';
 import WorkoutForm from '../components/Import/WorkoutForm.jsx';
@@ -777,6 +778,10 @@ export default function Session() {
           <RateVsPaceScatter strokes={workout.strokes} formatPace={formatPace} />
           <ChartInfo>Each dot is a moment in the session, plotting stroke rate against the pace it produced, coloured by heart rate when available. Tight clusters mean consistent rowing.</ChartInfo>
         </div>
+      )}
+
+      {hasAnalysis && !isInterval && workout.distance > 0 && (
+        <SoloRaceReplay workout={workout} formatPace={formatPace} />
       )}
 
       {splitRows.length > 0 && (() => {

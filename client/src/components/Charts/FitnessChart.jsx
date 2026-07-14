@@ -5,6 +5,7 @@ import { AXIS_TICK, AXIS_LINE, SERIES, TOOLTIP_PROPS } from '../../styles/chartT
 import { ChartSkeleton } from '../Skeleton/Skeleton.jsx';
 import ChartEmpty from './ChartEmpty.jsx';
 import ChartInfo from './ChartInfo.jsx';
+import TrendChip, { seriesDelta } from './TrendChip.jsx';
 import { useChartData } from './useChartData.js';
 import styles from './Charts.module.css';
 
@@ -26,6 +27,7 @@ export default function FitnessChart({ compact = false }) {
 
   const height = compact ? 80 : 240;
   const latest = data[data.length - 1];
+  const fitnessDelta = seriesDelta(data, 'fitness');
 
   return (
     <div className={styles.chartCard}>
@@ -33,9 +35,14 @@ export default function FitnessChart({ compact = false }) {
         <div className={styles.chartTitle}>
           Fitness / Fatigue / Form
         </div>
-        <div className={styles.chartValue}>
-          {latest.fitness.toFixed(1)}
-          <span className={styles.chartValueUnit}>fitness</span>
+        <div className={styles.chartMetric}>
+          <div className={styles.chartValue}>
+            {latest.fitness.toFixed(1)}
+            <span className={styles.chartValueUnit}>fitness</span>
+          </div>
+          <TrendChip delta={fitnessDelta} betterWhenUp>
+            {fitnessDelta != null ? Math.abs(fitnessDelta).toFixed(1) : ''}
+          </TrendChip>
         </div>
       </div>
       <ResponsiveContainer width="100%" height={height}>

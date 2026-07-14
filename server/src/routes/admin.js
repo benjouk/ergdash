@@ -44,7 +44,7 @@ const SYNC_CURSOR_KEYS = [
 ];
 
 // Wipes one profile's Concept2-synced data ahead of a fresh full sync. Manual
-// and imported workouts are user-entered — a resync can't restore them — so
+// and imported workouts are user-entered - a resync can't restore them - so
 // they survive, along with their intervals/strokes/metrics (cascade only
 // fires for the deleted c2 rows). Other profiles are untouched.
 export function wipeWorkoutData(db, profileId) {

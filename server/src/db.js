@@ -10,7 +10,7 @@ const DB_PATH = join(DATA_DIR, 'ergdash.db');
 let db;
 
 export function getDb() {
-  if (!db) throw new Error('Database not initialized — call initDb() first');
+  if (!db) throw new Error('Database not initialized - call initDb() first');
   return db;
 }
 
