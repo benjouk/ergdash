@@ -179,7 +179,7 @@ export default function ProgramBrowser({ onStarted }) {
       <div className={styles.presets}>
         {presets.map(preset => {
           const weeksLabel = preset.kind === 'cycle'
-            ? `${preset.minWeeks}–${preset.maxWeeks} wks`
+            ? `${preset.minWeeks}-${preset.maxWeeks} wks`
             : `${preset.weeks.length} wks`;
           const active = expanded === preset.id;
           return (

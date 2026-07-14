@@ -1,4 +1,4 @@
-/* IBM Plex Sans - variable weight axis (100–700), all UI text */
+/* IBM Plex Sans - variable weight axis (100-700), all UI text */
 @font-face {
   font-family: 'IBM Plex Sans';
   src: url('/fonts/IBMPlexSans-Variable.woff2') format('woff2');
@@ -31,7 +31,7 @@
 /*
  * Breakpoints (used consistently across all modules):
  *   < 768px      mobile   - bottom nav, single column, compact 48px header
- *   768–1099px   tablet   - no feed sidebar, top nav
+ *   768-1099px   tablet   - no feed sidebar, top nav
  *   >= 1100px    desktop  - ticker + feed sidebar + main
  *   >= 1600px    wide     - larger paddings, side-by-side charts
  */

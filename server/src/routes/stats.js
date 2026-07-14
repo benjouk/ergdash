@@ -708,7 +708,7 @@ router.get('/polarization', (req, res) => {
   if (from) { dateFilter += ' AND w.date >= ?'; params.push(from); }
   if (to) { dateFilter += ' AND w.date < ?'; params.push(to); }
 
-  // HR-zoned workouts: easy = Z1–2, moderate = Z3, hard = Z4–5.
+  // HR-zoned workouts: easy = Z1-2, moderate = Z3, hard = Z4-5.
   const zoned = db.prepare(`
     SELECT strftime('%Y-W%W', w.date) as week,
            MIN(w.date) as week_start,

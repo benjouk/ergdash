@@ -21,7 +21,7 @@ function formatShortWithYear(iso) {
 function describeRange(key) {
   const { from, to } = computeDateRange(key);
   if (key === 'all') return 'Full history';
-  if (key === 'last_season') return `${formatShortWithYear(from)} – ${formatShortWithYear(to)}`;
+  if (key === 'last_season') return `${formatShortWithYear(from)} - ${formatShortWithYear(to)}`;
   return `Since ${formatShort(from)}`;
 }
 

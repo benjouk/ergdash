@@ -20,7 +20,7 @@ const POLAR_COLORS = {
   hard_pct: 'var(--zone-5)',
 };
 
-// Weekly time in HR zones. mode="time": stacked Z1–Z5 hours.
+// Weekly time in HR zones. mode="time": stacked Z1-Z5 hours.
 // mode="percent3": 100%-stacked easy/moderate/hard polarization view.
 export default function ZoneStackChart({ compact = false }) {
   const [mode, setMode] = useState('time');

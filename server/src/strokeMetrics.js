@@ -41,7 +41,7 @@ function median(arr) {
 }
 
 // Metres gained per stroke. Prefers workout totals (works without stroke
-// data); falls back to the stroke stream. Clamped to a plausible 2–20 m.
+// data); falls back to the stroke stream. Clamped to a plausible 2-20 m.
 export function distancePerStroke(workout, strokes = []) {
   let dps = null;
 

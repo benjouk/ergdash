@@ -120,7 +120,7 @@ function steadySplits(workout, percent = false) {
       const start = Math.floor(workout.pace_profile.length * index / 10);
       const end = Math.max(start + 1, Math.floor(workout.pace_profile.length * (index + 1) / 10));
       return {
-        label: percent ? `${index * 10}–${(index + 1) * 10}%` : `Segment ${index + 1}`,
+        label: percent ? `${index * 10}-${(index + 1) * 10}%` : `Segment ${index + 1}`,
         pace_ms: average(workout.pace_profile.slice(start, end)),
         stroke_rate: null,
         heart_rate: null,
@@ -131,14 +131,14 @@ function steadySplits(workout, percent = false) {
     return Array.from({ length: 10 }, (_, index) => {
       const start = workout.distance * index / 10;
       const end = workout.distance * (index + 1) / 10;
-      return splitFromStrokes(workout, start, end, `${index * 10}–${(index + 1) * 10}%`);
+      return splitFromStrokes(workout, start, end, `${index * 10}-${(index + 1) * 10}%`);
     });
   }
   const size = workout.distance <= 3000 ? 500 : 1000;
   return Array.from({ length: Math.ceil(workout.distance / size) }, (_, index) => {
     const start = index * size;
     const end = Math.min(workout.distance, (index + 1) * size);
-    return splitFromStrokes(workout, start, end, `${start}–${end}m`);
+    return splitFromStrokes(workout, start, end, `${start}-${end}m`);
   });
 }
 

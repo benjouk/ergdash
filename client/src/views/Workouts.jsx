@@ -497,7 +497,7 @@ export default function Workouts() {
 
       {!loading && !loadError && total > 0 && (
         <div className={styles.pagination}>
-          <span>Showing {offset + 1}–{Math.min(offset + limit, total)} of {total}</span>
+          <span>Showing {offset + 1}-{Math.min(offset + limit, total)} of {total}</span>
         <div className={styles.pageButtons}>
           <button
             onClick={() => setOffset(Math.max(0, offset - limit))}
