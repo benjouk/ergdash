@@ -149,7 +149,7 @@
 
 .metricCardGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--space-3); }
 .metricDeltaCard { display: flex; flex-direction: column; gap: 4px; padding: var(--space-3) var(--space-4); background: var(--surface); border: 1px solid var(--rule); border-radius: var(--radius-md); }
-.metricDeltaCard span { color: var(--ink-2); text-transform: uppercase; font-size: .625rem; font-weight: 700; letter-spacing: .1em; }
+.metricDeltaCard > span { color: var(--ink-2); text-transform: uppercase; font-size: .625rem; font-weight: 700; letter-spacing: .1em; }
 .metricDeltaCard strong { font-family: var(--font-mono); color: var(--ink); }
 .metricDeltaCard small { color: var(--ink-3); }
 
@@ -169,12 +169,18 @@
   margin-top: 1px;
 }
 
-/* Pace delta: positive = slower = bad, negative = faster = good */
-.deltaPositive {
+/* Pace delta: positive = slower = bad, negative = faster = good.
+   The table/tile variants need the extra specificity to beat the
+   .splitsTable td and .metricDeltaCard small colour rules. */
+.deltaPositive,
+.splitsTable td.deltaPositive,
+.metricDeltaCard small .deltaPositive {
   color: var(--negative);
 }
 
-.deltaNegative {
+.deltaNegative,
+.splitsTable td.deltaNegative,
+.metricDeltaCard small .deltaNegative {
   color: var(--positive);
 }
 

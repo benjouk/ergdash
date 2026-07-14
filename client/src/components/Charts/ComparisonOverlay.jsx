@@ -7,9 +7,10 @@ import { ArrowLeft, ArrowLeftRight, ChevronsUpDown, Info } from 'lucide-react';
 import { useUnits } from '../../context/UnitsContext.jsx';
 import { AXIS_TICK } from '../../styles/chartTheme.js';
 import {
-  buildComparisonSplits, buildComparisonSummary, buildMetricSeries,
+  buildComparisonSplits, buildComparisonSummary, buildMetricSeries, buildRacePlayback,
   comparisonMetricCards, COMPARISON_METRICS,
 } from '../../utils/workoutComparison.js';
+import RaceReplay from './RaceReplay.jsx';
 import styles from './ComparisonOverlay.module.css';
 
 export default function ComparisonOverlay({ workout1, workout2, match = {}, onBack, onChange, onSwap }) {
@@ -19,6 +20,20 @@ export default function ComparisonOverlay({ workout1, workout2, match = {}, onBa
   const summary = useMemo(() => buildComparisonSummary(workout1, workout2, match, splits), [workout1, workout2, match, splits]);
   const series = useMemo(() => buildMetricSeries(workout1, workout2, metric, match.axis || 'percent'), [workout1, workout2, metric, match.axis]);
   const metricCards = useMemo(() => comparisonMetricCards(workout1, workout2), [workout1, workout2]);
+  // Split the difference series into favourable/unfavourable halves so the
+  // area chart can shade them; stroke rate has no better direction and keeps
+  // the neutral single area.
+  const betterDelta = COMPARISON_METRICS[metric].betterDelta;
+  const deltaData = useMemo(() => {
+    if (!betterDelta) return series.data;
+    return series.data.map(point => point.delta == null
+      ? { ...point, deltaGood: null, deltaBad: null }
+      : point.delta < 0
+        ? { ...point, deltaGood: point.delta, deltaBad: 0 }
+        : { ...point, deltaGood: 0, deltaBad: point.delta });
+  }, [series, betterDelta]);
+  const showGap = splits.some(row => row.gap_s != null);
+  const racePlayback = useMemo(() => buildRacePlayback(workout1, workout2), [workout1, workout2]);
   const date1 = formatDate(workout1.date);
   const date2 = formatDate(workout2.date);
   const formatMetric = value => metric === 'pace' ? formatPace(value) : value == null ? '—' : Math.round(value);
@@ -49,13 +64,14 @@ export default function ComparisonOverlay({ workout1, workout2, match = {}, onBa
           <div className={styles.eyebrow}>This session</div>
           <div className={styles.summaryHeadline}>{summary.headline}</div>
           {summary.effort && <p className={styles.summaryText}>{summary.effort}</p>}
+          {summary.pacing && <p className={styles.summaryText}>{summary.pacing}</p>}
         </div>
         {summary.where && (
           <div className={styles.whereGrid}>
             <SummaryFact label="First half" value={summary.where.firstHalf == null ? null : `${summary.where.firstHalf}s/500`} />
             <SummaryFact label="Second half" value={summary.where.secondHalf == null ? null : `${summary.where.secondHalf}s/500`} />
-            <SummaryFact label="Strongest" value={summary.where.strongest} />
-            <SummaryFact label="Weakest" value={summary.where.weakest} />
+            <SummaryFact label="Strongest" value={withDelta(summary.where.strongest, summary.where.strongestDelta)} />
+            <SummaryFact label="Weakest" value={withDelta(summary.where.weakest, summary.where.weakestDelta)} />
           </div>
         )}
       </section>
@@ -71,10 +87,19 @@ export default function ComparisonOverlay({ workout1, workout2, match = {}, onBa
             <div className={styles.metricDeltaCard} key={card.label}>
               <span>{card.label}</span>
               <strong>{formatCompact(card.value1)}{card.unit}</strong>
-              <small>vs {formatCompact(card.value2)}{card.unit} · Δ {signed(card.delta)}{card.unit}</small>
+              <small>vs {formatCompact(card.value2)}{card.unit} · <span className={tileDeltaClass(card, styles)}>Δ {signed(card.delta)}{card.unit}</span></small>
             </div>
           ))}
         </div>
+      )}
+
+      {racePlayback && (
+        <RaceReplay
+          playback={racePlayback}
+          laneOne={{ label: date1, chip: 'This session' }}
+          laneTwo={{ label: date2 }}
+          formatPace={formatPace}
+        />
       )}
 
       <section className={styles.card}>
@@ -101,13 +126,19 @@ export default function ComparisonOverlay({ workout1, workout2, match = {}, onBa
               </ResponsiveContainer>
             </div>
             <div className={styles.deltaChart}>
-              <div className={styles.deltaLabel}>Difference · this session minus comparison</div>
+              <div className={styles.deltaLabel}>{deltaChartLabel(metric)}</div>
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={series.data} margin={{ top: 4, right: 12, bottom: 0, left: 60 }}>
+                <AreaChart data={deltaData} margin={{ top: 4, right: 12, bottom: 0, left: 60 }}>
                   <XAxis dataKey="x" hide />
                   <YAxis hide domain={['auto', 'auto']} />
                   <ReferenceLine y={0} stroke="var(--ink-3)" strokeDasharray="3 4" />
-                  <Area type="monotone" dataKey="delta" stroke="var(--accent-2)" fill="var(--accent-2)" fillOpacity={0.18} connectNulls={false} />
+                  <Tooltip content={<DeltaTooltip metric={metric} axis={series.axis} />} />
+                  {betterDelta ? [
+                    <Area key="good" type="monotone" dataKey="deltaGood" stroke="none" fill="var(--positive)" fillOpacity={0.3} connectNulls={false} />,
+                    <Area key="bad" type="monotone" dataKey="deltaBad" stroke="none" fill="var(--negative)" fillOpacity={0.3} connectNulls={false} />,
+                  ] : (
+                    <Area type="monotone" dataKey="delta" stroke="var(--accent-2)" fill="var(--accent-2)" fillOpacity={0.18} connectNulls={false} />
+                  )}
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -120,12 +151,13 @@ export default function ComparisonOverlay({ workout1, workout2, match = {}, onBa
           <div className={styles.cardHeader}><div className={styles.cardTitle}>Splits comparison</div></div>
           <div className={styles.tableWrap}>
             <table className={styles.splitsTable}>
-              <thead><tr><th>Split</th><th>{date1} pace</th><th>{date2} pace</th><th>Δ pace</th><th>Rate Δ</th><th>HR Δ</th></tr></thead>
+              <thead><tr><th>Split</th><th>{date1} pace</th><th>{date2} pace</th><th>Δ pace</th>{showGap && <th>Gap</th>}<th>Rate Δ</th><th>HR Δ</th></tr></thead>
               <tbody>{splits.map(row => (
                 <tr key={row.label}>
                   <td className={styles.splitLabel}>{row.label}</td>
                   <td>{formatPace(row.pace1_ms)}</td><td>{formatPace(row.pace2_ms)}</td>
                   <td className={paceDeltaClass(row.pace_delta_ms, styles)}>{row.pace_delta_ms == null ? '—' : `${signed(row.pace_delta_ms / 1000)}s`}</td>
+                  {showGap && <td className={gapClass(row.gap_s, styles)}>{row.gap_s == null ? '—' : `${signed(row.gap_s)}s`}</td>}
                   <td>{delta(row.rate1, row.rate2)}</td><td>{delta(row.hr1, row.hr2)}</td>
                 </tr>
               ))}</tbody>
@@ -152,6 +184,16 @@ function SessionColumn({ workout, date, chip, formatPace }) {
 }
 function Stat({ label, value }) { return <div className={styles.statCell}><div className={styles.statLabel}>{label}</div><div className={styles.statValue}>{value}</div></div>; }
 
+function DeltaTooltip({ active, payload, label, metric, axis }) {
+  if (!active || !payload?.length) return null;
+  const deltaValue = payload[0]?.payload?.delta;
+  if (deltaValue == null) return null;
+  const formatted = metric === 'pace' ? `${signed(deltaValue / 1000)}s/500`
+    : metric === 'rate' ? `${signed(deltaValue)} spm` : `${signed(Math.round(deltaValue))} bpm`;
+  const x = axis === 'percent' ? `${Math.round(label)}%` : axis === 'time' ? `${Math.round(label)}s` : `${Math.round(label)}m`;
+  return <div className={styles.tooltip}><small>{x}</small><div><span>This session</span><strong>{formatted}</strong></div></div>;
+}
+
 function ChartTooltip({ active, payload, label, metric, formatPace, date1, date2, axis }) {
   if (!active || !payload?.length) return null;
   const format = value => metric === 'pace' ? formatPace(value) : Math.round(value);
@@ -165,3 +207,15 @@ function formatCompact(value) { return Number(value).toFixed(Number(value) % 1 ?
 function signed(value) { if (!Number.isFinite(Number(value))) return '—'; const n = Number(value); return `${n > 0 ? '+' : ''}${formatCompact(n)}`; }
 function delta(a, b) { return Number.isFinite(Number(a)) && Number.isFinite(Number(b)) && a > 0 && b > 0 ? signed(a - b) : '—'; }
 function paceDeltaClass(value, style) { if (!Number.isFinite(value) || Math.abs(value) < 50) return ''; return value < 0 ? style.deltaNegative : style.deltaPositive; }
+function gapClass(value, style) { if (!Number.isFinite(value) || Math.abs(value) < 0.5) return ''; return value < 0 ? style.deltaNegative : style.deltaPositive; }
+function withDelta(label, deltaText) { return label ? (deltaText ? `${label} · ${deltaText}s` : label) : null; }
+function tileDeltaClass(card, style) {
+  if (!card.better || !Number.isFinite(card.delta) || card.delta === 0) return '';
+  const improved = card.better === 'up' ? card.delta > 0 : card.delta < 0;
+  return improved ? style.deltaNegative : style.deltaPositive;
+}
+function deltaChartLabel(metric) {
+  if (metric === 'pace') return 'Pace gap · green where this session was faster';
+  if (metric === 'hr') return 'Heart rate gap · green where this session was lower';
+  return 'Stroke rate difference · this session minus comparison';
+}
