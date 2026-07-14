@@ -173,8 +173,9 @@ describe('workout comparison analysis', () => {
 
 describe('race replay playback', () => {
   it('races both boats over the shared distance on the session clocks', () => {
-    // Boat 1 rows 2:00/500 (24s per 100m stroke), boat 2 rows 2:05/500 (25s)
-    const playback = buildRacePlayback(workout(), workout({ strokes: strokesAtPace(125000) }));
+    // Boat 1 rows 2:00/500 (24s per 100m stroke, 8:00 for 2k), boat 2 rows
+    // 2:05/500 (25s, 8:20 for 2k) - each session's time_ms matches its strokes.
+    const playback = buildRacePlayback(workout(), workout({ strokes: strokesAtPace(125000), time_ms: 500000 }));
     expect(playback).not.toBeNull();
     expect(playback.distance).toBeCloseTo(1900);
     expect(playback.boats[0].finish_s).toBeCloseTo(456);
@@ -249,6 +250,32 @@ describe('race replay playback', () => {
     const playback = buildRacePlayback(compressed, clean);
     expect(playback.duration_s).toBeCloseTo(545, 0);
     expect(playback.boats[0].finish_s).toBeCloseTo(545, 0);
+  });
+
+  it('anchors a compressed clock whose stream stops short of the scored distance', () => {
+    // The reported bug: two ~2k rows (8:29 and 8:43, 14s apart) whose stroke
+    // clocks are compressed ~10x, and whose stream ends ~50m before the stored
+    // distance (last stroke at 2050m of a 2100m piece = 97.6%). The old 98%
+    // anchor guard skipped these, so the race ran on the compressed clock and
+    // reported "wins by ~5s" instead of the true ~14s margin.
+    const compressedShort = (officialS, compression) => {
+      const spanS = officialS / compression;
+      return {
+        distance: 2100, time_ms: officialS * 1000, pace_ms: 133000, heart_rate_avg: 150,
+        strokes: Array.from({ length: 60 }, (_, index) => {
+          const fraction = index / 59;
+          return { distance_m: fraction * 2050, time_s: fraction * spanS, pace_ms: 133000, stroke_rate: 24, heart_rate: 150 };
+        }), intervals: [],
+      };
+    };
+    const playback = buildRacePlayback(compressedShort(509, 9.6), compressedShort(523, 9.0));
+    // Clock runs in official-time minutes, not the compressed ~58s.
+    expect(playback.duration_s).toBeGreaterThan(480);
+    // Margin reflects the official 14s gap over the ground actually raced, not
+    // the compressed ~5s.
+    const margin = Math.abs(playback.boats[0].finish_s - playback.boats[1].finish_s);
+    expect(margin).toBeCloseTo(14, 0);
+    expect(playback.boats[0].finish_s).toBeLessThan(playback.boats[1].finish_s); // 8:29 wins
   });
 
   it('declines to race unlike distances or workouts without strokes', () => {
