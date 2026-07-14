@@ -94,7 +94,12 @@ export default function ComparisonOverlay({ workout1, workout2, match = {}, onBa
       )}
 
       {racePlayback && (
-        <RaceReplay playback={racePlayback} date1={date1} date2={date2} formatPace={formatPace} />
+        <RaceReplay
+          playback={racePlayback}
+          laneOne={{ label: date1, chip: 'This session' }}
+          laneTwo={{ label: date2 }}
+          formatPace={formatPace}
+        />
       )}
 
       <section className={styles.card}>

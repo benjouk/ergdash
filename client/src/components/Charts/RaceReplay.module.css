@@ -78,6 +78,73 @@
   font-weight: 600;
 }
 
+/* Opponent picker row (solo races) */
+.subHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-5);
+  border-bottom: 1px solid var(--rule);
+  flex-wrap: wrap;
+}
+
+.opponentLabel {
+  color: var(--ink-3);
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.segmented {
+  display: flex;
+  padding: 3px;
+  background: var(--surface-alt);
+  border-radius: var(--radius-sm);
+}
+
+.segmented button {
+  padding: 5px 11px;
+  border-radius: calc(var(--radius-sm) - 2px);
+  color: var(--ink-3);
+  font-size: 0.72rem;
+}
+
+.segmented button.segmentActive {
+  color: var(--ink);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.segmented button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.paceInput {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--ink-2);
+  font-size: 0.72rem;
+}
+
+.paceInput input {
+  width: 72px;
+  padding: 5px 8px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+}
+
+.paceInput input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
 /* Course. The extra left padding leaves room for a boat hull sitting
    behind the start line before the gun. */
 .course {

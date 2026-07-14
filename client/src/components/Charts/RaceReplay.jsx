@@ -3,11 +3,14 @@ import { Pause, Play, RotateCcw } from 'lucide-react';
 import { sampleRacePlayback } from '../../utils/workoutComparison.js';
 import styles from './RaceReplay.module.css';
 
-const SPEEDS = [30, 60, 120, 240];
+const SPEEDS = [15, 30, 60, 120, 240];
 
 // Head-to-head playback: a top-down two-lane course where each boat moves at
 // the pace its session was actually rowed, on a shared accelerated clock.
-export default function RaceReplay({ playback, date1, date2, formatPace }) {
+// laneOne/laneTwo are { label, chip }; resultText and subControls let the solo
+// (single-session vs pace boat) caller reword the outcome and add an opponent
+// picker without duplicating the animation machinery.
+export default function RaceReplay({ playback, laneOne, laneTwo, formatPace, resultText, subControls }) {
   const defaultSpeed = useMemo(
     () => SPEEDS.find(speed => playback.duration_s / speed <= 45) || SPEEDS[SPEEDS.length - 1],
     [playback],
@@ -53,8 +56,13 @@ export default function RaceReplay({ playback, date1, date2, formatPace }) {
   const frame = useMemo(() => sampleRacePlayback(playback, raceT), [playback, raceT]);
   const atEnd = raceT >= playback.duration_s;
   const finishGapS = Math.abs(playback.boats[0].finish_s - playback.boats[1].finish_s);
-  const winnerDate = playback.boats[0].finish_s <= playback.boats[1].finish_s ? date1 : date2;
-  const leader = Math.abs(frame.gap_m) < 1 ? null : frame.gap_m > 0 ? date1 : date2;
+  const winnerIsOne = playback.boats[0].finish_s <= playback.boats[1].finish_s;
+  const tie = finishGapS < 0.1;
+  const winnerLabel = winnerIsOne ? laneOne.label : laneTwo.label;
+  const leaderLabel = Math.abs(frame.gap_m) < 1 ? null : frame.gap_m > 0 ? laneOne.label : laneTwo.label;
+  const resultLabel = resultText
+    ? resultText({ winnerIsOne, gapS: finishGapS, tie })
+    : tie ? 'Dead heat' : `${winnerLabel} wins by ${finishGapS.toFixed(1)}s`;
 
   const togglePlay = () => {
     if (atEnd) {
@@ -99,6 +107,8 @@ export default function RaceReplay({ playback, date1, date2, formatPace }) {
         </div>
       </div>
 
+      {subControls && <div className={styles.subHeader}>{subControls}</div>}
+
       <div className={styles.course}>
         <div className={styles.startLine} aria-hidden="true" />
         <div className={styles.markers}>
@@ -109,14 +119,15 @@ export default function RaceReplay({ playback, date1, date2, formatPace }) {
           ))}
         </div>
         <Lane
-          label={date1}
-          chip="This session"
+          label={laneOne.label}
+          chip={laneOne.chip}
           boat={frame.boats[0]}
           distance={playback.distance}
           tone={styles.laneOne}
         />
         <Lane
-          label={date2}
+          label={laneTwo.label}
+          chip={laneTwo.chip}
           boat={frame.boats[1]}
           distance={playback.distance}
           tone={styles.laneTwo}
@@ -130,12 +141,12 @@ export default function RaceReplay({ playback, date1, date2, formatPace }) {
           {frame.complete ? (
             <>
               <span className={styles.statusLabel}>Result</span>
-              <strong>{winnerDate} wins by {finishGapS.toFixed(1)}s</strong>
+              <strong>{resultLabel}</strong>
             </>
-          ) : leader ? (
+          ) : leaderLabel ? (
             <>
               <span className={styles.statusLabel}>Gap</span>
-              <strong>{leader} leads by {Math.abs(frame.gap_m).toFixed(0)}m</strong>
+              <strong>{leaderLabel} +{Math.abs(frame.gap_m).toFixed(0)}m</strong>
             </>
           ) : (
             <>

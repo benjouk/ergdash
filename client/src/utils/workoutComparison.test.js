@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildComparisonSplits, buildComparisonSummary, buildMetricSeries, buildRacePlayback,
-  comparisonMetricCards, normalizeComparisonWorkout, sampleRacePlayback,
+  buildSoloRacePlayback, comparisonMetricCards, normalizeComparisonWorkout, sampleRacePlayback,
 } from './workoutComparison.js';
 
 const workout = (overrides = {}) => ({
@@ -238,6 +238,31 @@ describe('race replay playback', () => {
   it('declines to race unlike distances or workouts without strokes', () => {
     expect(buildRacePlayback(workout(), workout({ distance: 5000, strokes: Array.from({ length: 20 }, (_, index) => ({ distance_m: index * 250, time_s: index * 60, pace_ms: 120000 })) }))).toBeNull();
     expect(buildRacePlayback(workout(), workout({ strokes: [] }))).toBeNull();
+  });
+});
+
+describe('solo race playback', () => {
+  it('ties against an even split of the workout', () => {
+    const playback = buildSoloRacePlayback(workout(), { paceMs: 120000 });
+    expect(playback.solo).toBe(true);
+    expect(playback.distance).toBeCloseTo(1900);
+    expect(playback.boats[0].finish_s).toBeCloseTo(playback.boats[1].finish_s, 1);
+  });
+
+  it('beats a slower target pace and loses to a faster one', () => {
+    const slower = buildSoloRacePlayback(workout(), { paceMs: 125000 });
+    expect(slower.boats[1].finish_s).toBeGreaterThan(slower.boats[0].finish_s); // pacer slower -> you win
+    const faster = buildSoloRacePlayback(workout(), { paceMs: 115000 });
+    expect(faster.boats[1].finish_s).toBeLessThan(faster.boats[0].finish_s); // pacer faster -> you lose
+
+    // The pace boat holds an even split the whole way.
+    const mid = sampleRacePlayback(faster, faster.boats[1].finish_s / 2);
+    expect(mid.boats[1].pace_ms).toBeCloseTo(115000, -2);
+  });
+
+  it('returns null without a pace or strokes', () => {
+    expect(buildSoloRacePlayback(workout(), {})).toBeNull();
+    expect(buildSoloRacePlayback(workout({ strokes: [] }), { paceMs: 120000 })).toBeNull();
   });
 });
 

@@ -576,6 +576,49 @@ export function buildRacePlayback(workout1, workout2) {
   };
 }
 
+// A synthetic pace boat: holds paceMs evenly over the distance. Used as the
+// opponent when racing a single session (even pace / PB / a typed target).
+function buildGhostTrack(distance, paceMs) {
+  if (!(distance > 0) || !validNumber(paceMs)) return null;
+  const totalS = (distance / 500) * (paceMs / 1000);
+  const steps = 40;
+  const times = [];
+  const dists = [];
+  const paces = [];
+  const rates = [];
+  const hrs = [];
+  for (let i = 0; i <= steps; i += 1) {
+    const fraction = i / steps;
+    times.push(totalS * fraction);
+    dists.push(distance * fraction);
+    paces.push(paceMs);
+    rates.push(null);
+    hrs.push(null);
+  }
+  return { times, dists, paces, rates, hrs, distance };
+}
+
+// Race one real session against a pace boat (opponent.paceMs in ms per 500m).
+// Reuses the same playback shape, so RaceReplay/sampleRacePlayback are shared.
+export function buildSoloRacePlayback(workout, opponent = {}) {
+  const track = raceTrack(normalizeComparisonWorkout(workout));
+  if (!track) return null;
+  const ghost = buildGhostTrack(track.distance, opponent.paceMs);
+  if (!ghost) return null;
+  const finish1 = timeAtDistance(track, track.distance);
+  const finish2 = timeAtDistance(ghost, track.distance);
+  if (!(finish1 > 0) || !(finish2 > 0)) return null;
+  return {
+    distance: track.distance,
+    duration_s: Math.max(finish1, finish2),
+    solo: true,
+    boats: [
+      { track, finish_s: finish1 },
+      { track: ghost, finish_s: finish2 },
+    ],
+  };
+}
+
 export function sampleRacePlayback(playback, raceT) {
   const boats = playback.boats.map(({ track, finish_s }) => {
     const clamped = Math.min(Math.max(raceT, 0), finish_s);
