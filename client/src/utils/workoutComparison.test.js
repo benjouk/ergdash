@@ -235,6 +235,22 @@ describe('race replay playback', () => {
     expect(drifted.boats[1].finish_s - drifted.boats[0].finish_s).toBeCloseTo(4.7, 1);
   });
 
+  it('anchors the race clock to the official time when stroke timestamps are on a wrong scale', () => {
+    // Stroke time_s compressed ~10x (58s span) while the piece really took
+    // 545s per workout.time_ms - the race must run for the official duration,
+    // not the bogus stroke clock.
+    const compressed = {
+      distance: 2000, time_ms: 545000, pace_ms: 136250, heart_rate_avg: 160,
+      strokes: Array.from({ length: 41 }, (_, index) => ({
+        distance_m: index * 50, time_s: index * (58 / 40), pace_ms: 136000, stroke_rate: 25, heart_rate: 160,
+      })), intervals: [],
+    };
+    const clean = { ...compressed };
+    const playback = buildRacePlayback(compressed, clean);
+    expect(playback.duration_s).toBeCloseTo(545, 0);
+    expect(playback.boats[0].finish_s).toBeCloseTo(545, 0);
+  });
+
   it('declines to race unlike distances or workouts without strokes', () => {
     expect(buildRacePlayback(workout(), workout({ distance: 5000, strokes: Array.from({ length: 20 }, (_, index) => ({ distance_m: index * 250, time_s: index * 60, pace_ms: 120000 })) }))).toBeNull();
     expect(buildRacePlayback(workout(), workout({ strokes: [] }))).toBeNull();
