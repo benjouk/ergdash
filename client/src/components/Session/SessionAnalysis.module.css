@@ -54,13 +54,18 @@
   background: var(--surface-alt);
 }
 
-.read:nth-last-child(-n+2) {
-  border-bottom: none;
-}
-
-/* An odd number of reads would leave a gap; let the lone last one span the row. */
+/* A lone trailing read (odd count) spans the row so its border and value run to
+   the card edges instead of stopping mid-row. */
 .read:last-child:nth-child(odd) {
   grid-column: 1 / -1;
+}
+
+/* Drop the separators under the last row — correct for either parity: the last
+   read always, plus its left-column row-mate when the count is even (in which
+   case the second-to-last read sits at an odd position). */
+.read:last-child,
+.read:nth-last-child(2):nth-child(odd) {
+  border-bottom: none;
 }
 
 .readLabel {
@@ -97,7 +102,12 @@
     grid-template-columns: 1fr;
   }
 
-  .read:nth-last-child(-n+2) {
+  /* Single column: no spanning, and every row but the last keeps its separator. */
+  .read:last-child:nth-child(odd) {
+    grid-column: auto;
+  }
+
+  .read:nth-last-child(2):nth-child(odd) {
     border-bottom: 1px solid var(--rule);
   }
 
