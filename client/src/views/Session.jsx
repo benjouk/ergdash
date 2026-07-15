@@ -44,6 +44,7 @@ import { renderSessionCard } from '../utils/sessionCard.js';
 import PBBadges from '../components/PBBadge.jsx';
 import ComparisonOverlay from '../components/Charts/ComparisonOverlay.jsx';
 import IntervalRepChart from '../components/Session/IntervalRepChart.jsx';
+import ExecutionAnalysis from '../components/Session/ExecutionAnalysis.jsx';
 import { structureLabel, structureTooltip } from '../utils/workoutStructure.js';
 import PaceProfileChart from '../components/Session/PaceProfileChart.jsx';
 import ChartInfo from '../components/Charts/ChartInfo.jsx';
@@ -623,6 +624,8 @@ export default function Session() {
           </div>
         ))}
       </div>
+
+      <ExecutionAnalysis analysis={workout.analysis} formatPace={formatPace} cardStyles={styles} />
 
       {workout.insight?.length > 0 && (
         <ul className={styles.insightRow} aria-label="Session insights">
