@@ -54,15 +54,10 @@
   background: var(--surface-alt);
 }
 
-/* A lone trailing read (odd count) spans the row so its border and value run to
-   the card edges instead of stopping mid-row. */
-.read:last-child:nth-child(odd) {
-  grid-column: 1 / -1;
-}
-
 /* Drop the separators under the last row — correct for either parity: the last
    read always, plus its left-column row-mate when the count is even (in which
-   case the second-to-last read sits at an odd position). */
+   case the second-to-last read sits at an odd position). A lone trailing read
+   stays in the left column so its value lines up with the column above it. */
 .read:last-child,
 .read:nth-last-child(2):nth-child(odd) {
   border-bottom: none;
@@ -102,11 +97,7 @@
     grid-template-columns: 1fr;
   }
 
-  /* Single column: no spanning, and every row but the last keeps its separator. */
-  .read:last-child:nth-child(odd) {
-    grid-column: auto;
-  }
-
+  /* Single column: every row but the last keeps its separator. */
   .read:nth-last-child(2):nth-child(odd) {
     border-bottom: 1px solid var(--rule);
   }
