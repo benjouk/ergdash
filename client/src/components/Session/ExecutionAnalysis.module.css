@@ -18,10 +18,11 @@
 }
 
 .chipLabel {
-  color: var(--ink-2);
+  color: var(--ink-3);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  font-size: 0.66rem;
+  letter-spacing: 0.08em;
+  font-size: 0.65rem;
+  font-weight: 600;
 }
 
 .chipValue {
@@ -42,10 +43,11 @@
 }
 
 .statLabel {
-  color: var(--ink-2);
-  font-size: 0.68rem;
+  color: var(--ink-3);
+  font-size: 0.65rem;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.08em;
+  font-weight: 600;
 }
 
 .statValue {
