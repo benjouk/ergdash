@@ -626,7 +626,7 @@ export default function Session() {
         ))}
       </div>
 
-      <SessionAnalysis analysis={workout.analysis} insight={workout.insight} />
+      <SessionAnalysis analysis={workout.analysis} insight={workout.insight} cardStyles={styles} />
 
       <ExecutionAnalysis analysis={workout.analysis} formatPace={formatPace} cardStyles={styles} />
 
