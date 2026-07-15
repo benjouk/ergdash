@@ -1,10 +1,22 @@
 import { Router } from 'express';
 import { statSync } from 'fs';
+import { createRequire } from 'module';
 import { getDb, getDbPath } from '../db.js';
 import { hasValidSession } from '../auth.js';
 
 const router = Router();
 const startTime = Date.now();
+const require = createRequire(import.meta.url);
+const { version } = require('../../package.json');
+
+export function aggregateSyncStatus(rows) {
+  const statuses = new Set(rows.map(row => row.value));
+  if (statuses.has('syncing')) return 'syncing';
+  if (statuses.has('auth_error')) return 'auth_error';
+  if (statuses.has('error')) return 'error';
+  if (statuses.has('idle')) return 'idle';
+  return 'never';
+}
 
 router.get('/', (req, res) => {
   // Unauthenticated callers (uptime monitors, container healthchecks) only
@@ -22,9 +34,16 @@ router.get('/', (req, res) => {
     dbSize = statSync(getDbPath()).size;
   } catch {}
 
-  const lastSync = db.prepare("SELECT value FROM sync_state WHERE key = 'last_sync_completed'").get();
-  const syncStatus = db.prepare("SELECT value FROM sync_state WHERE key = 'sync_status'").get();
-  const enriched = db.prepare('SELECT COUNT(*) as count FROM workouts WHERE has_stroke_data = 1').get().count;
+  const lastSync = db.prepare(`
+    SELECT value FROM sync_state
+    WHERE key LIKE 'profile:%:last_sync_completed'
+    ORDER BY value DESC LIMIT 1
+  `).get();
+  const syncStatuses = db.prepare(`
+    SELECT value FROM sync_state WHERE key LIKE 'profile:%:sync_status'
+  `).all();
+  const c2Count = db.prepare("SELECT COUNT(*) as count FROM workouts WHERE source = 'c2'").get().count;
+  const enriched = db.prepare("SELECT COUNT(*) as count FROM workouts WHERE source = 'c2' AND has_stroke_data = 1").get().count;
 
   res.json({
     status: 'ok',
@@ -35,10 +54,10 @@ router.get('/', (req, res) => {
     },
     sync: {
       last_completed: lastSync?.value || null,
-      status: syncStatus?.value || 'never',
-      enrichment: `${enriched}/${workoutCount}`,
+      status: aggregateSyncStatus(syncStatuses),
+      enrichment: `${enriched}/${c2Count}`,
     },
-    version: '0.1.1',
+    version,
   });
 });
 

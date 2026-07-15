@@ -3,6 +3,7 @@
 // planned_workouts rows to insert. UTC date math, weekday convention
 // 0=Monday..6=Sunday (matches the client's planCalendar ordering).
 import { anchorSlot } from './programPresets.js';
+import { isStrictDate } from './middleware/validate.js';
 
 const DAY_MS = 86400000;
 const SESSION_COLUMNS = [
@@ -68,12 +69,10 @@ export function validateProgramInput(preset, body) {
   }
 
   if (preset.kind === 'race') {
-    if (typeof body.race_date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(body.race_date)
-        || Number.isNaN(Date.parse(body.race_date))) {
+    if (!isStrictDate(body.race_date)) {
       errors.push('race_date must be an ISO 8601 date (YYYY-MM-DD)');
     }
-  } else if (typeof body.start_date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(body.start_date)
-      || Number.isNaN(Date.parse(body.start_date))) {
+  } else if (!isStrictDate(body.start_date)) {
     // The start rolls forward to the first training day, so it need only be a
     // valid date - it doesn't have to fall on a chosen training day.
     errors.push('start_date must be an ISO 8601 date (YYYY-MM-DD)');

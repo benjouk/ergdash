@@ -38,3 +38,30 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npm audit --omit=dev --audit-level=high
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t ergdash:ci .
+      - run: >-
+          docker run -d --name ergdash-ci -p 3100:3000
+          -e SESSION_SECRET=ci-only-session-secret-32-characters
+          ergdash:ci
+      - name: Wait for container health
+        run: |
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:3100/health >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs ergdash-ci
+          exit 1
+      - name: Verify LAN HTTP is not upgraded
+        run: |
+          curl -fsSI http://127.0.0.1:3100/ > /tmp/ergdash-headers
+          ! grep -qi '^strict-transport-security:' /tmp/ergdash-headers
+          ! grep -qi 'upgrade-insecure-requests' /tmp/ergdash-headers
+      - if: always()
+        run: docker rm -f ergdash-ci || true

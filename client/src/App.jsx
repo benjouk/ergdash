@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './context/AuthContext.jsx';
 import { usePrefs } from './context/PrefsContext.jsx';
@@ -6,15 +6,16 @@ import { useToast } from './context/ToastContext.jsx';
 import Ticker from './components/Ticker/Ticker.jsx';
 import BottomNav from './components/BottomNav/BottomNav.jsx';
 import FeedPanel from './components/Feed/FeedPanel.jsx';
-import Dashboard from './views/Dashboard.jsx';
-import Session from './views/Session.jsx';
-import Progress from './views/Progress.jsx';
-import Workouts from './views/Workouts.jsx';
-import Plan from './views/Plan.jsx';
-import Tools from './views/Tools.jsx';
-import Settings from './views/Settings.jsx';
 import Connect from './views/Connect.jsx';
 import styles from './App.module.css';
+
+const Dashboard = lazy(() => import('./views/Dashboard.jsx'));
+const Session = lazy(() => import('./views/Session.jsx'));
+const Progress = lazy(() => import('./views/Progress.jsx'));
+const Workouts = lazy(() => import('./views/Workouts.jsx'));
+const Plan = lazy(() => import('./views/Plan.jsx'));
+const Tools = lazy(() => import('./views/Tools.jsx'));
+const Settings = lazy(() => import('./views/Settings.jsx'));
 
 const PAGE_TITLES = {
   '/': 'Dashboard',
@@ -49,6 +50,9 @@ export default function App() {
       logbook_in_use: 'That Concept2 account is already linked to another profile.',
       wrong_account: 'That is a different Concept2 account than this profile uses - reconnect the original account, or add a new profile.',
       profile_not_found: 'That profile no longer exists.',
+      account_not_registered: 'That Concept2 account is not registered with this ErgDash instance.',
+      setup_complete: 'This ErgDash instance has already been set up. Sign in with an existing profile.',
+      session_required: 'Your ErgDash session expired. Sign in again before adding or reconnecting a profile.',
       auth_failed: 'Connecting to Concept2 failed. Please try again.',
     };
     toast.error(messages[code] || 'Something went wrong connecting to Concept2.');
@@ -82,16 +86,18 @@ export default function App() {
           <FeedPanel />
         </aside>
         <main className={styles.main}>
-          <Routes>
-            <Route path="/" element={defaultLanding && defaultLanding !== '/' ? <Navigate to={defaultLanding} replace /> : <Dashboard />} />
-            <Route path="/session/:id" element={<Session />} />
-            <Route path="/progress" element={<Progress />} />
-            <Route path="/workouts" element={<Workouts />} />
-            <Route path="/plan" element={<Plan />} />
-            <Route path="/tools" element={<Tools />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+          <Suspense fallback={<div className={styles.routeLoading}>Loading…</div>}>
+            <Routes>
+              <Route path="/" element={defaultLanding && defaultLanding !== '/' ? <Navigate to={defaultLanding} replace /> : <Dashboard />} />
+              <Route path="/session/:id" element={<Session />} />
+              <Route path="/progress" element={<Progress />} />
+              <Route path="/workouts" element={<Workouts />} />
+              <Route path="/plan" element={<Plan />} />
+              <Route path="/tools" element={<Tools />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Suspense>
         </main>
       </div>
       <BottomNav />

@@ -11,9 +11,12 @@ services:
       - C2_CLIENT_ID=${C2_CLIENT_ID}
       - C2_CLIENT_SECRET=${C2_CLIENT_SECRET}
       - C2_REDIRECT_URI=${C2_REDIRECT_URI:-http://localhost:3100/auth/callback}
+      - C2_API_BASE=${C2_API_BASE:-https://log.concept2.com}
       - SYNC_INTERVAL_MINUTES=${SYNC_INTERVAL_MINUTES:-15}
       - SESSION_SECRET=${SESSION_SECRET}
       - COOKIE_SECURE=${COOKIE_SECURE:-}
+      - APP_ORIGIN=${APP_ORIGIN:-}
+      - CORS_ORIGIN=${CORS_ORIGIN:-}
       - NODE_ENV=${NODE_ENV:-production}
     restart: unless-stopped
 
