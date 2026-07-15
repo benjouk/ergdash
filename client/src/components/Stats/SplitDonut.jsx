@@ -14,8 +14,8 @@ export default function SplitDonut({ summary }) {
   if (total <= 0) return null;
 
   const data = [
-    { name: 'Endurance', value: steady, color: 'var(--accent)' },
-    { name: 'Interval', value: interval, color: 'var(--accent-2)' },
+    { name: 'Continuous', value: steady, color: 'var(--accent)' },
+    { name: 'Intervals', value: interval, color: 'var(--accent-2)' },
   ];
 
   return (

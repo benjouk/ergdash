@@ -44,6 +44,7 @@ import { renderSessionCard } from '../utils/sessionCard.js';
 import PBBadges from '../components/PBBadge.jsx';
 import ComparisonOverlay from '../components/Charts/ComparisonOverlay.jsx';
 import IntervalRepChart from '../components/Session/IntervalRepChart.jsx';
+import { structureLabel, structureTooltip } from '../utils/workoutStructure.js';
 import PaceProfileChart from '../components/Session/PaceProfileChart.jsx';
 import ChartInfo from '../components/Charts/ChartInfo.jsx';
 import RateVsPaceScatter from '../components/Charts/RateVsPaceScatter.jsx';
@@ -580,8 +581,11 @@ export default function Session() {
             <PBBadges distances={workout.pb_distances} />
             {tag && (
               <span className={styles.classification}>
-                <span className={`${styles.tag} ${isInterval ? styles.tagInterval : ''}`}>
-                  {tag}
+                <span
+                  className={`${styles.tag} ${isInterval ? styles.tagInterval : ''}`}
+                  title={structureTooltip(tag)}
+                >
+                  {structureLabel(tag)}
                 </span>
                 {workout.workout_type && (
                   <span className={styles.workoutType} title={workout.workout_type}>

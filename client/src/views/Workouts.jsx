@@ -7,6 +7,7 @@ import { useUnits } from '../context/UnitsContext.jsx';
 import { useTimeRange } from '../context/TimeRangeContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { usePrefs } from '../context/PrefsContext.jsx';
+import { structureLabel, structureTooltip } from '../utils/workoutStructure.js';
 import Sparkline from '../components/Feed/Sparkline.jsx';
 import { RowSkeleton } from '../components/Skeleton/Skeleton.jsx';
 import PBBadges from '../components/PBBadge.jsx';
@@ -324,7 +325,7 @@ export default function Workouts() {
             onClick={() => { setTag(t); setOffset(0); }}
             className={`${styles.filterChip} ${tag === t ? styles.filterChipActive : ''}`}
           >
-            {t || 'All'}
+            {t ? structureLabel(t) : 'All'}
           </button>
         ))}
         <button
@@ -529,7 +530,7 @@ function Th({ children, onClick }) {
 
 function TagBadge({ tag }) {
   const tagClass = styles[TAG_CLASS[tag]] || styles.tagOther;
-  return <span className={`${styles.tag} ${tagClass}`}>{tag}</span>;
+  return <span className={`${styles.tag} ${tagClass}`} title={structureTooltip(tag)}>{structureLabel(tag)}</span>;
 }
 
 function PlanBadge() {

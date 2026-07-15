@@ -1,3 +1,5 @@
+import { structureLabel } from './workoutStructure.js';
+
 const CARD_WIDTH = 1200;
 const CARD_HEIGHT = 630;
 
@@ -84,7 +86,7 @@ function drawMainStats(ctx, workout, formatters, tagColor) {
   ctx.font = '600 116px "IBM Plex Mono", ui-monospace, monospace';
   ctx.fillText(formatters.formatPace(workout.pace_ms), CONTENT_LEFT - 4, 360);
 
-  const tag = (workout.inferred_tag || 'endurance').toUpperCase();
+  const tag = structureLabel(workout.inferred_tag).toUpperCase();
   ctx.font = LABEL_FONT;
   ctx.letterSpacing = '2px';
   const pillWidth = ctx.measureText(tag).width + 40;
