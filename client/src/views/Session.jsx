@@ -45,6 +45,7 @@ import PBBadges from '../components/PBBadge.jsx';
 import ComparisonOverlay from '../components/Charts/ComparisonOverlay.jsx';
 import IntervalRepChart from '../components/Session/IntervalRepChart.jsx';
 import ExecutionAnalysis from '../components/Session/ExecutionAnalysis.jsx';
+import ExecutionChips from '../components/Session/ExecutionChips.jsx';
 import { structureLabel, structureTooltip } from '../utils/workoutStructure.js';
 import PaceProfileChart from '../components/Session/PaceProfileChart.jsx';
 import ChartInfo from '../components/Charts/ChartInfo.jsx';
@@ -612,17 +613,20 @@ export default function Session() {
         </div>
       </header>
 
-      <div className={styles.summaryStrip}>
-        {summaryItems.map(item => (
-          <div className={styles.summaryCell} key={item.label}>
-            <span className={styles.summaryCellLabel}>{item.label}</span>
-            <span className={`${styles.summaryCellValue} ${item.accent ? styles.accentValue : ''}`}>
-              {item.value}
-              {item.unit && <span className={styles.summaryCellUnit}>{item.unit}</span>}
-            </span>
-            {item.subtitle && <span className={styles.summaryCellSubtitle}>{item.subtitle}</span>}
-          </div>
-        ))}
+      <div className={styles.summaryBlock}>
+        <div className={styles.summaryStrip}>
+          {summaryItems.map(item => (
+            <div className={styles.summaryCell} key={item.label}>
+              <span className={styles.summaryCellLabel}>{item.label}</span>
+              <span className={`${styles.summaryCellValue} ${item.accent ? styles.accentValue : ''}`}>
+                {item.value}
+                {item.unit && <span className={styles.summaryCellUnit}>{item.unit}</span>}
+              </span>
+              {item.subtitle && <span className={styles.summaryCellSubtitle}>{item.subtitle}</span>}
+            </div>
+          ))}
+        </div>
+        <ExecutionChips analysis={workout.analysis} />
       </div>
 
       <ExecutionAnalysis analysis={workout.analysis} formatPace={formatPace} cardStyles={styles} />

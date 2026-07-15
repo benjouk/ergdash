@@ -184,16 +184,20 @@
   flex-wrap: wrap;
 }
 
-/* Summary strip - same surface treatment as other cards, accent as a rule */
-.summaryStrip {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
+/* Summary block - the numeric strip plus the observed-execution labels tier,
+   sharing one surface with the accent as a top rule. */
+.summaryBlock {
   border-radius: var(--radius-lg);
   background: var(--surface);
   border: 1px solid var(--rule);
   border-top: 3px solid var(--accent);
   box-shadow: var(--shadow-sm);
   overflow: hidden;
+}
+
+.summaryStrip {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
 }
 
 .summaryCell {
