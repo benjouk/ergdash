@@ -255,6 +255,9 @@ describe('insertNormalizedWorkout', () => {
 
     const row = db.prepare('SELECT * FROM workouts WHERE id = ?').get(id);
     expect(row.source).toBe('import');
+    // The importer supplies the workout type, so provenance is the import itself.
+    expect(row.workout_type_source).toBe('import');
+    expect(row.raw_workout_type).toBe(row.workout_type);
     expect(row.import_fingerprint).toBe('bb:0');
     expect(row.pace_ms).toBe(Math.round((478000 / 2000) * 500));
     expect(row.has_stroke_data).toBe(1);

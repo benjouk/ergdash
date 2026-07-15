@@ -195,13 +195,18 @@ export function insertUserWorkout(db, {
     db.prepare(`
       INSERT INTO workouts (
         id, profile_id, user_id, date, timezone, type, workout_type,
+        raw_workout_type, workout_type_source,
         distance, time_ms, pace_ms, stroke_rate, stroke_count,
         calories, heart_rate_avg, heart_rate_max, drag_factor,
         comments, notes, source, import_fingerprint, raw_json, synced_at
-      ) VALUES (?, ?, ?, ?, NULL, 'rower', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, datetime('now'))
+      ) VALUES (?, ?, ?, ?, NULL, 'rower', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, datetime('now'))
     `).run(
       id, profileId, userId ?? 0, fields.date,
       fields.workout_type || 'JustRow',
+      // Provenance mirrors the sync path: a supplied type is attributed to the
+      // row's own source (manual/import); a defaulted JustRow is a 'fallback'.
+      fields.workout_type ?? null,
+      fields.workout_type ? source : 'fallback',
       fields.distance, fields.time_ms, paceMs,
       fields.stroke_rate ?? null, fields.stroke_count ?? null,
       fields.calories ?? null, fields.heart_rate_avg ?? null, fields.heart_rate_max ?? null,

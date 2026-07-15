@@ -4,7 +4,10 @@
 --
 -- workout_type       : effective/normalized value (unchanged; still what code reads)
 -- raw_workout_type   : exactly what the source reported (NULL if it reported none)
--- workout_type_source: 'concept2' | 'fallback' | 'legacy' | 'unknown'
+-- workout_type_source: where the effective value came from —
+--   'concept2' (Logbook sync), 'manual' (hand-entered), 'import' (file import),
+--   'fallback' (no value reported, defaulted), 'legacy' (pre-provenance backfill),
+--   'unknown' (reserved for truly-unknowable cases)
 ALTER TABLE workouts ADD COLUMN raw_workout_type TEXT;
 ALTER TABLE workouts ADD COLUMN workout_type_source TEXT;
 
