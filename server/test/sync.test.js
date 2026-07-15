@@ -151,6 +151,22 @@ describe('insertWorkout', () => {
     expect(intervals[1].type).toBe('rest');
     expect(intervals[2].type).toBe('work');
   });
+
+  it('records concept2 provenance when the workout type is present', () => {
+    insertWorkout(db, c2Workout({ workout_type: 'FixedTimeSplits' }), 1);
+    const row = db.prepare('SELECT workout_type, raw_workout_type, workout_type_source FROM workouts WHERE id = 1').get();
+    expect(row.workout_type).toBe('FixedTimeSplits');
+    expect(row.raw_workout_type).toBe('FixedTimeSplits');
+    expect(row.workout_type_source).toBe('concept2');
+  });
+
+  it('flags the FixedDistanceSplits fallback when the workout type is absent', () => {
+    insertWorkout(db, c2Workout({ workout_type: undefined }), 1);
+    const row = db.prepare('SELECT workout_type, raw_workout_type, workout_type_source FROM workouts WHERE id = 1').get();
+    expect(row.workout_type).toBe('FixedDistanceSplits');
+    expect(row.raw_workout_type).toBeNull();
+    expect(row.workout_type_source).toBe('fallback');
+  });
 });
 
 describe('selectPendingStrokeWorkouts', () => {

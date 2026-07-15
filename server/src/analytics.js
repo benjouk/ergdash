@@ -10,7 +10,10 @@ import {
   bestEfforts,
 } from './strokeMetrics.js';
 import { getZoneModel, zoneForHr } from './hrZones.js';
-import { isIntervalWorkoutType } from './workoutTypes.js';
+import { isIntervalWorkoutType, isContinuousWorkoutType, workoutSubtype } from './workoutTypes.js';
+import { buildWorkoutAnalysis, ANALYSIS_VERSION } from './workoutExecution.js';
+
+export { ANALYSIS_VERSION };
 
 export const BEST_EFFORT_DURATIONS = [60, 240, 600, 1800, 3600];
 
@@ -82,7 +85,8 @@ export function computeMetricsForWorkout(workoutId) {
     }
   }
 
-  const isInterval = workout.inferred_tag === 'interval';
+  const structure = inferWorkoutStructure(workout);
+  const isInterval = structure.value === 'interval';
   const intervals = isInterval
     ? db.prepare('SELECT * FROM intervals WHERE workout_id = ? ORDER BY interval_index').all(workoutId)
     : [];
@@ -105,6 +109,39 @@ export function computeMetricsForWorkout(workoutId) {
     ? recoveries.reduce((s, r) => s + r.drop_bpm, 0) / recoveries.length
     : null;
 
+  // Versioned "observed execution" analysis, computed from the same strokes/
+  // intervals already loaded above. Benchmark is the profile's best pace at this
+  // distance excluding the current row (so a workout isn't judged against itself).
+  const benchmark = db.prepare(
+    'SELECT MIN(pace_ms) as best FROM workouts WHERE distance = ? AND pace_ms > 0 AND profile_id = ? AND id != ?'
+  ).get(workout.distance, workout.profile_id, workoutId);
+
+  // HR-zone distribution feeds observed effort. Prefer per-stroke time-in-zone;
+  // fall back to the zone of the average HR when there's no stroke HR stream.
+  const zoneModel = getZoneModel(db, workout.profile_id);
+  let zoneShares = null;
+  if (zoneModel) {
+    const zt = zoneTimes(strokes, zoneModel.bounds);
+    if (zt) {
+      zoneShares = [1, 2, 3, 4, 5].map(z => zt[z] || 0);
+    } else if (workout.heart_rate_avg > 0) {
+      zoneShares = [0, 0, 0, 0, 0];
+      zoneShares[zoneForHr(workout.heart_rate_avg, zoneModel.bounds) - 1] = 1;
+    }
+  }
+
+  const analysis = buildWorkoutAnalysis({
+    workout,
+    strokes,
+    intervals,
+    structure,
+    benchmarkPaceMs: benchmark?.best || null,
+    rateDisciplinePct: discipline,
+    zoneShares,
+    zonesEstimated: zoneModel?.estimated ?? false,
+    hrDriftPct: drift,
+  });
+
   const insertRecovery = db.prepare(`
     INSERT INTO interval_recoveries (workout_id, rep_index, hr_end, hr_next_start, drop_bpm, rest_s)
     VALUES (?, ?, ?, ?, ?, ?)
@@ -115,11 +152,12 @@ export function computeMetricsForWorkout(workoutId) {
       INSERT OR REPLACE INTO computed_metrics (
         workout_id, fade_index, consistency, effort_score, drag_delta,
         distance_per_stroke, watts_per_beat, hr_drift_pct, rate_discipline,
-        hr_recovery_avg, metrics_version, computed_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+        hr_recovery_avg, metrics_version, analysis_json, analysis_version, computed_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
     `).run(
       workoutId, fadeIndex, consistency, effortScore, dragDelta,
-      dps, wpb, drift, discipline, recoveryAvg, METRICS_VERSION
+      dps, wpb, drift, discipline, recoveryAvg, METRICS_VERSION,
+      JSON.stringify(analysis), ANALYSIS_VERSION
     );
 
     db.prepare('DELETE FROM interval_recoveries WHERE workout_id = ?').run(workoutId);
@@ -134,8 +172,11 @@ export function computeAllMetrics(profileId) {
   const workouts = db.prepare(`
     SELECT w.id FROM workouts w
     LEFT JOIN computed_metrics cm ON w.id = cm.workout_id
-    WHERE w.profile_id = ? AND (cm.id IS NULL OR COALESCE(cm.metrics_version, 0) < ?)
-  `).all(profileId, METRICS_VERSION);
+    WHERE w.profile_id = ?
+      AND (cm.id IS NULL
+           OR COALESCE(cm.metrics_version, 0) < ?
+           OR COALESCE(cm.analysis_version, 0) < ?)
+  `).all(profileId, METRICS_VERSION, ANALYSIS_VERSION);
 
   for (const { id } of workouts) {
     computeMetricsForWorkout(id);
@@ -403,19 +444,43 @@ export function computeWeekStreak(db, profileId) {
   return streak;
 }
 
-export function inferWorkoutTag(workout) {
+// Classifies a workout's *structure* (how the session was shaped), independent
+// of training intensity or intent. This is the source of truth; inferWorkoutTag()
+// below is a thin legacy wrapper over it.
+//   value:   'continuous' | 'interval' | 'unknown'
+//   subtype: session format (fixed_distance/fixed_time/.../variable/unknown)
+//   reasons: human-readable basis for the classification
+export function inferWorkoutStructure(workout) {
   const db = getDb();
   const restCount = db.prepare(
     "SELECT COUNT(*) as count FROM intervals WHERE workout_id = ? AND type = 'rest'"
   ).get(workout.id)?.count || 0;
 
   const hasRest = restCount > 0 || workout.rest_time_ms > 0 || workout.rest_distance > 0;
+  const workoutType = workout.workout_type;
+  const subtype = workoutSubtype(workoutType);
+  const result = (value, reasons) => ({ value, subtype, source: 'inferred', confidence: value === 'unknown' ? 0.5 : 1, reasons });
 
-  if (hasRest || isIntervalWorkoutType(workout.workout_type)) {
-    return 'interval';
+  // Rest evidence takes precedence over a non-interval workout type: a
+  // FixedDistanceSplits piece with real rest periods is still an interval.
+  if (hasRest) {
+    return result('interval', [restCount > 0 ? 'Rest interval detected' : 'Rest time or distance was recorded']);
   }
+  if (isIntervalWorkoutType(workoutType)) {
+    return result('interval', [`Concept2 workout type is ${workoutType}`]);
+  }
+  if (isContinuousWorkoutType(workoutType)) {
+    return result('continuous', [`Concept2 workout type is ${workoutType}`, 'No rest periods were detected']);
+  }
+  return result('unknown', ['Workout type is unknown or unsupported and no rest was detected']);
+}
 
-  return 'endurance';
+// Legacy structural label kept for backward compatibility and still persisted to
+// the workouts.inferred_tag column. `endurance` here means only "continuous
+// structure" (no detected rest / non-interval type) — it is NOT a training
+// intensity label. New code should call inferWorkoutStructure() instead.
+export function inferWorkoutTag(workout) {
+  return inferWorkoutStructure(workout).value === 'interval' ? 'interval' : 'endurance';
 }
 
 export function tagAllWorkouts(profileId) {

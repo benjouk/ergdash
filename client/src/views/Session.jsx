@@ -44,6 +44,9 @@ import { renderSessionCard } from '../utils/sessionCard.js';
 import PBBadges from '../components/PBBadge.jsx';
 import ComparisonOverlay from '../components/Charts/ComparisonOverlay.jsx';
 import IntervalRepChart from '../components/Session/IntervalRepChart.jsx';
+import ExecutionAnalysis from '../components/Session/ExecutionAnalysis.jsx';
+import SessionAnalysis from '../components/Session/SessionAnalysis.jsx';
+import { structureLabel, structureTooltip } from '../utils/workoutStructure.js';
 import PaceProfileChart from '../components/Session/PaceProfileChart.jsx';
 import ChartInfo from '../components/Charts/ChartInfo.jsx';
 import RateVsPaceScatter from '../components/Charts/RateVsPaceScatter.jsx';
@@ -580,8 +583,11 @@ export default function Session() {
             <PBBadges distances={workout.pb_distances} />
             {tag && (
               <span className={styles.classification}>
-                <span className={`${styles.tag} ${isInterval ? styles.tagInterval : ''}`}>
-                  {tag}
+                <span
+                  className={`${styles.tag} ${isInterval ? styles.tagInterval : ''}`}
+                  title={structureTooltip(tag)}
+                >
+                  {structureLabel(tag)}
                 </span>
                 {workout.workout_type && (
                   <span className={styles.workoutType} title={workout.workout_type}>
@@ -620,14 +626,81 @@ export default function Session() {
         ))}
       </div>
 
-      {workout.insight?.length > 0 && (
-        <ul className={styles.insightRow} aria-label="Session insights">
-          {workout.insight.map(item => (
-            <li key={item.id} className={`${styles.insightChip} ${styles[`insight_${item.kind}`] || ''}`}>
-              {item.text}
-            </li>
-          ))}
-        </ul>
+      <SessionAnalysis analysis={workout.analysis} insight={workout.insight} cardStyles={styles} />
+
+      {splitRows.length > 0 && (() => {
+        const isIntervalTable = isInterval && workout.intervals?.length > 0;
+        const workReps = isIntervalTable ? splitRows.filter(r => !r.rest) : splitRows;
+        const repCount = workReps.length;
+        const hasDistance = splitRows.some(r => r.distance > 0);
+        const hasCalories = splitRows.some(r => r.calories > 0);
+        const hasRecovery = splitRows.some(r => r.recovery_bpm != null);
+        const bestPace = Math.min(...workReps.map(r => r.pace_ms).filter(Boolean));
+        return (
+        <div className={styles.card}>
+          <div className={styles.cardHeader}>
+            <div className={styles.cardTitle}>{isIntervalTable ? 'Intervals' : 'Splits'}</div>
+            <span className={styles.cardKicker}>
+              {isIntervalTable ? `${repCount} reps` : `${splitRows.length} splits`}
+            </span>
+          </div>
+          <div className={styles.tableWrap}>
+            <table className={styles.splitsTable}>
+              <thead>
+                <tr>
+                  <th>{isIntervalTable ? 'Rep' : 'Split'}</th>
+                  {hasDistance && <th>Dist</th>}
+                  <th>Time</th>
+                  <th>Pace</th>
+                  <th className={styles.hideNarrow}>Rate</th>
+                  <th className={styles.hideNarrow}>HR</th>
+                  {hasCalories && <th className={styles.hideNarrow}>Cal</th>}
+                  {hasRecovery && <th className={styles.hideNarrow}>Recovery</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {splitRows.map(row => {
+                  const barWidth = !row.rest && row.pace_ms && bestPace && Number.isFinite(bestPace) ? (bestPace / row.pace_ms) * 100 : 0;
+                  return (
+                    <tr key={row.key} className={`${row.best ? styles.bestRow : ''} ${row.rest ? styles.restRow : ''}`}>
+                      <td className={row.rest ? styles.restLabel : undefined}>{row.label}</td>
+                      {hasDistance && <td>{row.distance ? `${row.distance}m` : ''}</td>}
+                      <td>{formatTimePrecise(row.time_ms)}</td>
+                      <td className={`${styles.paceCell} ${row.best ? styles.bestSplit : ''}`}>
+                        {barWidth > 0 && <div className={styles.paceBar} style={{ width: `${barWidth}%` }} />}
+                        {row.rest ? '' : formatPace(row.pace_ms)}
+                        {row.best && <span className={styles.splitMarkerBest} title="Fastest rep" aria-label="Fastest rep">▲</span>}
+                        {row.worst && <span className={styles.splitMarkerWorst} title="Slowest rep" aria-label="Slowest rep">▼</span>}
+                      </td>
+                      <td className={styles.hideNarrow}>{!row.rest && row.stroke_rate ? row.stroke_rate.toFixed(1) : '--'}</td>
+                      <td className={styles.hideNarrow}>{!row.rest && row.heart_rate ? Math.round(row.heart_rate) : '--'}</td>
+                      {hasCalories && <td className={styles.hideNarrow}>{!row.rest && row.calories ? Math.round(row.calories) : '--'}</td>}
+                      {hasRecovery && (
+                        <td className={styles.hideNarrow} style={row.recovery_bpm != null ? { color: row.recovery_bpm > 0 ? 'var(--positive)' : 'var(--negative)' } : undefined}>
+                          {row.recovery_bpm != null ? `${row.recovery_bpm > 0 ? '−' : '+'}${Math.abs(row.recovery_bpm)}` : '--'}
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        );
+      })()}
+
+      {hasRepChart && (
+        <div className={styles.card}>
+          <div className={styles.cardHeader}>
+            <div className={styles.cardTitle}>Interval Reps</div>
+            <span className={styles.cardKicker}>
+              {workout.intervals.filter(i => i.type !== 'rest').length} reps
+            </span>
+          </div>
+          <IntervalRepChart intervals={workout.intervals} formatPace={formatPace} />
+          <ChartInfo>One bar per rep. Taller bars are faster. Dots mark stroke rate, the line traces heart rate, and muted stubs are rest periods.</ChartInfo>
+        </div>
       )}
 
       {workout.zone_times?.length > 0 && !(isInterval && zonesFromAvgOnly) && (
@@ -756,18 +829,7 @@ export default function Session() {
         </div>
       )}
 
-      {hasRepChart && (
-        <div className={styles.card}>
-          <div className={styles.cardHeader}>
-            <div className={styles.cardTitle}>Interval Reps</div>
-            <span className={styles.cardKicker}>
-              {workout.intervals.filter(i => i.type !== 'rest').length} reps
-            </span>
-          </div>
-          <IntervalRepChart intervals={workout.intervals} formatPace={formatPace} />
-          <ChartInfo>One bar per rep. Taller bars are faster. Dots mark stroke rate, the line traces heart rate, and muted stubs are rest periods.</ChartInfo>
-        </div>
-      )}
+      <ExecutionAnalysis analysis={workout.analysis} formatPace={formatPace} cardStyles={styles} />
 
       {hasAnalysis && workout.strokes?.filter(s => s.stroke_rate > 0 && s.pace_ms > 0).length >= 20 && (
         <div className={styles.card}>
@@ -783,68 +845,6 @@ export default function Session() {
       {hasAnalysis && !isInterval && workout.distance > 0 && (
         <SoloRaceReplay workout={workout} formatPace={formatPace} />
       )}
-
-      {splitRows.length > 0 && (() => {
-        const isIntervalTable = isInterval && workout.intervals?.length > 0;
-        const workReps = isIntervalTable ? splitRows.filter(r => !r.rest) : splitRows;
-        const repCount = workReps.length;
-        const hasDistance = splitRows.some(r => r.distance > 0);
-        const hasCalories = splitRows.some(r => r.calories > 0);
-        const hasRecovery = splitRows.some(r => r.recovery_bpm != null);
-        const bestPace = Math.min(...workReps.map(r => r.pace_ms).filter(Boolean));
-        return (
-        <div className={styles.card}>
-          <div className={styles.cardHeader}>
-            <div className={styles.cardTitle}>{isIntervalTable ? 'Intervals' : 'Splits'}</div>
-            <span className={styles.cardKicker}>
-              {isIntervalTable ? `${repCount} reps` : `${splitRows.length} splits`}
-            </span>
-          </div>
-          <div className={styles.tableWrap}>
-            <table className={styles.splitsTable}>
-              <thead>
-                <tr>
-                  <th>{isIntervalTable ? 'Rep' : 'Split'}</th>
-                  {hasDistance && <th>Dist</th>}
-                  <th>Time</th>
-                  <th>Pace</th>
-                  <th className={styles.hideNarrow}>Rate</th>
-                  <th className={styles.hideNarrow}>HR</th>
-                  {hasCalories && <th className={styles.hideNarrow}>Cal</th>}
-                  {hasRecovery && <th className={styles.hideNarrow}>Recovery</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {splitRows.map(row => {
-                  const barWidth = !row.rest && row.pace_ms && bestPace && Number.isFinite(bestPace) ? (bestPace / row.pace_ms) * 100 : 0;
-                  return (
-                    <tr key={row.key} className={`${row.best ? styles.bestRow : ''} ${row.rest ? styles.restRow : ''}`}>
-                      <td className={row.rest ? styles.restLabel : undefined}>{row.label}</td>
-                      {hasDistance && <td>{row.distance ? `${row.distance}m` : ''}</td>}
-                      <td>{formatTimePrecise(row.time_ms)}</td>
-                      <td className={`${styles.paceCell} ${row.best ? styles.bestSplit : ''}`}>
-                        {barWidth > 0 && <div className={styles.paceBar} style={{ width: `${barWidth}%` }} />}
-                        {row.rest ? '' : formatPace(row.pace_ms)}
-                        {row.best && <span className={styles.splitMarkerBest} title="Fastest rep" aria-label="Fastest rep">▲</span>}
-                        {row.worst && <span className={styles.splitMarkerWorst} title="Slowest rep" aria-label="Slowest rep">▼</span>}
-                      </td>
-                      <td className={styles.hideNarrow}>{!row.rest && row.stroke_rate ? row.stroke_rate.toFixed(1) : '--'}</td>
-                      <td className={styles.hideNarrow}>{!row.rest && row.heart_rate ? Math.round(row.heart_rate) : '--'}</td>
-                      {hasCalories && <td className={styles.hideNarrow}>{!row.rest && row.calories ? Math.round(row.calories) : '--'}</td>}
-                      {hasRecovery && (
-                        <td className={styles.hideNarrow} style={row.recovery_bpm != null ? { color: row.recovery_bpm > 0 ? 'var(--positive)' : 'var(--negative)' } : undefined}>
-                          {row.recovery_bpm != null ? `${row.recovery_bpm > 0 ? '−' : '+'}${Math.abs(row.recovery_bpm)}` : '--'}
-                        </td>
-                      )}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-        );
-      })()}
 
       <div className={styles.card}>
         <div className={styles.cardHeader}>

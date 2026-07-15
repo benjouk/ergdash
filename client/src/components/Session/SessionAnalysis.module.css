@@ -1,0 +1,108 @@
+.titleIcon {
+  color: var(--accent);
+  margin-right: 5px;
+  vertical-align: -2px;
+}
+
+/* Lead takeaway(s): the natural-language read, one compact line each. */
+.takeaways {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-5);
+  border-bottom: 1px solid var(--rule);
+}
+
+.takeaway {
+  margin: 0;
+  padding-left: 10px;
+  border-left: 2px solid var(--ink-3);
+  color: var(--ink);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.tone_positive { border-left-color: var(--positive); }
+.tone_watch { border-left-color: var(--warn); }
+
+/* Execution reads: compact two-column grid of label → value rows, mirroring the
+   Details card. Each row is a button; tapping reveals its reasoning below. */
+.reads {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.read {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-5);
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 150ms ease;
+}
+
+.read:hover,
+.readOpen {
+  background: var(--surface-alt);
+}
+
+/* Drop the separators under the last row — correct for either parity: the last
+   read always, plus its left-column row-mate when the count is even (in which
+   case the second-to-last read sits at an odd position). A lone trailing read
+   stays in the left column so its value lines up with the column above it. */
+.read:last-child,
+.read:nth-last-child(2):nth-child(odd) {
+  border-bottom: none;
+}
+
+.readLabel {
+  color: var(--ink-3);
+  font-size: 0.8rem;
+}
+
+.readValue {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* Reasoning for the tapped row, one line at the foot of the card. */
+.explain {
+  margin: 0;
+  padding: var(--space-2) var(--space-5);
+  border-top: 1px solid var(--rule);
+  color: var(--ink-2);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.explainLabel {
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.65rem;
+  font-weight: 600;
+  margin-right: var(--space-2);
+}
+
+@media (max-width: 720px) {
+  .reads {
+    grid-template-columns: 1fr;
+  }
+
+  /* Single column: every row but the last keeps its separator. */
+  .read:nth-last-child(2):nth-child(odd) {
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .read:last-child {
+    border-bottom: none;
+  }
+}

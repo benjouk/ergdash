@@ -102,6 +102,23 @@ describe('createManualWorkout', () => {
     expect(db.prepare('SELECT COUNT(*) as c FROM intervals WHERE workout_id = -1').get().c).toBe(3);
   });
 
+  it('records workout_type provenance as manual when a type is supplied', () => {
+    createManualWorkout(body, 1);
+    const row = getWorkout(-1);
+    expect(row.workout_type).toBe('FixedDistanceInterval');
+    expect(row.raw_workout_type).toBe('FixedDistanceInterval');
+    expect(row.workout_type_source).toBe('manual');
+  });
+
+  it('falls back to JustRow with fallback provenance when no type is supplied', () => {
+    const { workout_type, intervals, ...noType } = body;
+    const result = createManualWorkout(noType, 1);
+    const row = getWorkout(result.id);
+    expect(row.workout_type).toBe('JustRow');
+    expect(row.raw_workout_type).toBeNull();
+    expect(row.workout_type_source).toBe('fallback');
+  });
+
   it('allocates decreasing ids and never collides with c2 ids', () => {
     insertWorkout(db, c2Workout(), 1);
     createManualWorkout(body, 1);

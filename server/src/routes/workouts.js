@@ -82,6 +82,7 @@ router.get('/', (req, res) => {
     SELECT w.*, cm.fade_index, cm.consistency, cm.effort_score, cm.drag_delta,
            cm.distance_per_stroke, cm.watts_per_beat, cm.hr_drift_pct,
            cm.rate_discipline, cm.hr_recovery_avg,
+           cm.analysis_json, cm.analysis_version,
            pw.id as plan_id, pw.date as plan_date, pw.type as plan_type,
            pw.target_distance as plan_target_distance,
            pw.target_duration_ms as plan_target_duration_ms,
@@ -413,6 +414,8 @@ function formatWorkout(row, intervalSummary = null) {
     date: row.date,
     type: row.type,
     workout_type: row.workout_type,
+    raw_workout_type: row.raw_workout_type ?? null,
+    workout_type_source: row.workout_type_source ?? null,
     inferred_tag: normalizeWorkoutTag(row.inferred_tag),
     interval_summary: intervalSummary,
     distance: row.distance,
@@ -444,6 +447,9 @@ function formatWorkout(row, intervalSummary = null) {
       rate_discipline: row.rate_discipline,
       hr_recovery_avg: row.hr_recovery_avg,
     },
+    // Versioned observed-execution analysis (structure/execution/phases/intervals).
+    // Sibling of the flat metrics{} above, which is kept unchanged for older clients.
+    analysis: row.analysis_json ? JSON.parse(row.analysis_json) : null,
     plan: row.plan_id ? {
       id: row.plan_id,
       date: row.plan_date,
@@ -535,6 +541,7 @@ function getWorkoutWithMetrics(db, id) {
     SELECT w.*, cm.fade_index, cm.consistency, cm.effort_score, cm.drag_delta,
            cm.distance_per_stroke, cm.watts_per_beat, cm.hr_drift_pct,
            cm.rate_discipline, cm.hr_recovery_avg,
+           cm.analysis_json, cm.analysis_version,
            pw.id as plan_id, pw.date as plan_date, pw.type as plan_type,
            pw.target_distance as plan_target_distance,
            pw.target_duration_ms as plan_target_duration_ms,

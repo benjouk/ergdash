@@ -8,6 +8,7 @@ import { usePrefs } from '../../context/PrefsContext.jsx';
 import { FeedItemSkeleton } from '../Skeleton/Skeleton.jsx';
 import PBBadges from '../PBBadge.jsx';
 import Sparkline from './Sparkline.jsx';
+import { structureLabel, structureTooltip } from '../../utils/workoutStructure.js';
 import styles from './Feed.module.css';
 
 function formatDateShort(dateStr, dateFormat) {
@@ -154,8 +155,11 @@ function FeedItem({ workout, active, pinned = false, units, formatPace, formatDi
         <span className={styles.itemBadges}>
           <PBBadges distances={workout.pb_distances} compact />
           {workout.inferred_tag && (
-            <span className={`${styles.itemTag} ${TAG_CLASS[workout.inferred_tag] || ''}`}>
-              {workout.inferred_tag}
+            <span
+              className={`${styles.itemTag} ${TAG_CLASS[workout.inferred_tag] || ''}`}
+              title={structureTooltip(workout.inferred_tag)}
+            >
+              {structureLabel(workout.inferred_tag)}
             </span>
           )}
         </span>

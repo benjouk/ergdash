@@ -184,7 +184,8 @@
   flex-wrap: wrap;
 }
 
-/* Summary strip - same surface treatment as other cards, accent as a rule */
+/* Summary strip - measured facts only; same surface treatment as other cards,
+   accent as a rule. Derived analysis lives in the separate SessionAnalysis block. */
 .summaryStrip {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
