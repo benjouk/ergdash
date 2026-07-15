@@ -4,12 +4,12 @@
   vertical-align: -2px;
 }
 
-/* Lead takeaway(s): the natural-language read, set apart with a tone rule. */
+/* Lead takeaway(s): the natural-language read, one compact line each. */
 .takeaways {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  padding: var(--space-4) var(--space-5);
+  padding: var(--space-3) var(--space-5);
   border-bottom: 1px solid var(--rule);
 }
 
@@ -18,34 +18,44 @@
   padding-left: 10px;
   border-left: 2px solid var(--ink-3);
   color: var(--ink);
-  font-size: 0.9rem;
-  line-height: 1.45;
+  font-size: 0.85rem;
+  line-height: 1.4;
 }
 
 .tone_positive { border-left-color: var(--positive); }
 .tone_watch { border-left-color: var(--warn); }
 
-/* Execution reads: label · value on top, reasoning always visible beneath —
-   mirrors the app's detail-row pattern. */
+/* Execution reads: compact two-column grid of label → value rows, mirroring the
+   Details card. Each row is a button; tapping reveals its reasoning below. */
 .reads {
-  margin: 0;
-  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
 }
 
 .read {
-  padding: var(--space-3) var(--space-5);
-  border-bottom: 1px solid var(--rule);
-}
-
-.read:last-child {
-  border-bottom: none;
-}
-
-.readTop {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: var(--space-3);
+  padding: var(--space-3) var(--space-5);
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 150ms ease;
+}
+
+.read:hover,
+.readOpen {
+  background: var(--surface-alt);
+}
+
+.read:nth-last-child(-n+2) {
+  border-bottom: none;
 }
 
 .readLabel {
@@ -54,14 +64,39 @@
 }
 
 .readValue {
-  margin: 0;
   font-weight: 600;
   color: var(--ink);
 }
 
-.readWhy {
-  margin: 3px 0 0;
+/* Reasoning for the tapped row, one line at the foot of the card. */
+.explain {
+  margin: 0;
+  padding: var(--space-2) var(--space-5);
+  border-top: 1px solid var(--rule);
   color: var(--ink-2);
   font-size: 0.8rem;
   line-height: 1.4;
+}
+
+.explainLabel {
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.65rem;
+  font-weight: 600;
+  margin-right: var(--space-2);
+}
+
+@media (max-width: 720px) {
+  .reads {
+    grid-template-columns: 1fr;
+  }
+
+  .read:nth-last-child(-n+2) {
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .read:last-child {
+    border-bottom: none;
+  }
 }
