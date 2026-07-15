@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { sameOriginWriteGuard, validateCorsOriginConfig, isDevAuthBypassEnabled } from '../src/middleware/security.js';
-import { validateDateRange } from '../src/middleware/validate.js';
+import { isStrictDate, validateDateRange } from '../src/middleware/validate.js';
 
 function runMiddleware(mw, req) {
   return new Promise(resolve => {
@@ -56,6 +56,11 @@ describe('security config', () => {
 });
 
 describe('validateDateRange', () => {
+  it('rejects calendar dates that JavaScript would silently normalize', () => {
+    expect(isStrictDate('2026-02-31')).toBe(false);
+    expect(isStrictDate('2024-02-29')).toBe(true);
+  });
+
   it('requires strict YYYY-MM-DD dates', async () => {
     const result = await runMiddleware(validateDateRange, {
       query: { from: '2024-02-31', to: 'next tuesday' },

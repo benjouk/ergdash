@@ -1,10 +1,9 @@
 import { Router } from 'express';
 import { getDb } from '../db.js';
-import { validateDateRange } from '../middleware/validate.js';
+import { isStrictDate, validateDateRange } from '../middleware/validate.js';
 import { autoMatchPlan, workoutDay } from '../planMatching.js';
 
 const router = Router();
-
 router.use(validateDateRange);
 
 export const PLAN_TYPES = ['steady', 'intervals', 'test', 'race', 'other'];
@@ -101,8 +100,7 @@ function validatePlanBody(body, { partial = false } = {}) {
   const has = (f) => Object.prototype.hasOwnProperty.call(body, f);
 
   if (has('date') || !partial) {
-    if (typeof body.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(body.date)
-        || Number.isNaN(new Date(body.date).getTime())) {
+    if (!isStrictDate(body.date)) {
       errors.push('date must be an ISO 8601 date (YYYY-MM-DD)');
     } else {
       fields.date = body.date;

@@ -20,20 +20,29 @@ import { runFullSync, startSyncSchedule } from '../sync.js';
 
 const router = Router();
 
-// ?profile=new (optionally &name=Alice) connects a new household member;
-// ?profile=<id> reconnects an existing profile. Legacy /auth/login with no
-// params behaves like profile=new (the callback dedupes by Concept2 user id).
+// A fresh instance can be bootstrapped without a session. Once initialized,
+// an unauthenticated OAuth flow is login-only: the returned Concept2 identity
+// must already belong to a profile. Adding a profile or explicitly targeting
+// a reconnect is privileged and requires the existing ErgDash session.
 router.get('/login', (req, res) => {
   const requested = req.query.profile;
+  const authenticated = hasValidSession(req);
+  const initialized = listProfiles().length > 0;
   let intent = {};
-  if (requested && requested !== 'new') {
+
+  if (!authenticated && initialized) {
+    intent = { loginOnly: true };
+  } else if (requested && requested !== 'new') {
     const id = Number(requested);
     if (!Number.isInteger(id) || !getProfile(id)) {
       return res.status(404).json({ error: 'Profile not found' });
     }
-    intent = { profileId: id };
-  } else if (req.query.name) {
-    intent = { newName: String(req.query.name).slice(0, 60) };
+    intent = { profileId: id, requireSession: true };
+  } else {
+    const newName = req.query.name ? String(req.query.name).slice(0, 60) : undefined;
+    intent = initialized
+      ? { newName, requireSession: true }
+      : { newName, bootstrap: true };
   }
   res.redirect(getAuthorizationUrl(intent));
 });
@@ -48,6 +57,9 @@ router.get('/callback', async (req, res) => {
     const intent = consumeOauthState(state);
     if (!intent) {
       return res.status(400).json({ error: 'Invalid or expired state parameter' });
+    }
+    if (intent.requireSession && !hasValidSession(req)) {
+      return res.redirect('/?error=session_required');
     }
 
     const tokens = await exchangeCodeForTokens(code);

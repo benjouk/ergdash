@@ -43,6 +43,16 @@ ErgDash connects to the Concept2 Logbook API to sync your workout history and di
 2. `cp .env.example .env` and fill in `C2_CLIENT_ID`, `C2_CLIENT_SECRET`, and `SESSION_SECRET` (`openssl rand -base64 32`).
 
 > One OAuth app authorizes any number of Logbook accounts. Additional household members connect their own Concept2 account from inside the app (header → Add profile), with no extra credentials or configuration.
+> If the ErgDash browser session expires, signing in through Concept2 is still
+> allowed, but the Concept2 identity must match a profile already registered in
+> the instance. Expired or revoked sync tokens therefore do not lock out the
+> sole account.
+
+ErgDash is intended for a trusted home LAN or an authenticated VPN such as
+Tailscale/WireGuard. It deliberately supports ordinary HTTP on a LAN and does
+not send HSTS or upgrade HTTP assets to HTTPS. Do not publish port 3100 directly
+to the internet; use a VPN, or put the whole instance behind an access-control
+layer you administer.
 
 ## Run (Docker)
 
@@ -73,6 +83,20 @@ The app is at `http://localhost:3100`. From a repo checkout, the included [docke
 docker compose pull && docker compose up -d   # or build from source: docker compose up -d --build
 ```
 
+Keep `SESSION_SECRET` stable for the life of the installation and alongside
+your backups: it encrypts the stored Concept2 tokens as well as signing browser
+sessions. Changing it logs browsers out and requires every profile to reconnect.
+
+For an HTTPS reverse proxy, set both the public callback and canonical origin:
+
+```dotenv
+C2_REDIRECT_URI=https://ergdash.example.com/auth/callback
+APP_ORIGIN=https://ergdash.example.com
+```
+
+`APP_ORIGIN` makes same-origin write checks work when TLS terminates at the
+proxy. It does not force HTTPS and should be left empty for normal LAN HTTP.
+
 ## Environment Variables
 
 | Variable | Default | Description |
@@ -86,7 +110,7 @@ docker compose pull && docker compose up -d   # or build from source: docker com
 | `SYNC_INTERVAL_MINUTES` | `15` | Auto-sync interval |
 | `SESSION_SECRET` | - | Session signing secret (required in production, min 16 chars; generate with `openssl rand -base64 32`) |
 | `COOKIE_SECURE` | auto | Force the session cookie's `Secure` flag on/off; auto-detects from `C2_REDIRECT_URI` |
-| `APP_ORIGIN` | - | Optional canonical app origin used by production same-origin write checks when proxy headers do not match the public URL |
+| `APP_ORIGIN` | - | Canonical public origin for an HTTPS reverse proxy; leave empty for direct LAN HTTP |
 | `CORS_ORIGIN` | disabled | Allow credentialed cross-origin API access from an explicit trusted origin. Production values must be `https://` and must not be `*`; not needed for normal same-origin setups |
 | `ERGDASH_DEV_AUTH_BYPASS` | disabled | Set to `1` only for local development if you intentionally want API routes to bypass OAuth/session checks |
 | `ERGDASH_SEED_DEMO` | disabled | Set to `1` on a non-production server to explicitly load mock workouts, goals, and plans |

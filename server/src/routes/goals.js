@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { getDb } from '../db.js';
 import { STANDARD_PB_DISTANCES } from '../pbDetection.js';
 import { GOAL_PERIODS, periodWindow, volumeProgress, performanceGap } from '../goalProgress.js';
+import { isStrictDate } from '../middleware/validate.js';
 
 const router = Router();
 
@@ -105,10 +106,10 @@ function validateGoalBody(body, kind, { partial = false } = {}) {
     if (has('race_date')) {
       if (body.race_date == null || body.race_date === '') {
         fields.race_date = null;
-      } else if (typeof body.race_date !== 'string' || Number.isNaN(new Date(body.race_date).getTime())) {
+      } else if (!isStrictDate(body.race_date)) {
         errors.push('race_date must be an ISO 8601 date (YYYY-MM-DD)');
       } else {
-        fields.race_date = body.race_date.slice(0, 10);
+        fields.race_date = body.race_date;
       }
     }
     if (has('label')) {

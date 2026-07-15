@@ -14,23 +14,33 @@ a week.
 
 ## Security model
 
-ErgDash is a **single-user, self-hosted** application. It stores one person's
-Concept2 Logbook data in one SQLite database, holds one set of OAuth tokens
-(encrypted at rest with the session secret), and gates all `/api` routes
-behind a single session established by completing the Concept2 OAuth flow.
-There is no multi-user isolation and none is planned.
+ErgDash is a **shared-trust, self-hosted household application**. One instance
+can store several Concept2 profiles, each with separate workouts, settings,
+goals, and encrypted OAuth tokens. Profiles are data partitions, not security
+principals: every valid ErgDash browser session can switch profiles and use
+instance-wide administration, backup, and restore controls.
 
-It is designed to run on a home server or LAN, optionally behind a reverse
-proxy. If you expose it to the internet:
+The first Concept2 account bootstraps a fresh instance. After setup, a browser
+without an ErgDash session can sign in only with a Concept2 identity already
+registered in that instance. Adding a new household profile or explicitly
+reconnecting one requires an existing ErgDash session.
 
-- Serve it over HTTPS (the session cookie's `Secure` flag follows
-  `C2_REDIRECT_URI`, or set `COOKIE_SECURE=true`).
-- Set a strong `SESSION_SECRET` (the server refuses to start in production
-  without one).
-- Cross-origin API access is disabled by default; only set `CORS_ORIGIN` if
-  you know you need it.
+ErgDash is designed for a trusted home LAN or an authenticated VPN. Direct
+HTTP access on a LAN is supported intentionally: the app does not send HSTS
+and does not ask browsers to upgrade HTTP assets to HTTPS. Do not expose the
+application port directly to the public internet. If you use an HTTPS reverse
+proxy, keep that proxy behind your VPN/access layer and set `APP_ORIGIN` to its
+public origin.
+
+- Set a strong, stable `SESSION_SECRET` (production refuses to start without
+  one). It also encrypts stored OAuth tokens, so retain it with backups.
+- The session cookie's `Secure` flag follows an HTTPS `C2_REDIRECT_URI`, or can
+  be set explicitly with `COOKIE_SECURE=true`; it remains usable over LAN HTTP
+  when the callback is HTTP.
+- Cross-origin API access is disabled by default. Only set `CORS_ORIGIN` for a
+  specific trusted HTTPS origin when it is genuinely required.
 - The unauthenticated `/health` endpoint returns only `{"status":"ok"}`;
-  instance metadata (workout counts, sync state, DB size) requires a session.
+  instance metadata requires a session.
 
 Cross-site request forgery is mitigated by `SameSite=Lax` HttpOnly session
 cookies, a JSON-only request body parser, and CORS being disabled by default,

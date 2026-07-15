@@ -113,6 +113,7 @@ function cookieOptions(maxAgeSeconds) {
 }
 
 const OAUTH_STATE_TTL_MINUTES = 10;
+const MAX_PENDING_OAUTH_STATES = 100;
 
 export function pruneExpiredOauthStates() {
   getDb().prepare(
@@ -126,6 +127,16 @@ export function pruneExpiredOauthStates() {
 export function getAuthorizationUrl(intent = {}) {
   const state = crypto.randomBytes(16).toString('hex');
   pruneExpiredOauthStates();
+  // Keep unauthenticated setup/login requests from growing the database
+  // without bound. Oldest pending flows are disposable and short-lived.
+  getDb().prepare(`
+    DELETE FROM sync_state WHERE key IN (
+      SELECT key FROM sync_state
+      WHERE key LIKE 'oauth_state:%'
+      ORDER BY updated_at DESC, key DESC
+      LIMIT -1 OFFSET ?
+    )
+  `).run(MAX_PENDING_OAUTH_STATES - 1);
   upsertSyncState(`oauth_state:${state}`, JSON.stringify(intent));
 
   const params = new URLSearchParams({
@@ -356,6 +367,23 @@ export function setProfileIdentity(profileId, userInfo) {
 export function resolveConnectingProfile(userInfo, intent = {}) {
   const c2Id = userInfo?.id ?? null;
   const owner = getProfileByC2UserId(c2Id); // profile already holding this logbook, if any
+
+  // An unauthenticated browser may sign back into an initialized instance,
+  // but only with a Concept2 identity already registered there. This recovers
+  // expired ErgDash sessions and revoked/expired C2 tokens without allowing
+  // strangers to enroll themselves as household profiles.
+  if (intent.loginOnly) {
+    return owner ? { profile: owner } : { error: 'account_not_registered' };
+  }
+
+  // Bootstrap is unauthenticated only while the instance is genuinely fresh.
+  // If two first-run flows race, the later callback may sign into the profile
+  // created by the first, but it may not create a second profile.
+  if (intent.bootstrap) {
+    if (owner) return { profile: owner };
+    if (listProfiles().length > 0) return { error: 'setup_complete' };
+    return { profile: createProfile(intent.newName || userInfo?.first_name || userInfo?.username) };
+  }
 
   if (intent.profileId) {
     const target = getProfile(intent.profileId);

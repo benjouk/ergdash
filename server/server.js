@@ -48,6 +48,10 @@ if (shouldAutoSeedDemoData()) {
 }
 
 app.use(helmet({
+  // ErgDash explicitly supports direct HTTP access on a trusted LAN/VPN.
+  // Never teach browsers to upgrade that address to HTTPS; operators using
+  // HTTPS can set transport policy at their reverse proxy.
+  strictTransportSecurity: false,
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
