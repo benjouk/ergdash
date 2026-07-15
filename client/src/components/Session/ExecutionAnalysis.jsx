@@ -1,3 +1,4 @@
+import { useEffect, useId, useState } from 'react';
 import ChartInfo from '../Charts/ChartInfo.jsx';
 import { execLabel, showsExecution } from '../../utils/executionLabels.js';
 import styles from './ExecutionAnalysis.module.css';
@@ -15,10 +16,22 @@ const CHIP_ORDER = ['intensity', 'pacing', 'finish', 'rate', 'stroke_effectivene
 
 // Renders the versioned observed-execution analysis: a chip row (only the
 // channels confident enough to state), a per-phase table for continuous pieces,
-// and a degradation summary for interval sets. Every value's own `basis` string
-// is surfaced through the existing ChartInfo popover, so no separate metric
-// dictionary is needed. `cardStyles` is the Session CSS module (card/table chrome).
+// and a degradation summary for interval sets. Tapping a chip reveals its `basis`
+// (why that label was chosen) as a disclosure line below the row — a full-width,
+// mobile-safe alternative to a floating tooltip. `cardStyles` is the Session CSS
+// module (card/table chrome); the cards still use ChartInfo's corner popover.
 export default function ExecutionAnalysis({ analysis, formatPace, cardStyles }) {
+  const [openKind, setOpenKind] = useState(null);
+  const explainId = useId();
+
+  // Close the open explanation on Escape.
+  useEffect(() => {
+    if (!openKind) return undefined;
+    const onKeyDown = e => { if (e.key === 'Escape') setOpenKind(null); };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [openKind]);
+
   if (!analysis?.execution) return null;
 
   const { execution, phases, intervals } = analysis;
@@ -27,18 +40,36 @@ export default function ExecutionAnalysis({ analysis, formatPace, cardStyles }) 
     .filter(({ kind, metric }) => showsExecution(metric) && execLabel(kind, metric.value));
 
   const hasPhases = Array.isArray(phases) && phases.length > 0;
+  const openChip = chips.find(c => c.kind === openKind && c.metric.basis);
 
   return (
     <>
       {chips.length > 0 && (
-        <div className={styles.chips} aria-label="Observed execution">
-          {chips.map(({ kind, metric }) => (
-            <span key={kind} className={styles.chip}>
-              <span className={styles.chipLabel}>{CHIP_LABELS[kind]}</span>
-              <span className={styles.chipValue}>{execLabel(kind, metric.value)}</span>
-              {metric.basis && <ChartInfo>{metric.basis}</ChartInfo>}
-            </span>
-          ))}
+        <div className={styles.execution}>
+          <div className={styles.chips} aria-label="Observed execution">
+            {chips.map(({ kind, metric }) => {
+              const open = openKind === kind;
+              return (
+                <button
+                  type="button"
+                  key={kind}
+                  className={`${styles.chip} ${open ? styles.chipOpen : ''}`}
+                  aria-expanded={open}
+                  aria-controls={metric.basis ? explainId : undefined}
+                  onClick={() => setOpenKind(k => (k === kind ? null : kind))}
+                >
+                  <span className={styles.chipLabel}>{CHIP_LABELS[kind]}</span>
+                  <span className={styles.chipValue}>{execLabel(kind, metric.value)}</span>
+                  {metric.basis && <span className={styles.chipHint} aria-hidden="true">?</span>}
+                </button>
+              );
+            })}
+          </div>
+          {openChip && (
+            <p id={explainId} role="note" aria-live="polite" className={styles.explain}>
+              {openChip.metric.basis}
+            </p>
+          )}
         </div>
       )}
 
