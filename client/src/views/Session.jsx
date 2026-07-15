@@ -45,7 +45,7 @@ import PBBadges from '../components/PBBadge.jsx';
 import ComparisonOverlay from '../components/Charts/ComparisonOverlay.jsx';
 import IntervalRepChart from '../components/Session/IntervalRepChart.jsx';
 import ExecutionAnalysis from '../components/Session/ExecutionAnalysis.jsx';
-import ExecutionChips from '../components/Session/ExecutionChips.jsx';
+import SessionAnalysis from '../components/Session/SessionAnalysis.jsx';
 import { structureLabel, structureTooltip } from '../utils/workoutStructure.js';
 import PaceProfileChart from '../components/Session/PaceProfileChart.jsx';
 import ChartInfo from '../components/Charts/ChartInfo.jsx';
@@ -613,33 +613,22 @@ export default function Session() {
         </div>
       </header>
 
-      <div className={styles.summaryBlock}>
-        <div className={styles.summaryStrip}>
-          {summaryItems.map(item => (
-            <div className={styles.summaryCell} key={item.label}>
-              <span className={styles.summaryCellLabel}>{item.label}</span>
-              <span className={`${styles.summaryCellValue} ${item.accent ? styles.accentValue : ''}`}>
-                {item.value}
-                {item.unit && <span className={styles.summaryCellUnit}>{item.unit}</span>}
-              </span>
-              {item.subtitle && <span className={styles.summaryCellSubtitle}>{item.subtitle}</span>}
-            </div>
-          ))}
-        </div>
-        <ExecutionChips analysis={workout.analysis} />
+      <div className={styles.summaryStrip}>
+        {summaryItems.map(item => (
+          <div className={styles.summaryCell} key={item.label}>
+            <span className={styles.summaryCellLabel}>{item.label}</span>
+            <span className={`${styles.summaryCellValue} ${item.accent ? styles.accentValue : ''}`}>
+              {item.value}
+              {item.unit && <span className={styles.summaryCellUnit}>{item.unit}</span>}
+            </span>
+            {item.subtitle && <span className={styles.summaryCellSubtitle}>{item.subtitle}</span>}
+          </div>
+        ))}
       </div>
 
-      <ExecutionAnalysis analysis={workout.analysis} formatPace={formatPace} cardStyles={styles} />
+      <SessionAnalysis analysis={workout.analysis} insight={workout.insight} />
 
-      {workout.insight?.length > 0 && (
-        <ul className={styles.insightRow} aria-label="Session insights">
-          {workout.insight.map(item => (
-            <li key={item.id} className={`${styles.insightChip} ${styles[`insight_${item.kind}`] || ''}`}>
-              {item.text}
-            </li>
-          ))}
-        </ul>
-      )}
+      <ExecutionAnalysis analysis={workout.analysis} formatPace={formatPace} cardStyles={styles} />
 
       {workout.zone_times?.length > 0 && !(isInterval && zonesFromAvgOnly) && (
         <div className={`${styles.card} ${styles.cardVisible}`}>

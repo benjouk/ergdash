@@ -184,20 +184,17 @@
   flex-wrap: wrap;
 }
 
-/* Summary block - the numeric strip plus the observed-execution labels tier,
-   sharing one surface with the accent as a top rule. */
-.summaryBlock {
+/* Summary strip - measured facts only; same surface treatment as other cards,
+   accent as a rule. Derived analysis lives in the separate SessionAnalysis block. */
+.summaryStrip {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
   border-radius: var(--radius-lg);
   background: var(--surface);
   border: 1px solid var(--rule);
   border-top: 3px solid var(--accent);
   box-shadow: var(--shadow-sm);
   overflow: hidden;
-}
-
-.summaryStrip {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
 }
 
 .summaryCell {

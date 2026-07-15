@@ -3,7 +3,7 @@ import styles from './ExecutionAnalysis.module.css';
 
 // Renders the phase table (continuous pieces) and interval rep-consistency
 // summary from the versioned analysis. The categorical execution labels live in
-// ExecutionChips (inside the summary block); this covers the tabular detail.
+// SessionAnalysis (the derived-analysis block); this covers the tabular detail.
 // `cardStyles` is the Session CSS module (card/table chrome).
 export default function ExecutionAnalysis({ analysis, formatPace, cardStyles }) {
   if (!analysis?.execution) return null;

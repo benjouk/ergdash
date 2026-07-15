@@ -1,0 +1,108 @@
+/* Derived-analysis block: subtly tinted + distinct from the measured summary
+   card so the system's reads don't masquerade as facts. position:relative so the
+   single ChartInfo "?" anchors to the block corner. */
+.block {
+  position: relative;
+  margin: var(--space-3) 0 0;
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
+  background: var(--surface-alt);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: var(--space-3);
+}
+
+.headerIcon {
+  color: var(--accent);
+}
+
+.label {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--ink-3);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 4px 12px;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  font: inherit;
+  font-size: 0.8rem;
+  background: var(--surface);
+  color: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color 150ms ease, color 150ms ease;
+}
+
+.chip:hover,
+.chipOpen {
+  border-color: var(--accent);
+}
+
+.chipLabel {
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.65rem;
+  font-weight: 600;
+}
+
+.chipValue {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.explain {
+  margin: 8px 0 0;
+  padding: 8px 12px;
+  border-left: 2px solid var(--accent);
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  color: var(--ink-2);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.insights {
+  list-style: none;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.insightItem {
+  padding-left: 10px;
+  border-left: 2px solid var(--ink-3);
+  color: var(--ink-2);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.tone_positive {
+  border-left-color: var(--positive);
+}
+
+.tone_watch {
+  border-left-color: var(--warn);
+}
