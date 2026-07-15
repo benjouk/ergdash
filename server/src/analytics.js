@@ -11,6 +11,9 @@ import {
 } from './strokeMetrics.js';
 import { getZoneModel, zoneForHr } from './hrZones.js';
 import { isIntervalWorkoutType, isContinuousWorkoutType, workoutSubtype } from './workoutTypes.js';
+import { buildWorkoutAnalysis, ANALYSIS_VERSION } from './workoutExecution.js';
+
+export { ANALYSIS_VERSION };
 
 export const BEST_EFFORT_DURATIONS = [60, 240, 600, 1800, 3600];
 
@@ -105,6 +108,22 @@ export function computeMetricsForWorkout(workoutId) {
     ? recoveries.reduce((s, r) => s + r.drop_bpm, 0) / recoveries.length
     : null;
 
+  // Versioned "observed execution" analysis, computed from the same strokes/
+  // intervals already loaded above. Benchmark is the profile's best pace at this
+  // distance excluding the current row (so a workout isn't judged against itself).
+  const structure = inferWorkoutStructure(workout);
+  const benchmark = db.prepare(
+    'SELECT MIN(pace_ms) as best FROM workouts WHERE distance = ? AND pace_ms > 0 AND profile_id = ? AND id != ?'
+  ).get(workout.distance, workout.profile_id, workoutId);
+  const analysis = buildWorkoutAnalysis({
+    workout,
+    strokes,
+    intervals,
+    structure,
+    benchmarkPaceMs: benchmark?.best || null,
+    rateDisciplinePct: discipline,
+  });
+
   const insertRecovery = db.prepare(`
     INSERT INTO interval_recoveries (workout_id, rep_index, hr_end, hr_next_start, drop_bpm, rest_s)
     VALUES (?, ?, ?, ?, ?, ?)
@@ -115,11 +134,12 @@ export function computeMetricsForWorkout(workoutId) {
       INSERT OR REPLACE INTO computed_metrics (
         workout_id, fade_index, consistency, effort_score, drag_delta,
         distance_per_stroke, watts_per_beat, hr_drift_pct, rate_discipline,
-        hr_recovery_avg, metrics_version, computed_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+        hr_recovery_avg, metrics_version, analysis_json, analysis_version, computed_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
     `).run(
       workoutId, fadeIndex, consistency, effortScore, dragDelta,
-      dps, wpb, drift, discipline, recoveryAvg, METRICS_VERSION
+      dps, wpb, drift, discipline, recoveryAvg, METRICS_VERSION,
+      JSON.stringify(analysis), ANALYSIS_VERSION
     );
 
     db.prepare('DELETE FROM interval_recoveries WHERE workout_id = ?').run(workoutId);
@@ -134,8 +154,11 @@ export function computeAllMetrics(profileId) {
   const workouts = db.prepare(`
     SELECT w.id FROM workouts w
     LEFT JOIN computed_metrics cm ON w.id = cm.workout_id
-    WHERE w.profile_id = ? AND (cm.id IS NULL OR COALESCE(cm.metrics_version, 0) < ?)
-  `).all(profileId, METRICS_VERSION);
+    WHERE w.profile_id = ?
+      AND (cm.id IS NULL
+           OR COALESCE(cm.metrics_version, 0) < ?
+           OR COALESCE(cm.analysis_version, 0) < ?)
+  `).all(profileId, METRICS_VERSION, ANALYSIS_VERSION);
 
   for (const { id } of workouts) {
     computeMetricsForWorkout(id);
