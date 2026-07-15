@@ -12,7 +12,8 @@ import { wattsFromPace } from './strokeMetrics.js';
 
 // Bump when any formula below changes so computeAllMetrics recomputes cached
 // analyses. Kept here (not analytics.js) since it versions this module's logic.
-export const ANALYSIS_VERSION = 1;
+// v2: observed effort is now HR-grounded (was pace-vs-benchmark only).
+export const ANALYSIS_VERSION = 2;
 
 // --- thresholds (named so behaviour is easy to tune) -------------------------
 const MIN_PACING_STROKES = 8;
@@ -46,6 +47,17 @@ const INTENSITY_BANDS = [
   { min: 0.87, value: 'hard' },
   { min: 0.78, value: 'moderate' },
   { min: 0, value: 'easy' },
+];
+
+// Observed effort is HR-first: the time-weighted mean HR zone (1–5) maps to a
+// band. Ordered easy→maximal so a weak signal can be capped rather than overstated.
+const INTENSITY_ORDER = ['easy', 'moderate', 'hard', 'very_hard', 'maximal'];
+const ZONE_INTENSITY_THRESHOLDS = [
+  { max: 2.5, value: 'easy' },
+  { max: 3.25, value: 'moderate' },
+  { max: 4.0, value: 'hard' },
+  { max: 4.6, value: 'very_hard' },
+  { max: Infinity, value: 'maximal' },
 ];
 
 // Continuous-workout phases as fractions of the piece (tunable). Sliced by
@@ -222,20 +234,50 @@ export function strokeEffectiveness(workout, strokes = []) {
   };
 }
 
-// Observed intensity, cautiously: pace vs the athlete's best at this distance.
-// No personal benchmark → unknown (absolute numbers alone don't establish effort).
-export function classifyIntensity({ workout, benchmarkPaceMs } = {}) {
-  const pace = workout?.pace_ms;
-  if (!(pace > 0) || !(benchmarkPaceMs > 0)) {
-    return unknown('No personal benchmark at this distance yet, so effort can’t be placed.');
+function capIntensity(value, maxValue) {
+  return INTENSITY_ORDER.indexOf(value) > INTENSITY_ORDER.indexOf(maxValue) ? maxValue : value;
+}
+
+// Observed *effort* — how hard the body worked — so heart rate is the primary
+// signal: the time-weighted mean HR zone drives the band. Pace vs the athlete's
+// best is only a capped fallback when no HR is available (pace alone can't
+// establish a top-end effort, and a thin same-distance PB sample skews it).
+//   zoneShares: length-5 array of time fractions per HR zone (or null)
+//   zonesEstimated: true when max HR was inferred, not user-configured
+export function classifyIntensity({ workout, benchmarkPaceMs, zoneShares, zonesEstimated } = {}) {
+  if (Array.isArray(zoneShares) && zoneShares.length === 5) {
+    const total = zoneShares.reduce((s, v) => s + (v > 0 ? v : 0), 0);
+    if (total > 0) {
+      const shares = zoneShares.map(v => (v > 0 ? v : 0) / total);
+      const weighted = shares.reduce((s, share, i) => s + (i + 1) * share, 0);
+      const dominant = shares.indexOf(Math.max(...shares)) + 1;
+      let value = ZONE_INTENSITY_THRESHOLDS.find(t => weighted < t.max).value;
+      let confidence = 0.7;
+      if (zonesEstimated) {
+        // Estimated max HR compresses the zones, so don't overstate the top end.
+        value = capIntensity(value, 'hard');
+        confidence = 0.55;
+      }
+      return {
+        value,
+        confidence,
+        basis: `Most of the session was in HR zone ${dominant}${zonesEstimated ? ' (max HR estimated)' : ''}.`,
+      };
+    }
   }
-  const pacePct = benchmarkPaceMs / pace; // ≤ 1; closer to 1 = nearer the PB = harder
-  const band = INTENSITY_BANDS.find(b => pacePct >= b.min) ?? INTENSITY_BANDS[INTENSITY_BANDS.length - 1];
-  return {
-    value: band.value,
-    confidence: 0.7,
-    basis: `Pace was ${round(pacePct * 100)}% of your best at this distance.`,
-  };
+
+  const pace = workout?.pace_ms;
+  if (pace > 0 && benchmarkPaceMs > 0) {
+    const pacePct = benchmarkPaceMs / pace; // ≤ 1; closer to 1 = nearer the PB
+    const band = INTENSITY_BANDS.find(b => pacePct >= b.min) ?? INTENSITY_BANDS[INTENSITY_BANDS.length - 1];
+    return {
+      value: capIntensity(band.value, 'hard'),
+      confidence: 0.5,
+      basis: `Pace was ${round(pacePct * 100)}% of your best at this distance (no heart-rate data).`,
+    };
+  }
+
+  return unknown('No heart-rate or benchmark data, so effort can’t be placed.');
 }
 
 // Continuous-workout phase breakdown. Slices strokes by distance (fixed-distance)
@@ -320,6 +362,8 @@ export function buildWorkoutAnalysis({
   structure,
   benchmarkPaceMs = null,
   rateDisciplinePct = null,
+  zoneShares = null,
+  zonesEstimated = false,
 }) {
   const isInterval = structure?.value === 'interval';
 
@@ -327,7 +371,7 @@ export function buildWorkoutAnalysis({
   if (rateDisciplinePct != null) rate.discipline_pct = round(rateDisciplinePct, 0);
 
   const execution = {
-    intensity: classifyIntensity({ workout, benchmarkPaceMs }),
+    intensity: classifyIntensity({ workout, benchmarkPaceMs, zoneShares, zonesEstimated }),
     pacing: isInterval ? null : classifyPacing(strokes),
     rate,
     finish: isInterval ? null : analyzeFinish(strokes),

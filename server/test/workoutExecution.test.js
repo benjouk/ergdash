@@ -109,13 +109,34 @@ describe('strokeEffectiveness', () => {
 });
 
 describe('classifyIntensity', () => {
-  it('bands by pace vs the personal benchmark', () => {
-    expect(classifyIntensity({ workout: { pace_ms: 120000 }, benchmarkPaceMs: 115000 }).value).toBe('very_hard');
-    expect(classifyIntensity({ workout: { pace_ms: 118000 }, benchmarkPaceMs: 118000 }).value).toBe('maximal');
+  it('reads a mostly-Z2 session as aerobic even when the pace is near a PB', () => {
+    // The reported bug: near-PB pace at a thin distance printed "Maximal" for an
+    // easy aerobic row. HR now governs, so a Z2-dominant row is easy/moderate.
+    const r = classifyIntensity({
+      workout: { pace_ms: 124000 },
+      benchmarkPaceMs: 123900, // ~PB pace
+      zoneShares: [0, 0.65, 0.35, 0, 0],
+    });
+    expect(['easy', 'moderate']).toContain(r.value);
+    expect(r.basis).toMatch(/HR zone/);
+  });
+
+  it('reads a Z5-dominant session as a top-end effort', () => {
+    expect(classifyIntensity({ zoneShares: [0, 0, 0, 0.2, 0.8] }).value).toBe('maximal');
+  });
+
+  it('caps at hard and lowers confidence when the zone model is estimated', () => {
+    const r = classifyIntensity({ zoneShares: [0, 0, 0, 0.2, 0.8], zonesEstimated: true });
+    expect(r.value).toBe('hard');
+    expect(r.confidence).toBeLessThan(0.7);
+  });
+
+  it('falls back to pace vs best (capped at hard) when there is no HR', () => {
+    expect(classifyIntensity({ workout: { pace_ms: 118000 }, benchmarkPaceMs: 118000 }).value).toBe('hard');
     expect(classifyIntensity({ workout: { pace_ms: 160000 }, benchmarkPaceMs: 118000 }).value).toBe('easy');
   });
 
-  it('is unknown without a benchmark', () => {
+  it('is unknown without HR or a benchmark', () => {
     expect(classifyIntensity({ workout: { pace_ms: 120000 }, benchmarkPaceMs: null }).value).toBe('unknown');
   });
 });

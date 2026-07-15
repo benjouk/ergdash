@@ -115,6 +115,21 @@ export function computeMetricsForWorkout(workoutId) {
   const benchmark = db.prepare(
     'SELECT MIN(pace_ms) as best FROM workouts WHERE distance = ? AND pace_ms > 0 AND profile_id = ? AND id != ?'
   ).get(workout.distance, workout.profile_id, workoutId);
+
+  // HR-zone distribution feeds observed effort. Prefer per-stroke time-in-zone;
+  // fall back to the zone of the average HR when there's no stroke HR stream.
+  const zoneModel = getZoneModel(db, workout.profile_id);
+  let zoneShares = null;
+  if (zoneModel) {
+    const zt = zoneTimes(strokes, zoneModel.bounds);
+    if (zt) {
+      zoneShares = [1, 2, 3, 4, 5].map(z => zt[z] || 0);
+    } else if (workout.heart_rate_avg > 0) {
+      zoneShares = [0, 0, 0, 0, 0];
+      zoneShares[zoneForHr(workout.heart_rate_avg, zoneModel.bounds) - 1] = 1;
+    }
+  }
+
   const analysis = buildWorkoutAnalysis({
     workout,
     strokes,
@@ -122,6 +137,8 @@ export function computeMetricsForWorkout(workoutId) {
     structure,
     benchmarkPaceMs: benchmark?.best || null,
     rateDisciplinePct: discipline,
+    zoneShares,
+    zonesEstimated: zoneModel?.estimated ?? false,
   });
 
   const insertRecovery = db.prepare(`

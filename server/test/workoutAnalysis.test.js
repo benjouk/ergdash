@@ -44,13 +44,13 @@ function insertWorkout(id, overrides = {}) {
   return w;
 }
 
-function insertStrokes(workoutId, n) {
+function insertStrokes(workoutId, n, hr = 150) {
   const stmt = db.prepare(`
     INSERT INTO strokes (workout_id, stroke_number, time_s, distance_m, pace_ms, watts, stroke_rate, heart_rate)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
   for (let i = 0; i < n; i++) {
-    stmt.run(workoutId, i, i * 2, i * 20, 120000, 200, 24, 150);
+    stmt.run(workoutId, i, i * 2, i * 20, 120000, 200, 24, hr);
   }
 }
 
@@ -90,12 +90,22 @@ describe('workout analysis persistence', () => {
   });
 
   it('excludes the current workout from its own intensity benchmark', () => {
-    // Only one workout at the distance → no other benchmark → intensity unknown,
-    // rather than judging the row as maximal against itself.
+    // No HR and only one workout at the distance → no benchmark → intensity
+    // unknown, rather than judging the row as maximal against itself.
     insertWorkout(1);
-    insertStrokes(1, 100);
+    insertStrokes(1, 100, null);
     computeMetricsForWorkout(1);
     const analysis = JSON.parse(db.prepare('SELECT analysis_json FROM computed_metrics WHERE workout_id = 1').get().analysis_json);
     expect(analysis.execution.intensity.value).toBe('unknown');
+  });
+
+  it('reads an aerobic-HR row as easy/moderate, not maximal', () => {
+    db.prepare("INSERT OR REPLACE INTO settings (profile_id, key, value) VALUES (1, 'max_hr', '190')").run();
+    insertWorkout(1);
+    insertStrokes(1, 100, 125); // ~Z2 against a 190 max
+    computeMetricsForWorkout(1);
+    const analysis = JSON.parse(db.prepare('SELECT analysis_json FROM computed_metrics WHERE workout_id = 1').get().analysis_json);
+    expect(['easy', 'moderate']).toContain(analysis.execution.intensity.value);
+    expect(analysis.execution.intensity.basis).toMatch(/HR zone/);
   });
 });
