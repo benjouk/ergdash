@@ -85,7 +85,8 @@ export function computeMetricsForWorkout(workoutId) {
     }
   }
 
-  const isInterval = workout.inferred_tag === 'interval';
+  const structure = inferWorkoutStructure(workout);
+  const isInterval = structure.value === 'interval';
   const intervals = isInterval
     ? db.prepare('SELECT * FROM intervals WHERE workout_id = ? ORDER BY interval_index').all(workoutId)
     : [];
@@ -111,7 +112,6 @@ export function computeMetricsForWorkout(workoutId) {
   // Versioned "observed execution" analysis, computed from the same strokes/
   // intervals already loaded above. Benchmark is the profile's best pace at this
   // distance excluding the current row (so a workout isn't judged against itself).
-  const structure = inferWorkoutStructure(workout);
   const benchmark = db.prepare(
     'SELECT MIN(pace_ms) as best FROM workouts WHERE distance = ? AND pace_ms > 0 AND profile_id = ? AND id != ?'
   ).get(workout.distance, workout.profile_id, workoutId);
