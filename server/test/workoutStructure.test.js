@@ -8,6 +8,7 @@ let db;
 let getDb;
 let initDb;
 let closeDb;
+let computeMetricsForWorkout;
 let inferWorkoutStructure;
 let inferWorkoutTag;
 
@@ -17,7 +18,7 @@ beforeEach(async () => {
 
   vi.resetModules();
   ({ getDb, initDb, closeDb } = await import('../src/db.js'));
-  ({ inferWorkoutStructure, inferWorkoutTag } = await import('../src/analytics.js'));
+  ({ computeMetricsForWorkout, inferWorkoutStructure, inferWorkoutTag } = await import('../src/analytics.js'));
 
   initDb();
   db = getDb();
@@ -44,12 +45,18 @@ function makeWorkout(overrides = {}) {
     time_ms: 480000,
     rest_time_ms: null,
     rest_distance: null,
+    inferred_tag: null,
     ...overrides,
   };
   db.prepare(`
-    INSERT INTO workouts (id, user_id, date, type, workout_type, distance, time_ms, rest_time_ms, rest_distance, synced_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-  `).run(w.id, w.user_id, w.date, w.type, w.workout_type, w.distance, w.time_ms, w.rest_time_ms, w.rest_distance);
+    INSERT INTO workouts (
+      id, profile_id, user_id, date, type, workout_type, distance, time_ms,
+      rest_time_ms, rest_distance, inferred_tag, synced_at
+    ) VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+  `).run(
+    w.id, w.user_id, w.date, w.type, w.workout_type, w.distance, w.time_ms,
+    w.rest_time_ms, w.rest_distance, w.inferred_tag
+  );
   return w;
 }
 
@@ -105,5 +112,44 @@ describe('inferWorkoutTag legacy wrapper', () => {
 
   it('maps unknown structure to endurance (preserving legacy fallback)', () => {
     expect(inferWorkoutTag(makeWorkout({ id: 3, workout_type: 'unknown' }))).toBe('endurance');
+  });
+});
+
+describe('computeMetricsForWorkout interval structure', () => {
+  it('uses inferred structure when the persisted tag is stale', () => {
+    const workout = makeWorkout({
+      workout_type: 'VariableInterval',
+      time_ms: 15 * 60 * 1000,
+      inferred_tag: 'endurance',
+    });
+
+    const insertInterval = db.prepare(`
+      INSERT INTO intervals (workout_id, interval_index, type, distance, time_ms)
+      VALUES (?, ?, ?, ?, ?)
+    `);
+    insertInterval.run(workout.id, 0, 'work', 250, 60000);
+    insertInterval.run(workout.id, 1, 'rest', 0, 60000);
+    insertInterval.run(workout.id, 2, 'work', 250, 60000);
+
+    const insertStroke = db.prepare(`
+      INSERT INTO strokes (
+        workout_id, stroke_number, time_s, distance_m, pace_ms, watts,
+        stroke_rate, heart_rate
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    for (let i = 0; i < 90; i++) {
+      const timeS = (i + 1) * 2;
+      const heartRate = timeS < 60 ? 170 : timeS < 120 ? 0 : 130;
+      insertStroke.run(workout.id, i + 1, timeS, (i + 1) * 6, 120000, 200, 24, heartRate);
+    }
+
+    computeMetricsForWorkout(workout.id);
+
+    expect(db.prepare(
+      'SELECT COUNT(*) AS count FROM interval_recoveries WHERE workout_id = ?'
+    ).get(workout.id).count).toBe(1);
+    expect(db.prepare(
+      'SELECT hr_drift_pct FROM computed_metrics WHERE workout_id = ?'
+    ).get(workout.id).hr_drift_pct).toBeNull();
   });
 });
