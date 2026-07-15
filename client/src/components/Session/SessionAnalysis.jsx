@@ -11,9 +11,10 @@ const READ_LABELS = {
   finish: 'Finish',
   rate: 'Rate',
   stroke_effectiveness: 'Work per stroke',
+  hr_drift: 'HR drift',
 };
 
-const READ_ORDER = ['intensity', 'pacing', 'finish', 'rate', 'stroke_effectiveness'];
+const READ_ORDER = ['intensity', 'pacing', 'finish', 'rate', 'stroke_effectiveness', 'hr_drift'];
 
 // Derived "what we think it means" for a session, styled like the Details card:
 // a compact two-column grid of label → value rows. The natural-language insight

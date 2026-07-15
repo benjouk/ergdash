@@ -58,6 +58,11 @@
   border-bottom: none;
 }
 
+/* An odd number of reads would leave a gap; let the lone last one span the row. */
+.read:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
 .readLabel {
   color: var(--ink-3);
   font-size: 0.8rem;

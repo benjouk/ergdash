@@ -13,7 +13,8 @@ import { wattsFromPace } from './strokeMetrics.js';
 // Bump when any formula below changes so computeAllMetrics recomputes cached
 // analyses. Kept here (not analytics.js) since it versions this module's logic.
 // v2: observed effort is now HR-grounded (was pace-vs-benchmark only).
-export const ANALYSIS_VERSION = 2;
+// v3: added the HR-drift (aerobic decoupling) read.
+export const ANALYSIS_VERSION = 3;
 
 // --- thresholds (named so behaviour is easy to tune) -------------------------
 const MIN_PACING_STROKES = 8;
@@ -37,6 +38,10 @@ const FINISH_DELTA_PCT = 1.0; // > 1% faster = accelerated, slower = faded
 const EFFECTIVENESS_STABLE_TREND_PCT = 5.0; // |work/stroke trend| ≤ 5% = stable
 
 const FIRST_REP_FAST_PCT = 2.0; // first rep > 2% faster than the mean = went out hard
+
+// HR drift (aerobic decoupling): power-to-HR held (low) vs HR climbing (high).
+const HR_DRIFT_LOW_PCT = 5; // ≤ 5% = coupled / good aerobic control
+const HR_DRIFT_HIGH_PCT = 10; // > 10% = clearly decoupled
 
 // Observed intensity by pace vs the athlete's own best at this distance
 // (pacePct = best / this, ≤ 1; closer to 1 = harder). Bands are intentionally
@@ -234,6 +239,25 @@ export function strokeEffectiveness(workout, strokes = []) {
   };
 }
 
+// Aerobic decoupling: whether heart rate held steady against output (low drift)
+// or climbed as the session wore on (high). Takes the already-computed drift %
+// (null for intervals / sessions too short to be meaningful → unknown).
+export function classifyHrDrift(hrDriftPct) {
+  if (hrDriftPct == null || !Number.isFinite(hrDriftPct)) {
+    return unknown('No aerobic-decoupling reading for this session.');
+  }
+  let value = 'high';
+  if (hrDriftPct <= HR_DRIFT_LOW_PCT) value = 'low';
+  else if (hrDriftPct <= HR_DRIFT_HIGH_PCT) value = 'moderate';
+  return {
+    value,
+    confidence: 0.8,
+    basis: hrDriftPct <= HR_DRIFT_LOW_PCT
+      ? `Heart rate tracked output closely (${round(hrDriftPct)}% drift) — steady aerobic control.`
+      : `Heart rate rose ${round(hrDriftPct)}% relative to output across the session.`,
+  };
+}
+
 function capIntensity(value, maxValue) {
   return INTENSITY_ORDER.indexOf(value) > INTENSITY_ORDER.indexOf(maxValue) ? maxValue : value;
 }
@@ -364,6 +388,7 @@ export function buildWorkoutAnalysis({
   rateDisciplinePct = null,
   zoneShares = null,
   zonesEstimated = false,
+  hrDriftPct = null,
 }) {
   const isInterval = structure?.value === 'interval';
 
@@ -376,6 +401,7 @@ export function buildWorkoutAnalysis({
     rate,
     finish: isInterval ? null : analyzeFinish(strokes),
     stroke_effectiveness: strokeEffectiveness(workout, strokes),
+    hr_drift: classifyHrDrift(hrDriftPct),
   };
 
   return {

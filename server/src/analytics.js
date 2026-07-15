@@ -139,6 +139,7 @@ export function computeMetricsForWorkout(workoutId) {
     rateDisciplinePct: discipline,
     zoneShares,
     zonesEstimated: zoneModel?.estimated ?? false,
+    hrDriftPct: drift,
   });
 
   const insertRecovery = db.prepare(`

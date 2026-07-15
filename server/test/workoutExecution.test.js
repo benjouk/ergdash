@@ -5,6 +5,7 @@ import {
   analyzeFinish,
   strokeEffectiveness,
   classifyIntensity,
+  classifyHrDrift,
   computePhases,
   analyzeIntervals,
   buildWorkoutAnalysis,
@@ -141,6 +142,19 @@ describe('classifyIntensity', () => {
   });
 });
 
+describe('classifyHrDrift', () => {
+  it('bands the drift percentage', () => {
+    expect(classifyHrDrift(3).value).toBe('low');
+    expect(classifyHrDrift(7.7).value).toBe('moderate');
+    expect(classifyHrDrift(14).value).toBe('high');
+    expect(classifyHrDrift(-2).value).toBe('low');
+  });
+
+  it('is unknown when no drift was computed', () => {
+    expect(classifyHrDrift(null).value).toBe('unknown');
+  });
+});
+
 describe('computePhases', () => {
   it('returns five phases with aggregates for a fixed-distance piece', () => {
     const phases = computePhases({ workout_type: 'FixedDistanceSplits' }, strokes(100));
@@ -191,11 +205,13 @@ describe('buildWorkoutAnalysis', () => {
       structure: { value: 'continuous', subtype: 'fixed_distance', confidence: 1, reasons: [] },
       benchmarkPaceMs: 115000,
       rateDisciplinePct: 94,
+      hrDriftPct: 7.7,
     });
     expect(analysis.version).toBe(ANALYSIS_VERSION);
     expect(analysis.structure.value).toBe('continuous');
     expect(analysis.execution.pacing.value).toBe('even');
     expect(analysis.execution.rate.discipline_pct).toBe(94);
+    expect(analysis.execution.hr_drift.value).toBe('moderate');
     expect(analysis.phases).toHaveLength(5);
     expect(analysis.intervals).toBeNull();
   });

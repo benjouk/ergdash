@@ -11,6 +11,7 @@ const PACING = {
 };
 const FINISH = { accelerated: 'Accelerated', faded: 'Faded', even: 'Even' };
 const STABILITY = { stable: 'Stable', variable: 'Variable' };
+const DRIFT = { low: 'Low', moderate: 'Moderate', high: 'High' };
 
 const MAPS = {
   intensity: INTENSITY,
@@ -18,6 +19,7 @@ const MAPS = {
   finish: FINISH,
   rate: STABILITY,
   stroke_effectiveness: STABILITY,
+  hr_drift: DRIFT,
 };
 
 // Below this confidence an inferred value is not shown as a conclusion (mirrors
