@@ -344,7 +344,9 @@ function recommendationFor(intent, context, plan) {
   }
 
   if (intent === 'hard_distance') {
-    if (fastStart) {
+    // A quick opening is only a problem when the back half paid for it; a
+    // sustained fast start on a hard piece is well-executed racing shape.
+    if (fastStart && faded) {
       return 'For the next hard-distance row, hold back slightly in the opening so you can sustain pace through the back half.';
     }
     if (faded) {
@@ -360,7 +362,7 @@ function recommendationFor(intent, context, plan) {
   }
 
   if (intent === 'test_race') {
-    if (fastStart) {
+    if (fastStart && faded) {
       return 'For the next test or race, open slightly slower and protect the target pace through the final quarter.';
     }
     if (faded) {

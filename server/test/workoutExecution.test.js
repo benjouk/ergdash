@@ -266,8 +266,9 @@ describe('analyzeIntervals', () => {
 
 // A recording with warmup/cooldown padding around a scored piece: slow 10m
 // strokes, then the piece at `piecePaceMs`, then slow strokes again. The
-// summary describes only the piece.
-function paddedStream({ warmup = 100, piece = 200, cooldown = 100, piecePaceMs = 120000 } = {}) {
+// summary describes only the piece. `gapS` inserts a paddling pause between
+// blocks, the way real device imports arrive.
+function paddedStream({ warmup = 100, piece = 200, cooldown = 100, piecePaceMs = 120000, gapS = 0 } = {}) {
   const rows = [];
   let t = 0;
   let d = 0;
@@ -290,7 +291,9 @@ function paddedStream({ warmup = 100, piece = 200, cooldown = 100, piecePaceMs =
     }
   };
   push(warmup, 150000);
+  t += gapS;
   push(piece, piecePaceMs, { stroke_rate: 26, heart_rate: 165, watts: 210 });
+  t += gapS;
   push(cooldown, 156000, { stroke_rate: 18, heart_rate: 130 });
   return rows;
 }
@@ -310,6 +313,17 @@ describe('locateScoredPiece', () => {
     expect(windowed[0].distance_m).toBe(10);
     expect(windowed[windowed.length - 1].distance_m).toBe(2000);
     // The windowed strokes are the fast ones, so pacing reads even, not faded.
+    expect(classifyPacing(windowed).value).toBe('even');
+  });
+
+  it('tolerates paddling pauses between warmup, piece and cooldown', () => {
+    // Real imports pause the clock between blocks; the piece must still be
+    // found without the 30s rests counting into its duration.
+    const stream = paddedStream({ gapS: 30 });
+    const { strokes: windowed, window } = locateScoredPiece(summary, stream);
+
+    expect(window).not.toBeNull();
+    expect(window.start_distance_m).toBe(1000);
     expect(classifyPacing(windowed).value).toBe('even');
   });
 
@@ -385,8 +399,8 @@ describe('buildWorkoutAnalysis', () => {
     expect(analysis.phases[4].end_m).toBe(2000);
   });
 
-  it('uses analysis schema version 6', () => {
-    expect(ANALYSIS_VERSION).toBe(6);
+  it('uses analysis schema version 7', () => {
+    expect(ANALYSIS_VERSION).toBe(7);
   });
 
   it('builds an interval analysis with no pacing/phases', () => {

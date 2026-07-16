@@ -22,7 +22,8 @@ export const BEST_EFFORT_DURATIONS = [60, 240, 600, 1800, 3600];
 // v4: aerobic drift excludes the final 5% finishing effort.
 // v5: drift/discipline/zone shares read the scored piece when the stroke
 // stream carries warmup/cooldown padding around it.
-export const METRICS_VERSION = 5;
+// v6: piece windows tolerate paddling pauses before the piece.
+export const METRICS_VERSION = 6;
 
 const MIN_DRIFT_DURATION_MS = 15 * 60 * 1000;
 

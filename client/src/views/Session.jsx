@@ -1271,7 +1271,19 @@ function buildSplitRows(workout) {
     return markBestWorst(rows);
   }
 
-  const strokes = (workout.strokes || []).filter(s => s?.pace_ms > 0 && s?.distance_m >= 0);
+  let strokes = (workout.strokes || []).filter(s => s?.pace_ms > 0 && s?.distance_m >= 0);
+
+  // When the analysis located the scored piece inside a padded recording,
+  // splits describe that piece, not the first N metres of the raw stream
+  // (which would mix warmup strokes into the opening splits).
+  const analysisWindow = workout.analysis?.analysis_window;
+  if (Number(analysisWindow?.start_distance_m) >= 0 && Number(analysisWindow?.end_distance_m) > 0) {
+    const startM = Number(analysisWindow.start_distance_m);
+    const endM = Number(analysisWindow.end_distance_m);
+    strokes = strokes
+      .filter(s => s.distance_m > startM && s.distance_m <= endM)
+      .map(s => ({ ...s, distance_m: s.distance_m - startM }));
+  }
   if (strokes.length < 2 || !workout.distance) return [];
 
   const splitSize = workout.distance <= 3000 ? 500 : 1000;

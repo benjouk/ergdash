@@ -19,7 +19,8 @@ import { wattsFromPace } from './strokeMetrics.js';
 // HR-drift values, and estimated-zone metadata.
 // v6: reads run on the scored piece when the stroke stream carries
 // warmup/cooldown padding around it; phases carry absolute ranges.
-export const ANALYSIS_VERSION = 6;
+// v7: piece windows tolerate paddling pauses before the piece.
+export const ANALYSIS_VERSION = 7;
 
 // --- thresholds (named so behaviour is easy to tune) -------------------------
 const MIN_PACING_STROKES = 8;
@@ -64,8 +65,15 @@ const DURATION_MISMATCH_MIN_S = 5; // floor so short pieces don't trip on roundi
 // summary (the warmup/cooldown-padding signature), the reads run on the
 // contiguous stretch that matches the summary instead of the whole recording.
 const WINDOW_DISTANCE_OVERSHOOT = 1.05; // stream must exceed summary distance by 5%
-const WINDOW_MATCH_PCT = 3; // window duration must land within 3% of the summary
-const WINDOW_MATCH_MIN_S = 10; // absolute floor for that match tolerance
+// Candidate windows are matched on average pace (duration over covered
+// distance) against the summary's pace. Pace is scale-free, so a window that
+// swaps piece metres for warmup metres cannot fake a match the way a raw
+// duration comparison can.
+const WINDOW_MATCH_PACE_PCT = 3;
+// A window may cover fractionally less than the summary distance: recorded
+// stroke odometers land a stroke-length short of round block boundaries, and
+// demanding full coverage would force the window across a rest pause.
+const WINDOW_DISTANCE_UNDERSHOOT_PCT = 0.5;
 
 // Observed intensity by pace vs the athlete's own best at this distance
 // (pacePct = best / this, ≤ 1; closer to 1 = harder). Bands are intentionally
@@ -436,42 +444,68 @@ export function locateScoredPiece(workout, strokes = []) {
     return noWindow;
   }
 
-  // Two-pointer sweep over [i, j]: the shortest span from stroke i that covers
-  // the summary distance, keeping the span whose duration best matches the
-  // summary time. Assumes distance_m and time_s are cumulative and monotonic.
+  // A stroke's own rowing time, from its pace and the distance it covered.
+  // Used to reconstruct where a window's first stroke actually began, so a
+  // paddling pause recorded before the piece never counts into its duration.
+  const strokeStartTime = (idx) => {
+    const stroke = usable[idx];
+    const prevD = idx > 0 ? usable[idx - 1].distance_m : 0;
+    const prevT = idx > 0 ? usable[idx - 1].time_s : 0;
+    const dist = stroke.distance_m - prevD;
+    const rowedS = stroke.pace_ms > 0 && dist > 0 ? (stroke.pace_ms / 1000) * (dist / 500) : null;
+    // Clamp to the previous stroke's clock: the stroke cannot have started
+    // before the previous one ended.
+    return rowedS != null ? Math.max(prevT, stroke.time_s - rowedS) : prevT;
+  };
+
+  // Two-pointer sweep over [s, j]: for each candidate first stroke s, the
+  // shortest span covering the summary distance, keeping the span whose
+  // duration best matches the summary time. Assumes distance_m and time_s are
+  // cumulative and monotonic.
+  const requiredDistance = targetDistance * (1 - WINDOW_DISTANCE_UNDERSHOOT_PCT / 100);
+  const targetPace = targetDurationS / targetDistance; // s per metre
   let best = null;
   let j = 0;
-  for (let i = 0; i < usable.length; i++) {
-    if (j < i) j = i;
-    while (j < usable.length && usable[j].distance_m - usable[i].distance_m < targetDistance) j++;
+  for (let s = 0; s < usable.length; s++) {
+    const originD = s > 0 ? usable[s - 1].distance_m : 0;
+    if (j < s) j = s;
+    while (j < usable.length && usable[j].distance_m - originD < requiredDistance) j++;
     if (j >= usable.length) break;
-    const durationS = usable[j].time_s - usable[i].time_s;
-    const diff = Math.abs(durationS - targetDurationS);
-    if (!best || diff < best.diff) best = { i, j, diff, durationS };
+    const originT = strokeStartTime(s);
+    // Consider both the shortest qualifying window and the one covering the
+    // full summary distance (when it exists); full coverage wins ties, so the
+    // undershoot allowance never trims a window unnecessarily.
+    let jFull = j;
+    while (jFull < usable.length && usable[jFull].distance_m - originD < targetDistance) jFull++;
+    const ends = jFull < usable.length && jFull !== j ? [jFull, j] : [j];
+    for (const end of ends) {
+      const durationS = usable[end].time_s - originT;
+      const covered = usable[end].distance_m - originD;
+      const paceDiff = Math.abs(durationS / covered - targetPace) / targetPace;
+      if (!best || paceDiff < best.paceDiff - 1e-9) {
+        best = { s, j: end, originD, originT, paceDiff, durationS };
+      }
+    }
   }
 
-  const acceptS = Math.max(WINDOW_MATCH_MIN_S, targetDurationS * (WINDOW_MATCH_PCT / 100));
-  if (!best || best.diff > acceptS) return noWindow;
+  if (!best || best.paceDiff > WINDOW_MATCH_PACE_PCT / 100) return noWindow;
 
-  // Stroke i marks the state at the piece boundary; strokes i+1..j were rowed
-  // inside the piece, so those are the ones the reads should see. Rebase their
-  // clocks/odometers to the piece origin so every downstream consumer treats
-  // the window as a piece starting from zero.
-  const originD = usable[best.i].distance_m;
-  const originT = usable[best.i].time_s;
-  const windowStrokes = usable.slice(best.i + 1, best.j + 1).map(s => ({
+  // Strokes s..j were rowed inside the piece. Rebase their clocks/odometers to
+  // the piece origin so every downstream consumer treats the window as a piece
+  // starting from zero.
+  const windowStrokes = usable.slice(best.s, best.j + 1).map(s => ({
     ...s,
-    distance_m: s.distance_m - originD,
-    time_s: s.time_s - originT,
+    distance_m: s.distance_m - best.originD,
+    time_s: s.time_s - best.originT,
   }));
   if (windowStrokes.length < MIN_QUALITY_STROKES) return noWindow;
 
   return {
     strokes: windowStrokes,
     window: {
-      start_distance_m: Math.round(usable[best.i].distance_m),
+      start_distance_m: Math.round(best.originD),
       end_distance_m: Math.round(usable[best.j].distance_m),
-      start_time_s: round(usable[best.i].time_s, 0),
+      start_time_s: round(best.originT, 0),
       end_time_s: round(usable[best.j].time_s, 0),
       stroke_count: windowStrokes.length,
       total_stroke_count: strokes.length,

@@ -75,7 +75,7 @@ describe('workout analysis persistence', () => {
     const row = db.prepare('SELECT analysis_json, analysis_version, metrics_version FROM computed_metrics WHERE workout_id = 1').get();
     expect(row.analysis_version).toBe(ANALYSIS_VERSION);
     expect(row.metrics_version).toBe(METRICS_VERSION);
-    expect(METRICS_VERSION).toBe(5);
+    expect(METRICS_VERSION).toBe(6);
     const analysis = JSON.parse(row.analysis_json);
     expect(analysis.version).toBe(ANALYSIS_VERSION);
     expect(analysis.structure.value).toBe('continuous');
