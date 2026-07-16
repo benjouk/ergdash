@@ -123,6 +123,9 @@
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 6px;
+  /* The card's "?" info button is absolutely positioned in the bottom-right
+     corner; keep the chips clear of it when this prompt is the last row. */
+  margin-right: 26px;
 }
 
 .intentChip {
