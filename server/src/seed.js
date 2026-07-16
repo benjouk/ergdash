@@ -83,23 +83,34 @@ function generateWorkouts({ idBase = 100000, paceScale = 1 } = {}) {
 // per-stroke metrics for this workout include the warmup and cooldown.
 function generateOdometerTest(id, date, factor, paceScale = 1) {
   const distance = 2000;
-  const paceMs = Math.round(105000 * paceScale * factor + randBetween(-2000, 2000));
-  const timeMs = Math.round((distance / 500) * (paceMs / 1000) * 1000);
+  const targetPaceMs = Math.round(105000 * paceScale * factor + randBetween(-2000, 2000));
   const strokeRate = Math.round(randBetween(30, 34) * 10) / 10;
-  const hrAvg = randInt(172, 186);
+  const targetHrAvg = randInt(172, 186);
 
   const blocks = [
-    { distance: 1200, paceMs: paceMs + 45000, rate: 20, hr: hrAvg - 45 },
-    { distance, paceMs, rate: strokeRate, hr: hrAvg },
-    { distance: 600, paceMs: paceMs + 55000, rate: 18, hr: hrAvg - 40 },
+    { distance: 1200, paceMs: targetPaceMs + 45000, rate: 20, hr: targetHrAvg - 45 },
+    { distance, paceMs: targetPaceMs, rate: strokeRate, hr: targetHrAvg, isPiece: true },
+    { distance: 600, paceMs: targetPaceMs + 55000, rate: 18, hr: targetHrAvg - 40 },
   ];
 
+  // The workout's own totals describe the scored 2,000m piece only, while the
+  // stroke stream spans warmup + piece + cooldown - that gap is the point of
+  // this fixture. But the piece's own totals must still match what its own
+  // strokes actually show, so they're taken from that block's generated data
+  // rather than computed independently of it.
   const strokes = [];
   let number = 0;
   let distanceOffset = 0;
   let timeOffset = 0;
+  let timeMs = null;
+  let hrAvg = null;
   for (const block of blocks) {
-    for (const s of generateStrokeData(block.distance, block.paceMs, block.rate, block.hr)) {
+    const blockData = generateStrokeData(block.distance, block.paceMs, block.rate, block.hr);
+    if (block.isPiece) {
+      timeMs = Math.round(blockData.durationS * 1000);
+      hrAvg = blockData.hrAvg;
+    }
+    for (const s of blockData.strokes) {
       strokes.push({
         ...s,
         number: number++,
@@ -108,8 +119,10 @@ function generateOdometerTest(id, date, factor, paceScale = 1) {
       });
     }
     distanceOffset += block.distance;
-    timeOffset += (block.distance / 500) * (block.paceMs / 1000) + 30;
+    timeOffset += blockData.durationS + 30;
   }
+
+  const paceMs = Math.round(timeMs / (distance / 500));
 
   return {
     id, date: sessionDate(date), distance, timeMs, paceMs,
@@ -127,18 +140,25 @@ function generateEndurance(id, date, factor, isDouble = false, paceScale = 1) {
   const distance = pick(distances);
 
   const basePace = (distance <= 5000 ? 120000 : distance <= 10000 ? 122000 : 125000) * paceScale;
-  const paceMs = Math.round(basePace * factor + randBetween(-2000, 3000));
-  const timeMs = Math.round((distance / 500) * (paceMs / 1000) * 1000);
+  const targetPaceMs = Math.round(basePace * factor + randBetween(-2000, 3000));
   const strokeRate = Math.round(randBetween(22, 26) * 10) / 10;
+  const targetHrAvg = randInt(145, 165);
+
+  // Derive the stored summary fields (time, pace, HR) from the actual
+  // generated stroke stream rather than the target inputs used to shape it,
+  // so the headline duration/HR agree with the splits and stroke charts the
+  // way a real device's own summary would.
+  const { strokes, durationS, hrAvg } = generateStrokeData(distance, targetPaceMs, strokeRate, targetHrAvg);
+  const timeMs = Math.round(durationS * 1000);
+  const paceMs = Math.round(timeMs / (distance / 500));
   const strokeCount = Math.round(timeMs / 60000 * strokeRate);
-  const hrAvg = randInt(145, 165);
 
   return {
     id, date: sessionDate(date, isDouble), distance, timeMs, paceMs, strokeRate, strokeCount,
     hrAvg, hrMax: hrAvg + randInt(10, 20), dragFactor: randInt(115, 130),
     calories: Math.round(distance / 25 + randBetween(-10, 10)),
     type: 'endurance', workoutType: 'FixedDistanceSplits',
-    strokes: generateStrokeData(distance, paceMs, strokeRate, hrAvg),
+    strokes,
   };
 }
 
@@ -175,8 +195,12 @@ export function generateInterval(id, date, factor, paceScale = 1) {
 
   const workIntervals = intervals.filter(i => i.type === 'work');
   const avgPace = Math.round(workIntervals.reduce((s, i) => s + i.paceMs, 0) / numIntervals);
-  const hrAvg = randInt(165, 178);
   const strokes = generateIntervalStrokeData(workIntervals, restTimeMs);
+  // Derive the session's headline HR from the strokes actually generated
+  // (same reasoning as the continuous session types) rather than an
+  // independently drawn value that the per-rep data wouldn't back up.
+  const strokeHrs = strokes.map(s => s.heartRate).filter(h => h > 0);
+  const hrAvg = Math.round(strokeHrs.reduce((s, h) => s + h, 0) / strokeHrs.length);
   const totalRestTimeMs = numIntervals * restTimeMs;
   const totalRestDistance = intervals.filter(i => i.type === 'rest').reduce((s, i) => s + i.distance, 0);
 
@@ -238,10 +262,13 @@ function generateIntervalStrokeData(intervals, restTimeMs) {
 function generateTest(id, date, factor, paceScale = 1) {
   const distance = pick([2000, 5000]);
   const basePace = (distance === 2000 ? 105000 : 115000) * paceScale;
-  const paceMs = Math.round(basePace * factor + randBetween(-3000, 2000));
-  const timeMs = Math.round((distance / 500) * (paceMs / 1000) * 1000);
+  const targetPaceMs = Math.round(basePace * factor + randBetween(-3000, 2000));
   const strokeRate = distance === 2000 ? randBetween(30, 34) : randBetween(26, 30);
-  const hrAvg = randInt(172, 188);
+  const targetHrAvg = randInt(172, 188);
+
+  const { strokes, durationS, hrAvg } = generateStrokeData(distance, targetPaceMs, strokeRate, targetHrAvg);
+  const timeMs = Math.round(durationS * 1000);
+  const paceMs = Math.round(timeMs / (distance / 500));
 
   return {
     id, date: sessionDate(date), distance, timeMs, paceMs,
@@ -250,10 +277,15 @@ function generateTest(id, date, factor, paceScale = 1) {
     hrAvg, hrMax: hrAvg + randInt(5, 12), dragFactor: randInt(120, 130),
     calories: Math.round(distance / 20 + randBetween(-5, 5)),
     type: 'test', workoutType: 'FixedDistanceSplits',
-    strokes: generateStrokeData(distance, paceMs, strokeRate, hrAvg),
+    strokes,
   };
 }
 
+// Generates a per-stroke stream for a single continuous piece and, alongside
+// it, the actual total duration and average HR the strokes imply. Callers use
+// those derived values (not the target inputs below) as the workout's stored
+// summary fields, so the headline duration/HR the UI shows always agrees with
+// what the splits and charts are computed from.
 function generateStrokeData(distance, avgPaceMs, avgRate, avgHr) {
   const strokes = [];
   const totalStrokes = Math.round((distance / 500) * (avgPaceMs / 1000) / 60 * avgRate * 60);
@@ -264,6 +296,7 @@ function generateStrokeData(distance, avgPaceMs, avgRate, avgHr) {
   const rateJitter = randBetween(1, 3.5);
 
   let elapsedS = 0;
+  let hrSum = 0;
   for (let i = 0; i < count; i++) {
     const progress = i / count;
     let paceFactor;
@@ -275,12 +308,9 @@ function generateStrokeData(distance, avgPaceMs, avgRate, avgHr) {
     const pace = Math.round(avgPaceMs * paceFactor + randBetween(-1000, 1000));
     const paceSeconds = pace / 1000;
     const watts = paceSeconds > 0 ? Math.round(2.80 / Math.pow(paceSeconds / 500, 3)) : 0;
-    const hr = Math.round(avgHr * (0.85 + progress * 0.15) + randBetween(-3, 3));
+    const hr = Math.max(100, Math.min(200, Math.round(avgHr * (0.85 + progress * 0.15) + randBetween(-3, 3))));
+    hrSum += hr;
 
-    // Accumulate each stroke's own duration. Scaling cumulative distance by
-    // the current stroke's jittered pace makes timestamps non-monotonic,
-    // which inflates every dt-based metric (time in zone, HR drift, best
-    // efforts) since negative deltas clamp to zero but spikes count in full.
     strokes.push({
       number: i,
       timeS: Math.round(elapsedS * 100) / 100,
@@ -288,13 +318,13 @@ function generateStrokeData(distance, avgPaceMs, avgRate, avgHr) {
       paceMs: pace,
       watts,
       strokeRate: Math.round((avgRate + randBetween(-rateJitter, rateJitter)) * 10) / 10,
-      heartRate: Math.max(100, Math.min(200, hr)),
+      heartRate: hr,
     });
 
     elapsedS += (metersPerStroke / 500) * paceSeconds;
   }
 
-  return strokes;
+  return { strokes, durationS: elapsedS, hrAvg: Math.round(hrSum / count) };
 }
 
 function formatDate(date) {

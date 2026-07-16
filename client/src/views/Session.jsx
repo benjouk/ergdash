@@ -426,12 +426,22 @@ export default function Session() {
     { label: primaryMetric.averageLabel, value: formatPace(workout.pace_ms), unit: primaryMetric.unit, accent: true },
     { label: 'Power', value: formatNumber(avgWatts), unit: 'w' },
     { label: 'Rate', value: formatRate(workout.stroke_rate), unit: 'spm' },
-    { label: 'Cal/hr', value: formatNumber(avgCalHr) },
+    {
+      label: 'Cal/hr',
+      value: formatNumber(avgCalHr),
+      hint: 'Projected rate from average pace (Concept2 formula), not measured — see Total Calories for the recorded session total.',
+    },
   ];
 
   const detailRows = [
     { label: 'Stroke Count', value: formatNumber(workout.stroke_count), icon: BarChart3 },
-    { label: 'Total Calories', value: formatNumber(workout.calories), unit: 'cal', icon: Flame },
+    {
+      label: 'Total Calories',
+      value: formatNumber(workout.calories),
+      unit: 'cal',
+      icon: Flame,
+      hint: 'Total for the whole session, as recorded — a different measure from the Cal/hr rate above, which is projected from pace.',
+    },
     { label: 'Drag Factor', value: formatNumber(workout.drag_factor), icon: Gauge },
     { label: 'Ave. Heart Rate', value: formatNumber(workout.heart_rate_avg), unit: 'bpm', icon: HeartPulse },
     { label: 'Max Heart Rate', value: formatNumber(workout.heart_rate_max), unit: 'bpm', icon: HeartPulse },
@@ -615,7 +625,7 @@ export default function Session() {
 
       <div className={styles.summaryStrip}>
         {summaryItems.map(item => (
-          <div className={styles.summaryCell} key={item.label}>
+          <div className={styles.summaryCell} key={item.label} title={item.hint}>
             <span className={styles.summaryCellLabel}>{item.label}</span>
             <span className={`${styles.summaryCellValue} ${item.accent ? styles.accentValue : ''}`}>
               {item.value}
@@ -686,6 +696,9 @@ export default function Session() {
               </tbody>
             </table>
           </div>
+          {!isIntervalTable && (
+            <ChartInfo>Each split's time is estimated from its average pace × distance, not measured directly, so the splits may not add up exactly to the session's total time.</ChartInfo>
+          )}
         </div>
         );
       })()}
@@ -854,7 +867,7 @@ export default function Session() {
           {detailRows.map(row => {
             const Icon = row.icon;
             return (
-              <div className={styles.detailRow} key={row.label}>
+              <div className={styles.detailRow} key={row.label} title={row.hint}>
                 <div className={styles.detailLabel}>
                   {Icon && <Icon className={styles.detailIcon} size={14} />}
                   {row.label}
