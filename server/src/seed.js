@@ -27,6 +27,17 @@ function pick(arr) {
   return arr[Math.floor(rand() * arr.length)];
 }
 
+// Concept2 calorie model, matching the client's ergMath.js: watts from pace
+// (2.80 / (sec-per-metre)^3), then cal/hr = watts × 4 × 0.8604 + 300. Storing
+// the integral of that rate over the piece keeps the recorded total calories
+// consistent with the projected cal/hr the UI derives from average pace, the
+// way a PM5's own numbers reconcile.
+function caloriesFor(timeMs, paceMs) {
+  const watts = 2.8 / Math.pow(paceMs / 1000 / 500, 3);
+  const calHr = watts * 4 * 0.8604 + 300;
+  return Math.round(calHr * (timeMs / 3600000));
+}
+
 // idBase gives each athlete a disjoint workout-id range (PKs are global);
 // paceScale slides a whole athlete's pace so two seeded profiles read as
 // genuinely different rowers (>1 is slower/more recreational).
@@ -129,7 +140,7 @@ function generateOdometerTest(id, date, factor, paceScale = 1) {
     strokeRate,
     strokeCount: Math.round(timeMs / 60000 * strokeRate),
     hrAvg, hrMax: hrAvg + randInt(5, 12), dragFactor: randInt(120, 130),
-    calories: Math.round(distance / 20),
+    calories: caloriesFor(timeMs, paceMs),
     type: 'test', workoutType: 'FixedDistanceSplits',
     strokes,
   };
@@ -156,7 +167,7 @@ function generateEndurance(id, date, factor, isDouble = false, paceScale = 1) {
   return {
     id, date: sessionDate(date, isDouble), distance, timeMs, paceMs, strokeRate, strokeCount,
     hrAvg, hrMax: hrAvg + randInt(10, 20), dragFactor: randInt(115, 130),
-    calories: Math.round(distance / 25 + randBetween(-10, 10)),
+    calories: caloriesFor(timeMs, paceMs),
     type: 'endurance', workoutType: 'FixedDistanceSplits',
     strokes,
   };
@@ -209,7 +220,7 @@ export function generateInterval(id, date, factor, paceScale = 1) {
     strokeRate: Math.round(randBetween(29, 33) * 10) / 10,
     strokeCount: strokes.length,
     hrAvg, hrMax: hrAvg + randInt(10, 18), dragFactor: randInt(118, 128),
-    calories: Math.round(distance / 22 + randBetween(-5, 5)),
+    calories: caloriesFor(workTime, avgPace),
     type: 'interval', workoutType: 'FixedDistanceInterval',
     restTimeMs: totalRestTimeMs, restDistance: totalRestDistance,
     intervals, strokes,
@@ -275,7 +286,7 @@ function generateTest(id, date, factor, paceScale = 1) {
     strokeRate: Math.round(strokeRate * 10) / 10,
     strokeCount: Math.round(timeMs / 60000 * strokeRate),
     hrAvg, hrMax: hrAvg + randInt(5, 12), dragFactor: randInt(120, 130),
-    calories: Math.round(distance / 20 + randBetween(-5, 5)),
+    calories: caloriesFor(timeMs, paceMs),
     type: 'test', workoutType: 'FixedDistanceSplits',
     strokes,
   };
