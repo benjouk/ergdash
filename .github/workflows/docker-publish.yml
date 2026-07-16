@@ -10,7 +10,30 @@ env:
   IMAGE: ghcr.io/${{ github.repository }}
 
 jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t ergdash:smoke .
+      - run: >-
+          docker run -d --name ergdash-smoke -p 3100:3000
+          -e SESSION_SECRET=publish-smoke-secret-32-characters
+          ergdash:smoke
+      - name: Wait for container health
+        run: |
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:3100/health >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs ergdash-smoke
+          exit 1
+      - if: always()
+        run: docker rm -f ergdash-smoke || true
+
   build-and-push:
+    needs: smoke
     runs-on: ubuntu-latest
     permissions:
       contents: read
