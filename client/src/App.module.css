@@ -55,6 +55,15 @@
   padding: var(--space-6);
 }
 
+.routeLoading {
+  min-height: 40vh;
+  display: grid;
+  place-items: center;
+  color: var(--ink-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
 @media (min-width: 1600px) {
   .main {
     padding: var(--space-8);

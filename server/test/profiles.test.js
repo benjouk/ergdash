@@ -126,6 +126,69 @@ describe('oauth state intents', () => {
 
     closeDb();
   });
+
+  it('bounds pending OAuth state rows', async () => {
+    dataDir = mkdtempSync(join(tmpdir(), 'ergdash-oauth-cap-test-'));
+    process.env.DATA_DIR = dataDir;
+
+    vi.resetModules();
+    const { initDb, closeDb, getDb } = await import('../src/db.js');
+    const auth = await import('../src/auth.js');
+    initDb();
+    auth.initAuth();
+
+    for (let i = 0; i < 120; i++) auth.getAuthorizationUrl({ attempt: i });
+    const count = getDb().prepare("SELECT COUNT(*) c FROM sync_state WHERE key LIKE 'oauth_state:%'").get().c;
+    expect(count).toBe(100);
+
+    closeDb();
+  });
+
+  it('uses bootstrap, registered-account login, and session-required enrollment intents', async () => {
+    dataDir = mkdtempSync(join(tmpdir(), 'ergdash-oauth-route-test-'));
+    process.env.DATA_DIR = dataDir;
+
+    vi.resetModules();
+    const { initDb, closeDb } = await import('../src/db.js');
+    const auth = await import('../src/auth.js');
+    const authRouter = (await import('../src/routes/auth.js')).default;
+    initDb();
+    auth.initAuth();
+
+    const app = express();
+    app.use('/auth', authRouter);
+    const server = await new Promise(resolve => {
+      const listener = app.listen(0, () => resolve(listener));
+    });
+    const base = `http://localhost:${server.address().port}`;
+    const intentFrom = async (path, cookie) => {
+      const response = await fetch(`${base}${path}`, {
+        redirect: 'manual',
+        headers: cookie ? { Cookie: cookie } : {},
+      });
+      const state = new URL(response.headers.get('location')).searchParams.get('state');
+      return auth.consumeOauthState(state);
+    };
+
+    try {
+      expect(await intentFrom('/auth/login?profile=new&name=Owner')).toEqual({
+        newName: 'Owner', bootstrap: true,
+      });
+
+      const profile = auth.createProfile('Owner');
+      auth.setProfileIdentity(profile.id, { id: 12345 });
+      expect(await intentFrom('/auth/login?profile=new')).toEqual({ loginOnly: true });
+
+      let cookie;
+      auth.createAuthSession({ setHeader: (_name, value) => { cookie = value.split(';')[0]; } });
+      expect(await intentFrom('/auth/login?profile=new&name=Housemate', cookie)).toEqual({
+        newName: 'Housemate', requireSession: true,
+      });
+    } finally {
+      await new Promise(resolve => server.close(resolve));
+      closeDb();
+    }
+  });
 });
 
 describe('cross-profile isolation', () => {
@@ -303,6 +366,35 @@ describe('profile management and isolation (unit)', () => {
   }
 
   describe('resolveConnectingProfile', () => {
+    it('lets a registered Concept2 identity recover an expired ErgDash session', () => {
+      const existing = auth.createProfile('Existing');
+      auth.setProfileIdentity(existing.id, { id: 555 });
+
+      const resolved = auth.resolveConnectingProfile({ id: 555 }, { loginOnly: true });
+
+      expect(resolved.profile.id).toBe(existing.id);
+    });
+
+    it('rejects an unknown Concept2 identity during session recovery', () => {
+      const existing = auth.createProfile('Existing');
+      auth.setProfileIdentity(existing.id, { id: 555 });
+
+      const resolved = auth.resolveConnectingProfile({ id: 999 }, { loginOnly: true });
+
+      expect(resolved).toEqual({ error: 'account_not_registered' });
+      expect(auth.listProfiles()).toHaveLength(1);
+    });
+
+    it('does not let a stale bootstrap flow add a second profile', () => {
+      const existing = auth.createProfile('Existing');
+      auth.setProfileIdentity(existing.id, { id: 555 });
+
+      const resolved = auth.resolveConnectingProfile({ id: 999 }, { bootstrap: true });
+
+      expect(resolved).toEqual({ error: 'setup_complete' });
+      expect(auth.listProfiles()).toHaveLength(1);
+    });
+
     it('reuses the profile that already holds the connecting Concept2 user id', () => {
       const existing = auth.createProfile('Existing');
       auth.setProfileIdentity(existing.id, { id: 555 });
