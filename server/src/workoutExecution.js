@@ -14,7 +14,8 @@ import { wattsFromPace } from './strokeMetrics.js';
 // analyses. Kept here (not analytics.js) since it versions this module's logic.
 // v2: observed effort is now HR-grounded (was pace-vs-benchmark only).
 // v3: added the HR-drift (aerobic decoupling) read.
-export const ANALYSIS_VERSION = 3;
+// v4: added data_quality (summary vs stroke-stream reconciliation).
+export const ANALYSIS_VERSION = 4;
 
 // --- thresholds (named so behaviour is easy to tune) -------------------------
 const MIN_PACING_STROKES = 8;
@@ -42,6 +43,14 @@ const FIRST_REP_FAST_PCT = 2.0; // first rep > 2% faster than the mean = went ou
 // HR drift (aerobic decoupling): power-to-HR held (low) vs HR climbing (high).
 const HR_DRIFT_LOW_PCT = 5; // ≤ 5% = coupled / good aerobic control
 const HR_DRIFT_HIGH_PCT = 10; // > 10% = clearly decoupled
+
+// Data-quality reconciliation: how far the workout's own summary fields
+// (headline duration, average HR) are allowed to drift from what the stroke
+// stream itself implies before the summary is flagged as unreliable.
+const MIN_QUALITY_STROKES = 20;
+const HR_MISMATCH_BPM = 3; // summary avg HR vs stroke-derived avg HR
+const DURATION_MISMATCH_PCT = 1; // % of the summary duration
+const DURATION_MISMATCH_MIN_S = 5; // floor so short pieces don't trip on rounding
 
 // Observed intensity by pace vs the athlete's own best at this distance
 // (pacePct = best / this, ≤ 1; closer to 1 = harder). Bands are intentionally
@@ -304,6 +313,55 @@ export function classifyIntensity({ workout, benchmarkPaceMs, zoneShares, zonesE
   return unknown('No heart-rate or benchmark data, so effort can’t be placed.');
 }
 
+// Reconciliation: does the workout's own summary (headline duration, average
+// HR) agree with what its stroke stream implies? Real devices compute both
+// from the same recording, so a real disagreement usually means the summary
+// was edited or imported separately from the stroke data, or the stroke
+// stream covers more than the summary describes (e.g. warmup/cooldown padding
+// around a scored piece). Every read above already derives from the stroke
+// stream directly rather than these summary fields, so a reconciliation
+// failure here is a flag on the *summary* fields — the reads elsewhere in
+// this analysis stay valid.
+//
+// Duration is only checked for continuous pieces: an interval workout's
+// time_ms is work time only, while the stroke clock may or may not span the
+// rest gaps between reps, so "stream span vs summary duration" isn't a
+// like-for-like comparison there.
+export function assessDataQuality(workout, strokes = [], { isInterval = false } = {}) {
+  const issues = [];
+
+  const hrs = strokes.map(s => s?.heart_rate).filter(h => h > 0);
+  if (hrs.length >= MIN_QUALITY_STROKES && workout?.heart_rate_avg > 0) {
+    const strokeAvgHr = mean(hrs);
+    if (Math.abs(strokeAvgHr - workout.heart_rate_avg) >= HR_MISMATCH_BPM) {
+      issues.push({
+        field: 'heart_rate_avg',
+        summary_value: workout.heart_rate_avg,
+        derived_value: round(strokeAvgHr, 0),
+        message: `Summary average HR is ${workout.heart_rate_avg} bpm; the stroke stream averages ${round(strokeAvgHr, 0)} bpm.`,
+      });
+    }
+  }
+
+  const timed = strokes.filter(s => s?.time_s >= 0);
+  if (!isInterval && timed.length >= MIN_QUALITY_STROKES && workout?.time_ms > 0) {
+    const strokeDurationS = timed[timed.length - 1].time_s - timed[0].time_s;
+    const summaryDurationS = workout.time_ms / 1000;
+    const diffS = strokeDurationS - summaryDurationS;
+    const tolerance = Math.max(DURATION_MISMATCH_MIN_S, summaryDurationS * (DURATION_MISMATCH_PCT / 100));
+    if (Math.abs(diffS) > tolerance) {
+      issues.push({
+        field: 'time_ms',
+        summary_value: workout.time_ms,
+        derived_value: Math.round(strokeDurationS * 1000),
+        message: `Summary duration is ${round(summaryDurationS)}s; the stroke stream spans ${round(strokeDurationS)}s (${round(Math.abs(diffS))}s difference).`,
+      });
+    }
+  }
+
+  return { reconciled: issues.length === 0, issues };
+}
+
 // Continuous-workout phase breakdown. Slices strokes by distance (fixed-distance)
 // or time (fixed-time) into the configured phases and averages each channel.
 export function computePhases(workout, strokes = []) {
@@ -415,6 +473,7 @@ export function buildWorkoutAnalysis({
       }
       : null,
     execution,
+    data_quality: assessDataQuality(workout, strokes, { isInterval }),
     phases: isInterval ? [] : computePhases(workout, strokes),
     intervals: isInterval ? analyzeIntervals(intervals) : null,
   };

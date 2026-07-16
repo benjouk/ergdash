@@ -39,8 +39,10 @@ export default function SessionAnalysis({ analysis, insight = [], cardStyles }) 
       .filter(({ kind, metric }) => showsExecution(metric) && execLabel(kind, metric.value))
     : [];
   const insights = Array.isArray(insight) ? insight : [];
+  const dataQuality = analysis?.data_quality;
+  const qualityIssues = !dataQuality?.reconciled && Array.isArray(dataQuality?.issues) ? dataQuality.issues : [];
 
-  if (reads.length === 0 && insights.length === 0) return null;
+  if (reads.length === 0 && insights.length === 0 && qualityIssues.length === 0) return null;
 
   const openRead = reads.find(r => r.kind === openKind && r.metric.basis);
 
@@ -53,6 +55,19 @@ export default function SessionAnalysis({ analysis, insight = [], cardStyles }) 
         </div>
         <ChartInfo>Automated reads of this session from pace, power, rate and heart rate — interpretations, not measured facts. Tap a row to see the reasoning.</ChartInfo>
       </div>
+
+      {qualityIssues.length > 0 && (
+        <div className={styles.takeaways}>
+          <p className={`${styles.takeaway} ${styles.tone_watch}`}>
+            Analysis confidence reduced — summary totals don't reconcile with the stroke data. The reads below still come straight from the stroke stream.
+          </p>
+          {qualityIssues.map(issueItem => (
+            <p key={issueItem.field} className={`${styles.takeaway} ${styles.tone_watch}`}>
+              {issueItem.message}
+            </p>
+          ))}
+        </div>
+      )}
 
       {insights.length > 0 && (
         <div className={styles.takeaways}>
