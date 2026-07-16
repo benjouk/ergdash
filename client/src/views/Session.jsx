@@ -375,9 +375,10 @@ export default function Session() {
     () => buildPhaseBoundaryDistances(
       workout?.analysis?.phases,
       workout?.distance,
-      workout?.analysis?.analysis_window
+      workout?.analysis?.analysis_window,
+      workout?.strokes
     ),
-    [workout?.analysis?.phases, workout?.distance, workout?.analysis?.analysis_window]
+    [workout?.analysis?.phases, workout?.distance, workout?.analysis?.analysis_window, workout?.strokes]
   );
   const maxStrokeDistance = strokeData.length ? Math.max(...strokeData.map(p => p.distance)) : 0;
   const distanceTicks = useMemo(
@@ -1205,7 +1206,7 @@ function rollingMedianRate(strokes, index, windowSize) {
     : (values[middle - 1] + values[middle]) / 2;
 }
 
-function buildPhaseBoundaryDistances(phases, distance, analysisWindow) {
+export function buildPhaseBoundaryDistances(phases, distance, analysisWindow, strokes = []) {
   if (!Array.isArray(phases) || phases.length === 0) return [];
 
   // Phases describe the scored piece; the charts plot the whole recording.
@@ -1221,6 +1222,33 @@ function buildPhaseBoundaryDistances(phases, distance, analysisWindow) {
     .filter(start => Number.isFinite(start) && start > 0);
   if (absolute.length > 0) {
     return [...new Set(absolute.map(start => Math.round(offset + start)))].sort((a, b) => a - b);
+  }
+
+  // Fixed-time phases are sliced on the stroke clock, so their distance
+  // markers must follow the stroke stream rather than assume that elapsed
+  // time and distance advance at the same rate. Windowed phase times are
+  // relative to the scored piece; shift them back onto the raw stream clock
+  // before finding the first stroke included in each phase.
+  const timeStarts = phases
+    .map(phase => Number(phase?.start_s))
+    .filter(start => Number.isFinite(start) && start > 0);
+  if (timeStarts.length > 0) {
+    const windowStartTime = Number(analysisWindow?.start_time_s);
+    const timeOffset = Number.isFinite(windowStartTime) ? windowStartTime : 0;
+    const timedStrokes = strokes
+      .map(stroke => ({
+        time: Number(stroke?.time_s),
+        distance: Number(stroke?.distance_m),
+      }))
+      .filter(stroke => Number.isFinite(stroke.time) && Number.isFinite(stroke.distance))
+      .sort((a, b) => a.time - b.time);
+    if (timedStrokes.length === 0) return [];
+
+    const boundaryDistances = timeStarts
+      .map(start => timedStrokes.find(stroke => stroke.time >= timeOffset + start)?.distance)
+      .filter(boundary => Number.isFinite(boundary))
+      .map(boundary => Math.round(boundary));
+    return [...new Set(boundaryDistances)].sort((a, b) => a - b);
   }
 
   // Percentage fallback for older cached analyses (never windowed).

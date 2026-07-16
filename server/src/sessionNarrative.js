@@ -35,9 +35,7 @@ export function resolveWorkoutIntent(workout = {}, plan = workout?.plan ?? null)
     return { intent: workout.intent, intent_source: 'workout' };
   }
 
-  const planIntent = plan?.type === 'steady'
-    ? 'steady'
-    : (plan?.type === 'test' || plan?.type === 'race' ? 'test_race' : null);
+  const planIntent = workoutIntentForPlan(plan);
   return {
     intent: planIntent,
     intent_source: planIntent ? 'plan' : null,
@@ -60,7 +58,7 @@ export function buildSessionNarrative(input = {}) {
     summary: isInterval
       ? intervalSummary(workout, context, baseline)
       : continuousSummary(workout, context, baseline),
-    recommendation: recommendationFor(intent, context, plan),
+    recommendation: recommendationFor(intent, intentSource, context, plan),
     intent,
     intent_source: intentSource,
     needs_intent: intent == null,
@@ -214,13 +212,14 @@ function intervalHeadline(workout, context) {
   const degradation = finiteNumber(intervals.degradation_percent);
   const spread = finiteNumber(intervals.spread_percent);
   const fastestIndex = finiteNumber(intervals.fastest_rep_index);
+  const finishedFastest = repCount != null && fastestIndex === repCount - 1;
 
   if (intervals.first_rep_fast && degradation != null && degradation > 1) {
     return 'Fast start, then a fade across the set';
   }
   if (degradation != null && degradation > 2) return 'Pace faded across the interval set';
-  if (degradation != null && degradation < -1) return 'Finished the set with your strongest work';
-  if (repCount && fastestIndex === repCount - 1) return 'Finished the set with your fastest rep';
+  if (finishedFastest) return 'Finished the set with your fastest rep';
+  if (degradation != null && degradation < -1) return 'Final rep was quicker than the first';
   if (repCount && spread != null && spread <= 2) return `Consistent pacing across ${repCount} reps`;
   if (repCount) return `Completed ${repCount} work reps`;
   return workout?.interval_summary
@@ -304,14 +303,17 @@ function describeAgainstTypical(workout, baseline) {
   return sentences;
 }
 
-function recommendationFor(intent, context, plan) {
+function recommendationFor(intent, intentSource, context, plan) {
   const pacing = context.pacing?.value;
   const finish = context.finish?.value;
   const fastStart = context.shape.fast_start;
   const strongFinish = context.shape.fast_finish || finish === 'accelerated';
   const faded = context.shape.late_fade || pacing === 'mild_fade' || pacing === 'significant_fade';
   const averageRate = finiteNumber(context.rate?.average_spm);
-  const targetRate = positiveNumber(plan?.target_rate) ?? (averageRate == null ? null : Math.round(averageRate));
+  const planRateApplies = intentSource === 'plan'
+    || (intentSource === 'workout' && workoutIntentForPlan(plan) === intent);
+  const planTargetRate = planRateApplies ? positiveNumber(plan?.target_rate) : null;
+  const targetRate = planTargetRate ?? (averageRate == null ? null : Math.round(averageRate));
   const rhythm = targetRate ? ` around ${formatNumber(targetRate)} spm` : '';
   const rateVariable = context.rate?.value === 'variable'
     || context.rate?.value === 'stable_avg_variable_stroke';
@@ -407,6 +409,10 @@ function recommendationForIntervals(intent, context, rhythm, rateVariable) {
   const built = degradation != null && degradation < -1;
   const evenSet = spread != null && spread <= 2;
   const finishedFastest = repCount != null && fastestIndex === repCount - 1;
+  const fastestCameEarlier = repCount != null
+    && fastestIndex != null
+    && fastestIndex >= 0
+    && fastestIndex < repCount - 1;
 
   if (intent === 'steady') {
     if (wentOutHard) {
@@ -428,8 +434,13 @@ function recommendationForIntervals(intent, context, rhythm, rateVariable) {
     if (fadedAcross) {
       return 'The set faded rep to rep, so start the next hard set at a pace the final reps can hold.';
     }
-    if (built || finishedFastest) {
+    if (finishedFastest) {
       return 'You finished the set strongly, so next time bring the early reps slightly closer to that sustainable pace.';
+    }
+    if (built) {
+      return fastestCameEarlier
+        ? 'The final rep was quicker than the first, but the fastest work came earlier; next time aim to carry that pace through the finish.'
+        : 'The final rep was quicker than the first; next time aim to make that progression more even across the full set.';
     }
     if (evenSet) {
       return 'Rep pacing was controlled for a hard set, so repeat the even opening and press only in the final reps.';
@@ -444,8 +455,13 @@ function recommendationForIntervals(intent, context, rhythm, rateVariable) {
     if (fadedAcross) {
       return 'For the next race-specific set, pick a rep target the closing reps can hold and commit to it from the start.';
     }
-    if (built || finishedFastest) {
+    if (finishedFastest) {
       return 'You had pace in hand late in the set, so next time bring the early reps slightly closer to race pace.';
+    }
+    if (built) {
+      return fastestCameEarlier
+        ? 'The final rep was quicker than the first, but the fastest work came earlier; next time aim to carry race pace through the finish.'
+        : 'The final rep was quicker than the first; next time aim to make the race-pace progression more even across the full set.';
     }
     return 'For the next race-specific set, keep the rep pacing controlled and commit to target pace in the closing reps.';
   }
@@ -491,6 +507,12 @@ function finiteNumber(value) {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
+function workoutIntentForPlan(plan) {
+  if (plan?.type === 'steady') return 'steady';
+  if (plan?.type === 'test' || plan?.type === 'race') return 'test_race';
+  return null;
+}
+
 function round(value, digits = 1) {
   if (value == null || !Number.isFinite(value)) return null;
   const factor = 10 ** digits;
@@ -512,9 +534,9 @@ function formatSignedPercent(value) {
 }
 
 function formatPace(paceMs) {
-  const totalSeconds = paceMs / 1000;
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds - minutes * 60;
+  const totalTenths = Math.round(paceMs / 100);
+  const minutes = Math.floor(totalTenths / 600);
+  const seconds = (totalTenths % 600) / 10;
   return `${minutes}:${seconds.toFixed(1).padStart(4, '0')}`;
 }
 

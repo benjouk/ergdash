@@ -211,7 +211,7 @@ describe('classifyHrDrift', () => {
     const moderate = classifyHrDrift(7.7);
     expect(moderate.value).toBe('moderate');
     expect(moderate.drift_percent).toBe(7.7);
-    expect(moderate.basis).toBe('Power-to-HR efficiency declined by 7.7% between the first and second halves (opening 10% excluded).');
+    expect(moderate.basis).toBe('Power-to-HR efficiency declined by 7.7% between the first and second halves (opening 10% and final 5% excluded).');
     expect(classifyHrDrift(14).value).toBe('high');
     expect(classifyHrDrift(-2).value).toBe('low');
   });
@@ -393,14 +393,41 @@ describe('buildWorkoutAnalysis', () => {
     // Reconciliation still sees the padded recording, so it keeps flagging
     // that the summary describes less than the stream.
     expect(analysis.data_quality.reconciled).toBe(false);
+    // The summary does reconcile with the selected piece, which lets clients
+    // explain the padding without suppressing unrelated quality failures.
+    expect(analysis.data_quality.scored_piece).toEqual({ reconciled: true, issues: [] });
     // But the reads describe the piece: even pacing, phases spanning 2,000m.
     expect(analysis.execution.pacing.value).toBe('even');
     expect(analysis.phases[0].start_m).toBe(0);
     expect(analysis.phases[4].end_m).toBe(2000);
   });
 
-  it('uses analysis schema version 7', () => {
-    expect(ANALYSIS_VERSION).toBe(7);
+  it('retains summary errors that remain inside a located scored piece', () => {
+    const stream = paddedStream();
+    const summary = {
+      distance: 2000,
+      time_ms: 480000,
+      heart_rate_avg: 120,
+      workout_type: 'FixedDistanceSplits',
+    };
+    const { strokes: windowed, window } = locateScoredPiece(summary, stream);
+
+    const analysis = buildWorkoutAnalysis({
+      workout: summary,
+      strokes: windowed,
+      structure: { value: 'continuous', subtype: 'fixed_distance', confidence: 1, reasons: [] },
+      fullStrokes: stream,
+      analysisWindow: window,
+    });
+
+    expect(analysis.data_quality.scored_piece.reconciled).toBe(false);
+    expect(analysis.data_quality.scored_piece.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ field: 'heart_rate_avg' }),
+    ]));
+  });
+
+  it('uses analysis schema version 8', () => {
+    expect(ANALYSIS_VERSION).toBe(8);
   });
 
   it('builds an interval analysis with no pacing/phases', () => {

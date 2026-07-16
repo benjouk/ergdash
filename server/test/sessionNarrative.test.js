@@ -108,6 +108,48 @@ describe('buildSessionNarrative', () => {
     expect(JSON.stringify(result)).not.toContain('—');
   });
 
+  it('does not apply an incompatible plan rate to an explicit workout intent', () => {
+    const result = buildSessionNarrative({
+      workout: workout({ intent: 'recovery' }),
+      analysis: continuousAnalysis({
+        execution: {
+          rate: { value: 'stable', average_spm: 18, variation_spm: 0.8 },
+          intensity: { value: 'easy', dominant_zone: 1 },
+        },
+      }),
+      plan: { type: 'race', target_rate: 36 },
+    });
+
+    expect(result.recommendation).toBe(
+      'For recovery work, keep the pressure light and the stroke rhythm relaxed around 18 spm.',
+    );
+    expect(result.recommendation).not.toContain('36 spm');
+  });
+
+  it('keeps a plan rate when intent is plan-derived or explicitly compatible', () => {
+    const explicitResult = buildSessionNarrative({
+      workout: workout({ intent: 'steady' }),
+      analysis: continuousAnalysis({
+        execution: {
+          rate: { value: 'stable', average_spm: 18, variation_spm: 0.8 },
+        },
+      }),
+      plan: { type: 'steady', target_rate: 22 },
+    });
+    const planDerivedResult = buildSessionNarrative({
+      workout: workout(),
+      analysis: continuousAnalysis({
+        execution: {
+          rate: { value: 'stable', average_spm: 18, variation_spm: 0.8 },
+        },
+      }),
+      plan: { type: 'steady', target_rate: 22 },
+    });
+
+    expect(explicitResult.recommendation).toContain('around 22 spm');
+    expect(planDerivedResult.recommendation).toContain('around 22 spm');
+  });
+
   it('returns both recommendation branches and requests intent when purpose is unknown', () => {
     const result = buildSessionNarrative({
       workout: workout(),
@@ -149,10 +191,38 @@ describe('buildSessionNarrative', () => {
       },
     });
 
-    expect(result.headline).toBe('Finished the set with your strongest work');
+    expect(result.headline).toBe('Finished the set with your fastest rep');
     expect(result.summary).toContain('Across 5 work reps');
     expect(result.summary).toContain('rep 5 fastest at 1:45.0/500m');
     expect(result.summary).not.toContain('opening');
+  });
+
+  it('does not call the final rep strongest when a middle rep was fastest', () => {
+    const result = buildSessionNarrative({
+      workout: workout({ inferred_tag: 'interval', intent: 'hard_distance' }),
+      analysis: {
+        structure: { value: 'interval' },
+        execution: { rate: { value: 'stable', average_spm: 30 } },
+        phases: [],
+        intervals: {
+          // Rep paces: 2:00, 1:40, 1:58. The final rep improved on the first,
+          // but rep two was still the strongest work in the set.
+          rep_count: 3,
+          fastest_rep_index: 1,
+          fastest_pace_ms: 100000,
+          final_rep_pace_ms: 118000,
+          spread_percent: 20,
+          degradation_percent: -1.7,
+          first_rep_fast: false,
+        },
+      },
+    });
+
+    expect(result.headline).toBe('Final rep was quicker than the first');
+    expect(result.summary).toContain('rep 2 fastest at 1:40.0/500m');
+    expect(result.recommendation).toContain('fastest work came earlier');
+    expect(result.recommendation).not.toContain('finished the set strongly');
+    expect(result.headline).not.toContain('strongest');
   });
 
   it('does not praise pacing control when an interval set faded after a fast first rep', () => {
@@ -185,5 +255,14 @@ describe('buildSessionNarrative', () => {
     expect(result.needs_intent).toBe(false);
     expect(result.recommendation).toContain('establish a sustainable opening pace');
     expect(result.recommendation).not.toContain('Pacing control suited');
+  });
+
+  it('carries pace rounding into the next minute', () => {
+    const result = buildSessionNarrative({
+      workout: workout({ pace_ms: 119999, analysis: null, intent: 'hard_distance' }),
+    });
+
+    expect(result.summary).toContain('2:00.0/500m');
+    expect(result.summary).not.toContain('1:60.0/500m');
   });
 });

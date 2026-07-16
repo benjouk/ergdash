@@ -150,10 +150,13 @@ export function dataQualityNotice(analysis) {
     const stream = Number(window.stream_distance_m);
     const start = Number(window.start_distance_m);
     const end = Number(window.end_distance_m);
-    if (Number.isFinite(stream) && Number.isFinite(start) && Number.isFinite(end)) {
-      return `The recording spans ${stream.toLocaleString()}m around the scored piece; the analysis reads the ${(end - start).toLocaleString()}m stretch that matches the summary.`;
+    const windowNotice = Number.isFinite(stream) && Number.isFinite(start) && Number.isFinite(end)
+      ? `The recording spans ${stream.toLocaleString()}m around the scored piece; the analysis reads the ${(end - start).toLocaleString()}m stretch that matches the summary.`
+      : 'The recording extends beyond the scored piece; the analysis reads the stretch that matches the summary.';
+    if (analysis?.data_quality?.scored_piece?.reconciled === false) {
+      return `${windowNotice} The scored-piece summary and stroke data do not fully reconcile, so treat these reads with some caution.`;
     }
-    return 'The recording extends beyond the scored piece; the analysis reads the stretch that matches the summary.';
+    return windowNotice;
   }
   const quality = analysis?.data_quality;
   if (quality && quality.reconciled === false) {
@@ -170,9 +173,12 @@ export function compactReadLabel(kind, metric) {
     return effort ? `Effort: ${lowerFirst(effort)}` : null;
   }
 
-  const base = execLabel(kind, { value: metric.value });
+  const base = execLabel(kind, kind === 'pacing' ? metric : { value: metric.value });
   if (!base) return null;
-  if (kind === 'pacing') return `Pacing: ${lowerFirst(base)}`;
+  if (kind === 'pacing') {
+    const pacing = base.startsWith('Even ·') ? base.replace('Even', 'Even overall') : base;
+    return `Pacing: ${lowerFirst(pacing)}`;
+  }
   if (kind === 'rate') {
     const rate = metric.value === 'stable_avg_variable_stroke' ? 'Variable stroke-to-stroke' : base;
     return `Rate: ${lowerFirst(rate)}`;

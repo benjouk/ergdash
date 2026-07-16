@@ -20,7 +20,9 @@ import { wattsFromPace } from './strokeMetrics.js';
 // v6: reads run on the scored piece when the stroke stream carries
 // warmup/cooldown padding around it; phases carry absolute ranges.
 // v7: piece windows tolerate paddling pauses before the piece.
-export const ANALYSIS_VERSION = 7;
+// v8: windowed analyses also reconcile the scored piece separately from the
+// full padded recording, so unrelated summary errors remain visible.
+export const ANALYSIS_VERSION = 8;
 
 // --- thresholds (named so behaviour is easy to tune) -------------------------
 const MIN_PACING_STROKES = 8;
@@ -361,8 +363,8 @@ export function classifyHrDrift(hrDriftPct) {
     drift_percent: driftPercent,
     confidence: 0.8,
     basis: driftPercent >= 0
-      ? `Power-to-HR efficiency declined by ${driftPercent}% between the first and second halves (opening 10% excluded).`
-      : `Power-to-HR efficiency improved by ${Math.abs(driftPercent)}% between the first and second halves (opening 10% excluded).`,
+      ? `Power-to-HR efficiency declined by ${driftPercent}% between the first and second halves (opening 10% and final 5% excluded).`
+      : `Power-to-HR efficiency improved by ${Math.abs(driftPercent)}% between the first and second halves (opening 10% and final 5% excluded).`,
   };
 }
 
@@ -663,6 +665,15 @@ export function buildWorkoutAnalysis({
 }) {
   const isInterval = structure?.value === 'interval';
   const phases = isInterval ? [] : computePhases(workout, strokes);
+  const dataQuality = assessDataQuality(workout, fullStrokes ?? strokes, { isInterval });
+
+  // A padded recording is expected not to reconcile with a summary that only
+  // describes its scored piece. Keep that full-stream result, but also judge
+  // the summary against the selected piece so a genuinely incorrect HR/time
+  // summary is not hidden by the otherwise-successful window match.
+  if (analysisWindow) {
+    dataQuality.scored_piece = assessDataQuality(workout, strokes, { isInterval });
+  }
 
   const rate = rateStability(strokes);
   if (rateDisciplinePct != null) rate.discipline_pct = round(rateDisciplinePct, 0);
@@ -687,7 +698,7 @@ export function buildWorkoutAnalysis({
       }
       : null,
     execution,
-    data_quality: assessDataQuality(workout, fullStrokes ?? strokes, { isInterval }),
+    data_quality: dataQuality,
     analysis_window: analysisWindow,
     phases,
     intervals: isInterval ? analyzeIntervals(intervals) : null,

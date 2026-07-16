@@ -89,6 +89,35 @@ describe('SessionAnalysis compact view', () => {
     expect(markup).not.toContain('do not fully reconcile');
   });
 
+  it('adds a caution when the located scored piece itself does not reconcile', () => {
+    const markup = renderToStaticMarkup(
+      <SessionAnalysis
+        cardStyles={cardStyles}
+        narrative={{ headline: 'Even from start to finish', summary: 'A row.', intent: 'steady' }}
+        analysis={{
+          data_quality: {
+            reconciled: false,
+            issues: [{ field: 'time_ms', message: 'The full recording is longer.' }],
+            scored_piece: {
+              reconciled: false,
+              issues: [{ field: 'heart_rate_avg', message: 'Piece HR differs.' }],
+            },
+          },
+          analysis_window: {
+            start_distance_m: 1000,
+            end_distance_m: 3000,
+            stream_distance_m: 4000,
+          },
+          execution: {},
+        }}
+      />,
+    );
+
+    expect(markup).toContain('reads the 2,000m stretch');
+    expect(markup).toContain('scored-piece summary and stroke data do not fully reconcile');
+    expect(markup).not.toContain('Piece HR differs.');
+  });
+
   it('lets the user change a resolved purpose from the tag', () => {
     const markup = renderToStaticMarkup(
       <SessionAnalysis
@@ -115,7 +144,9 @@ describe('compactReadLabel', () => {
   it('produces short, self-describing labels for the muted read line', () => {
     expect(compactReadLabel('intensity', { value: 'hard', estimated: true })).toBe('Effort: likely hard');
     expect(compactReadLabel('pacing', { value: 'variable', shape: { late_fade: true } }))
-      .toBe('Pacing: variable');
+      .toBe('Pacing: variable · late fade');
+    expect(compactReadLabel('pacing', { value: 'even', shape: { late_fade: true } }))
+      .toBe('Pacing: even overall · late fade');
     expect(compactReadLabel('rate', { value: 'stable_avg_variable_stroke' }))
       .toBe('Rate: variable stroke-to-stroke');
     expect(compactReadLabel('hr_drift', { value: 'low', drift_percent: 2.1 }))
