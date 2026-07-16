@@ -17,9 +17,6 @@ const TYPICAL_PACE_GAP_MS = 1500;
 const COMPARABLE_PACE_GAP_MS = 3000;
 const TYPICAL_HR_GAP_BPM = 4;
 const PHASE_PACE_EVEN_PCT = 1;
-const PLAN_PACE_TOLERANCE_PCT = 1;
-const PLAN_RATE_TOLERANCE_SPM = 1;
-const PLAN_VOLUME_TOLERANCE_PCT = 2;
 const HIGH_HR_DRIFT_PCT = 10;
 
 export function isWorkoutIntent(value) {
@@ -65,36 +62,7 @@ export function buildSessionNarrative(input = {}) {
     needs_intent: intent == null,
   };
 
-  const planReview = buildPlanReview(workout, analysis, plan);
-  if (planReview) narrative.plan_review = planReview;
   return narrative;
-}
-
-export function buildPlanReview(workout = {}, analysis = null, plan = workout?.plan ?? null) {
-  if (!hasPlanPrescription(plan)) return null;
-
-  const context = analysisContext(workout, analysis);
-  const dominantZone = context.intensity?.dominant_zone;
-  const actualRate = finiteNumber(context.rate?.average_spm)
-    ?? finiteNumber(workout?.stroke_rate);
-  const driftPct = context.hrDriftPct;
-
-  return {
-    planned: {
-      target_pace_ms: positiveNumber(plan?.target_pace_ms),
-      target_rate: positiveNumber(plan?.target_rate),
-      target_distance: positiveNumber(plan?.target_distance),
-      target_duration_ms: positiveNumber(plan?.target_duration_ms),
-      notes: typeof plan?.notes === 'string' && plan.notes.length > 0 ? plan.notes : null,
-    },
-    actual: {
-      pace_ms: positiveNumber(workout?.pace_ms),
-      avg_rate: round(actualRate),
-      dominant_zone: dominantZone != null ? dominantZone : null,
-      hr_drift_pct: round(driftPct),
-    },
-    assessment: assessPlan(workout, plan, actualRate),
-  };
 }
 
 function analysisContext(workout, analysis) {
@@ -444,77 +412,6 @@ function recommendationForIntervals(intent, context, rhythm, rateVariable) {
   return null;
 }
 
-function hasPlanPrescription(plan) {
-  return [
-    plan?.target_pace_ms,
-    plan?.target_rate,
-    plan?.target_distance,
-    plan?.target_duration_ms,
-  ].some(value => positiveNumber(value) != null);
-}
-
-function assessPlan(workout, plan, actualRate) {
-  const sentences = [];
-  const actualPace = positiveNumber(workout?.pace_ms);
-  const targetPace = positiveNumber(plan?.target_pace_ms);
-  if (targetPace) {
-    if (!actualPace) {
-      sentences.push('There is no recorded pace to compare with the prescription.');
-    } else {
-      const difference = actualPace - targetPace;
-      const tolerance = targetPace * (PLAN_PACE_TOLERANCE_PCT / 100);
-      if (Math.abs(difference) <= tolerance) {
-        sentences.push('Pace matched the prescribed target.');
-      } else {
-        sentences.push(`Pace was ${(Math.abs(difference) / 1000).toFixed(1)} s/500m ${difference < 0 ? 'faster' : 'slower'} than prescribed.`);
-      }
-    }
-  }
-
-  const targetRate = positiveNumber(plan?.target_rate);
-  if (targetRate) {
-    if (actualRate == null) {
-      sentences.push('There is no recorded rate to compare with the prescription.');
-    } else {
-      const difference = actualRate - targetRate;
-      if (Math.abs(difference) <= PLAN_RATE_TOLERANCE_SPM) {
-        sentences.push(`Rate matched the ${formatNumber(targetRate)} spm target.`);
-      } else {
-        sentences.push(`Rate averaged ${formatNumber(Math.abs(difference))} spm ${difference > 0 ? 'above' : 'below'} the target.`);
-      }
-    }
-  }
-
-  assessVolumeTarget(sentences, 'Distance', workout?.distance, plan?.target_distance, 'm');
-  assessVolumeTarget(sentences, 'Duration', workout?.time_ms, plan?.target_duration_ms, 'ms');
-
-  return sentences.length > 0
-    ? sentences.join(' ')
-    : 'The recorded session does not include enough data to compare with the prescription.';
-}
-
-function assessVolumeTarget(sentences, label, rawActual, rawTarget, unit) {
-  const actual = positiveNumber(rawActual);
-  const target = positiveNumber(rawTarget);
-  if (!target) return;
-  if (!actual) {
-    sentences.push(`There is no recorded ${label.toLowerCase()} to compare with the prescription.`);
-    return;
-  }
-
-  const difference = actual - target;
-  const tolerance = target * (PLAN_VOLUME_TOLERANCE_PCT / 100);
-  if (Math.abs(difference) <= tolerance) {
-    sentences.push(`${label} matched the prescription.`);
-    return;
-  }
-
-  if (unit === 'm') {
-    sentences.push(`${label} was ${formatDistance(Math.abs(difference))} ${difference > 0 ? 'longer' : 'shorter'} than prescribed.`);
-  } else {
-    sentences.push(`${label} was ${formatDuration(Math.abs(difference))} ${difference > 0 ? 'longer' : 'shorter'} than prescribed.`);
-  }
-}
 
 function fallbackWorkoutSummary(workout) {
   const overview = describeSessionOverview(workout);
@@ -580,12 +477,4 @@ function formatDistance(meters) {
   const rounded = Math.round(meters);
   if (rounded >= 1000 && rounded % 1000 === 0) return `${rounded / 1000} km`;
   return `${rounded.toLocaleString('en-GB')} m`;
-}
-
-function formatDuration(ms) {
-  const totalSeconds = Math.round(ms / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  if (minutes === 0) return `${seconds} seconds`;
-  return `${minutes}:${String(seconds).padStart(2, '0')}`;
 }

@@ -673,9 +673,6 @@ export default function Session() {
         analysis={workout.analysis}
         insight={workout.insight}
         narrative={workout.narrative}
-        plan={workout.plan}
-        formatPace={formatPace}
-        formatTime={formatTime}
         onIntentChange={handleIntentChange}
         intentSaving={intentSaving}
         cardStyles={styles}

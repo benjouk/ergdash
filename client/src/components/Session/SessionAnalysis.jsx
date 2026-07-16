@@ -1,16 +1,7 @@
-import { useEffect, useId, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { AlertTriangle, ChevronDown, Sparkles } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import ChartInfo from '../Charts/ChartInfo.jsx';
 import { execLabel, showsExecution } from '../../utils/executionLabels.js';
 import styles from './SessionAnalysis.module.css';
-
-const READ_LABELS = {
-  intensity: 'Observed effort',
-  pacing: 'Pacing',
-  rate: 'Rate',
-  hr_drift: 'HR drift',
-};
 
 const READ_ORDER = ['intensity', 'pacing', 'rate', 'hr_drift'];
 
@@ -22,55 +13,39 @@ const INTENT_OPTIONS = [
   { value: 'technique', label: 'Technique' },
 ];
 
-// Derived "what we think it means" for a session. `cardStyles` is the Session
-// CSS module and supplies the shared card/header chrome.
+// A concise interpretation layer above the measured session data. `cardStyles`
+// supplies the shared Session card/header chrome.
 export default function SessionAnalysis({
   analysis,
   insight = [],
   narrative = null,
-  plan = null,
-  formatPace,
-  formatTime,
   onIntentChange,
   intentSaving = null,
   cardStyles,
 }) {
-  const [openKind, setOpenKind] = useState(null);
-  const explainId = useId();
-
-  useEffect(() => {
-    if (!openKind) return undefined;
-    const onKeyDown = event => { if (event.key === 'Escape') setOpenKind(null); };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [openKind]);
-
   const reads = analysis?.execution
     ? READ_ORDER
-      .map(kind => ({ kind, metric: analysis.execution[kind] }))
-      .filter(({ kind, metric }) => showsExecution(metric) && execLabel(kind, metric))
+      .map(kind => ({
+        kind,
+        metric: analysis.execution[kind],
+        label: compactReadLabel(kind, analysis.execution[kind]),
+      }))
+      .filter(({ metric, label }) => showsExecution(metric) && label)
     : [];
+  const readLine = reads.map(read => read.label).join(' · ');
   const hasNarrative = narrative != null && typeof narrative === 'object';
   const insights = !hasNarrative && Array.isArray(insight) ? insight : [];
-  const planReview = hasNarrative && narrative.plan_review && typeof narrative.plan_review === 'object'
-    ? narrative.plan_review
-    : null;
-  const dataQuality = analysis?.data_quality;
-  const qualityIssues = !dataQuality?.reconciled && Array.isArray(dataQuality?.issues)
-    ? dataQuality.issues
-    : [];
   const needsIntent = Boolean(hasNarrative && narrative.needs_intent && onIntentChange);
   const intentLabel = INTENT_OPTIONS.find(option => option.value === narrative?.intent)?.label;
 
-  if (
-    reads.length === 0
-    && insights.length === 0
-    && qualityIssues.length === 0
-    && !hasNarrative
-  ) return null;
+  if (reads.length === 0 && insights.length === 0 && !hasNarrative) return null;
 
-  const openRead = reads.find(read => read.kind === openKind && read.metric.basis);
-  const qualityOpen = openKind === 'data_quality' && qualityIssues.length > 0;
+  const hasCoachingContent = hasNarrative && (
+    narrative.headline
+    || narrative.summary
+    || narrative.recommendation
+    || readLine
+  );
 
   return (
     <div className={cardStyles.card}>
@@ -79,25 +54,10 @@ export default function SessionAnalysis({
           <Sparkles size={13} className={styles.titleIcon} aria-hidden="true" />
           Session analysis
         </div>
-        <div className={styles.headerActions}>
-          {qualityIssues.length > 0 && (
-            <button
-              type="button"
-              className={`${styles.qualityIndicator} ${qualityOpen ? styles.qualityIndicatorOpen : ''}`}
-              aria-expanded={qualityOpen}
-              aria-controls={explainId}
-              title="Summary totals do not fully reconcile with stroke data"
-              onClick={() => setOpenKind(kind => (kind === 'data_quality' ? null : 'data_quality'))}
-            >
-              <AlertTriangle size={12} aria-hidden="true" />
-              Data quality
-            </button>
-          )}
-          <ChartInfo>Automated reads of this session from pace, power, rate and heart rate. They are interpretations, not measured facts. Tap a read to see the reasoning.</ChartInfo>
-        </div>
+        <ChartInfo>Automated coaching summary from pace, power, rate and heart rate. It is an interpretation, not a measured fact.</ChartInfo>
       </div>
 
-      {hasNarrative && (narrative.headline || narrative.summary || narrative.recommendation) && (
+      {hasCoachingContent && (
         <section className={styles.narrative} aria-label="Coaching summary">
           {(narrative.headline || intentLabel) && (
             <div className={styles.narrativeHeading}>
@@ -112,16 +72,17 @@ export default function SessionAnalysis({
           {narrative.summary && <p className={styles.summary}>{firstSentence(narrative.summary)}</p>}
           {narrative.recommendation && (
             <p className={styles.recommendation}>
-              <span className={styles.sectionLabel}>Recommendation</span>
+              <span className={styles.nextTimeLabel}>Next time:</span>
               {narrative.recommendation}
             </p>
           )}
+          {readLine && <p className={styles.readLine}>{readLine}</p>}
         </section>
       )}
 
       {needsIntent && (
-        <section className={styles.intentPrompt} aria-labelledby={`${explainId}-intent`}>
-          <p id={`${explainId}-intent`}>What was the purpose of this row?</p>
+        <section className={styles.intentPrompt} aria-label="Set session purpose">
+          <p>What was the purpose of this row?</p>
           <div className={styles.intentChips} role="group" aria-label="Session purpose">
             {INTENT_OPTIONS.map(option => (
               <button
@@ -139,15 +100,6 @@ export default function SessionAnalysis({
         </section>
       )}
 
-      {planReview && (
-        <PlanReview
-          review={planReview}
-          plan={plan}
-          formatPace={formatPace}
-          formatTime={formatTime}
-        />
-      )}
-
       {insights.length > 0 && (
         <div className={styles.takeaways}>
           {insights.map(item => (
@@ -158,96 +110,8 @@ export default function SessionAnalysis({
         </div>
       )}
 
-      {reads.length > 0 && (
-        <div className={styles.reads}>
-          {reads.map(({ kind, metric }) => {
-            const open = openKind === kind;
-            return (
-              <button
-                type="button"
-                key={kind}
-                className={`${styles.read} ${open ? styles.readOpen : ''}`}
-                aria-expanded={open}
-                aria-controls={metric.basis ? explainId : undefined}
-                onClick={() => setOpenKind(current => (current === kind ? null : kind))}
-              >
-                <span className={styles.readLabel}>{READ_LABELS[kind]}</span>
-                <span className={styles.readValue}>{execLabel(kind, metric)}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {(qualityOpen || openRead) && (
-        <div id={explainId} role="note" aria-live="polite" className={styles.explain}>
-          <span className={styles.explainLabel}>
-            {qualityOpen ? 'Data quality' : READ_LABELS[openRead.kind]}
-          </span>
-          {qualityOpen ? (
-            <span className={styles.explainIssues}>
-              {qualityIssues.map(issue => <span key={issue.field}>{issue.message}</span>)}
-            </span>
-          ) : (
-            <span>
-              {openRead.metric.basis}
-              {openRead.kind === 'intensity' && openRead.metric.estimated && (
-                <>
-                  {' '}Based on estimated HR zones. Set your measured max HR in{' '}
-                  <Link className={styles.settingsLink} to="/settings">Settings</Link> to improve this.
-                </>
-              )}
-            </span>
-          )}
-        </div>
-      )}
+      {!hasNarrative && readLine && <p className={styles.legacyReadLine}>{readLine}</p>}
     </div>
-  );
-}
-
-function PlanReview({ review, plan, formatPace, formatTime }) {
-  const planned = review.planned || {};
-  const actual = review.actual || {};
-  const purpose = planned.notes ?? review.notes ?? plan?.notes;
-  const plannedItems = compact([
-    metricItem('Pace', paceValue(planned.target_pace_ms ?? planned.pace_ms, formatPace)),
-    metricItem('Rate', rateValue(planned.target_rate ?? planned.rate ?? planned.avg_rate)),
-    metricItem('Distance', distanceValue(planned.target_distance ?? planned.distance)),
-    metricItem('Time', timeValue(planned.target_duration_ms ?? planned.duration_ms ?? planned.time_ms, formatTime)),
-  ]);
-  const actualItems = compact([
-    metricItem('Pace', paceValue(actual.pace_ms, formatPace)),
-    metricItem('Rate', rateValue(actual.avg_rate ?? actual.average_rate ?? actual.rate)),
-    metricItem('Zone', zoneValue(actual.dominant_zone)),
-    metricItem('HR drift', driftValue(actual.hr_drift_pct ?? actual.drift_percent)),
-  ]);
-
-  return (
-    <details className={styles.planReview}>
-      <summary className={styles.reviewSummary}>
-        <span className={styles.reviewHeading}>Plan review</span>
-        <span className={styles.reviewSummaryText}>
-          {review.assessment || 'No target comparison available.'}
-        </span>
-        <ChevronDown size={13} className={styles.reviewChevron} aria-hidden="true" />
-      </summary>
-      <div className={styles.reviewDetails}>
-        {purpose && (
-          <p className={styles.purpose}>
-            <span className={styles.sectionLabel}>Plan note</span>
-            {purpose}
-          </p>
-        )}
-        <div className={styles.reviewGrid}>
-          <ReviewColumn label="Planned" items={plannedItems} />
-          <ReviewColumn label="Actual" items={actualItems} />
-          <div className={styles.reviewColumn}>
-            <span className={styles.reviewHeading}>Assessment</span>
-            <p className={styles.assessment}>{review.assessment || 'No target comparison available.'}</p>
-          </div>
-        </div>
-      </div>
-    </details>
   );
 }
 
@@ -257,62 +121,17 @@ export function firstSentence(value) {
   return text.match(/^.*?[.!?](?=\s|$)/)?.[0] ?? text;
 }
 
-function ReviewColumn({ label, items }) {
-  return (
-    <div className={styles.reviewColumn}>
-      <span className={styles.reviewHeading}>{label}</span>
-      {items.length > 0 ? (
-        <dl className={styles.reviewMetrics}>
-          {items.map(item => (
-            <div key={item.label}>
-              <dt>{item.label}</dt>
-              <dd>{item.value}</dd>
-            </div>
-          ))}
-        </dl>
-      ) : <span className={styles.noReviewData}>Not specified</span>}
-    </div>
-  );
-}
+export function compactReadLabel(kind, metric) {
+  if (!metric) return null;
 
-function metricItem(label, value) {
-  return value == null ? null : { label, value };
-}
+  if (kind === 'intensity') return execLabel(kind, metric);
 
-function compact(values) {
-  return values.filter(Boolean);
-}
-
-function paceValue(value, formatPace) {
-  if (!(Number(value) > 0)) return null;
-  return formatPace ? formatPace(Number(value)) : `${Math.round(Number(value))} ms`;
-}
-
-function rateValue(value) {
-  const rate = Number(value);
-  if (!(rate > 0)) return null;
-  return `${Number.isInteger(rate) ? rate : rate.toFixed(1)} spm`;
-}
-
-function distanceValue(value) {
-  const distance = Number(value);
-  return distance > 0 ? `${Math.round(distance).toLocaleString()}m` : null;
-}
-
-function timeValue(value, formatTime) {
-  const time = Number(value);
-  if (!(time > 0)) return null;
-  return formatTime ? formatTime(time) : `${Math.round(time / 1000)}s`;
-}
-
-function zoneValue(value) {
-  if (value == null || value === '') return null;
-  const match = String(value).match(/^z(?:one)?\s*(\d)$/i) || String(value).match(/^(\d)$/);
-  return match ? `Zone ${match[1]}` : String(value);
-}
-
-function driftValue(value) {
-  const drift = value == null ? NaN : Number(value);
-  if (!Number.isFinite(drift)) return null;
-  return `${drift > 0 ? '+' : ''}${drift.toFixed(1)}%`;
+  const base = execLabel(kind, { value: metric.value });
+  if (!base) return null;
+  if (kind === 'pacing') return `${base} pacing`;
+  if (kind === 'rate') {
+    return metric.value === 'stable_avg_variable_stroke' ? 'Variable rate' : `${base} rate`;
+  }
+  if (kind === 'hr_drift') return `${base} HR drift`;
+  return base;
 }

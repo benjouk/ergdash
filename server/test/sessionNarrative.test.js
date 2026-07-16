@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   WORKOUT_INTENTS,
-  buildPlanReview,
   buildSessionNarrative,
   isWorkoutIntent,
   resolveWorkoutIntent,
@@ -185,54 +184,5 @@ describe('buildSessionNarrative', () => {
     expect(result.needs_intent).toBe(false);
     expect(result.recommendation).toContain('establish a sustainable opening pace');
     expect(result.recommendation).not.toContain('Pacing control suited');
-  });
-});
-
-describe('buildPlanReview', () => {
-  it('returns planned, actual and assessment fields when a target exists', () => {
-    const plan = {
-      type: 'steady',
-      target_pace_ms: 121000,
-      target_rate: 24,
-      target_distance: 10000,
-      target_duration_ms: 2400000,
-      notes: 'UT2 pressure, conversational throughout',
-    };
-    const result = buildPlanReview(
-      workout({ pace_ms: 119000, time_ms: 2380000 }),
-      continuousAnalysis({
-        execution: {
-          rate: { value: 'variable', average_spm: 25.3, variation_spm: 2.4 },
-          intensity: { value: 'moderate', dominant_zone: 3 },
-          hr_drift: { value: 'moderate', drift_percent: 7.8 },
-        },
-      }),
-      plan,
-    );
-
-    expect(result.planned).toEqual({
-      target_pace_ms: 121000,
-      target_rate: 24,
-      target_distance: 10000,
-      target_duration_ms: 2400000,
-      notes: 'UT2 pressure, conversational throughout',
-    });
-    expect(result.actual).toEqual({
-      pace_ms: 119000,
-      avg_rate: 25.3,
-      dominant_zone: 3,
-      hr_drift_pct: 7.8,
-    });
-    expect(result.assessment).toContain('Pace was 2.0 s/500m faster than prescribed.');
-    expect(result.assessment).toContain('Rate averaged 1.3 spm above the target.');
-    expect(result.assessment).toContain('Distance matched the prescription.');
-    expect(result.assessment).toContain('Duration matched the prescription.');
-    expect(result.assessment).not.toContain('—');
-  });
-
-  it('does not emit a plan review for notes without a measurable prescription', () => {
-    expect(buildPlanReview(workout(), continuousAnalysis(), {
-      type: 'other', notes: 'Row by feel',
-    })).toBeNull();
   });
 });

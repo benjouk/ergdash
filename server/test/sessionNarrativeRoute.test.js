@@ -131,20 +131,8 @@ describe('workout narrative routes', () => {
       intent: 'test_race',
       intent_source: 'plan',
       needs_intent: false,
-      plan_review: {
-        planned: {
-          target_pace_ms: 121000,
-          target_rate: 24,
-          notes: 'Practise the race warm-up and first 500m',
-        },
-        actual: {
-          pace_ms: 120000,
-          avg_rate: 24.2,
-          dominant_zone: 3,
-          hr_drift_pct: 3.2,
-        },
-      },
     });
+    expect(detail.body.narrative).not.toHaveProperty('plan_review');
     expect(Array.isArray(detail.body.insight)).toBe(true);
 
     await req('PATCH', '/api/workouts/1', { intent: 'recovery' });

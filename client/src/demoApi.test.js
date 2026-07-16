@@ -30,18 +30,7 @@ const workout = (overrides = {}) => ({
 });
 
 describe('applyDemoNarrativeContext', () => {
-  it('preserves the captured recommendation when intent and plan context are untouched', () => {
-    const capturedPlanReview = {
-      planned: {
-        target_pace_ms: null,
-        target_rate: null,
-        target_distance: 5000,
-        target_duration_ms: null,
-        notes: 'Captured purpose',
-      },
-      actual: { pace_ms: null },
-      assessment: 'Captured assessment for a missing actual pace.',
-    };
+  it('preserves the captured recommendation and strips legacy plan-review data', () => {
     const session = workout({
       intent: 'hard_distance',
       narrative: {
@@ -51,7 +40,7 @@ describe('applyDemoNarrativeContext', () => {
         intent: 'hard_distance',
         intent_source: 'workout',
         needs_intent: false,
-        plan_review: capturedPlanReview,
+        plan_review: { assessment: 'Legacy assessment.' },
       },
     });
 
@@ -64,8 +53,7 @@ describe('applyDemoNarrativeContext', () => {
       notes: 'Captured purpose',
     });
     expect(result.narrative.recommendation).toBe('Captured server recommendation with strong-finish context.');
-    expect(result.narrative.plan_review).toBe(capturedPlanReview);
-    expect(result.narrative.plan_review.assessment).toBe('Captured assessment for a missing actual pace.');
+    expect(result.narrative.plan_review).toBeUndefined();
   });
 
   it('restores the unknown-intent prompt after intent is cleared', () => {
@@ -80,7 +68,7 @@ describe('applyDemoNarrativeContext', () => {
     expect(result.narrative.plan_review).toBeUndefined();
   });
 
-  it('rebuilds plan intent and review from the current plan overlay', () => {
+  it('rebuilds plan intent from the current plan overlay', () => {
     const plan = {
       type: 'steady',
       target_distance: 6000,
@@ -95,22 +83,9 @@ describe('applyDemoNarrativeContext', () => {
       intent: 'steady',
       intent_source: 'plan',
       needs_intent: false,
-      plan_review: {
-        planned: {
-          target_distance: 6000,
-          target_pace_ms: 122000,
-          target_rate: 23,
-          notes: 'Aerobic base row',
-        },
-        actual: {
-          pace_ms: 120000,
-          avg_rate: 24,
-          dominant_zone: 3,
-          hr_drift_pct: 7.8,
-        },
-      },
     });
-    expect(result.narrative.plan_review.assessment).toContain('faster than prescribed');
+    expect(result.narrative.plan_review).toBeUndefined();
+    expect(result.narrative.recommendation).toContain('For steady work');
   });
 
   it('lets an explicit workout intent override the plan-derived intent', () => {

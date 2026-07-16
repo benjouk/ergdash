@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import SessionAnalysis, { firstSentence } from './SessionAnalysis.jsx';
+import SessionAnalysis, { compactReadLabel, firstSentence } from './SessionAnalysis.jsx';
 
 const cardStyles = {
   card: 'card',
@@ -20,7 +20,7 @@ describe('firstSentence', () => {
 });
 
 describe('SessionAnalysis compact view', () => {
-  it('renders a concise coaching summary with collapsible plan detail and four reads', () => {
+  it('renders only the four-line coaching summary and ignores plan-review detail', () => {
     const markup = renderToStaticMarkup(
       <SessionAnalysis
         cardStyles={cardStyles}
@@ -41,10 +41,9 @@ describe('SessionAnalysis compact view', () => {
             issues: [{ field: 'distance', message: 'Distance does not reconcile.' }],
           },
           execution: {
-            intensity: { value: 'hard', confidence: 0.9, basis: 'Mostly upper zones.' },
-            pacing: { value: 'even', confidence: 0.9, basis: 'The core pace was even.' },
-            rate: { value: 'stable', confidence: 0.9, basis: 'Rate stayed stable.' },
-            hr_drift: { value: 'low', confidence: 0.9, basis: 'Drift stayed low.' },
+            intensity: { value: 'hard', estimated: true, confidence: 0.9, basis: 'Mostly upper zones.' },
+            pacing: { value: 'variable', confidence: 0.9, basis: 'Pace varied.' },
+            rate: { value: 'variable', confidence: 0.9, basis: 'Rate varied.' },
           },
         }}
       />,
@@ -54,14 +53,21 @@ describe('SessionAnalysis compact view', () => {
     expect(markup).toContain('aria-label="Purpose: Steady"');
     expect(markup).toContain('The opening held steady.');
     expect(markup).not.toContain('Rate rose in the final phase.');
-    expect(markup).toContain('<details');
-    expect(markup).toContain('<summary');
-    expect(markup).toContain('Distance was 6 km shorter than prescribed.');
-    expect(markup).toContain('Steady aerobic distance.');
-    expect(markup).toContain('Data quality');
-    expect(markup).toContain('Observed effort');
-    expect(markup).toContain('Pacing');
-    expect(markup).toContain('Rate');
-    expect(markup).toContain('HR drift');
+    expect(markup).toContain('Next time:');
+    expect(markup).toContain('Likely hard · Variable pacing · Variable rate');
+    expect(markup).not.toContain('<details');
+    expect(markup).not.toContain('Distance was 6 km shorter than prescribed.');
+    expect(markup).not.toContain('Steady aerobic distance.');
+    expect(markup).not.toContain('Data quality');
+  });
+});
+
+describe('compactReadLabel', () => {
+  it('produces short, self-describing labels for the muted read line', () => {
+    expect(compactReadLabel('intensity', { value: 'hard', estimated: true })).toBe('Likely hard');
+    expect(compactReadLabel('pacing', { value: 'variable', shape: { late_fade: true } }))
+      .toBe('Variable pacing');
+    expect(compactReadLabel('rate', { value: 'stable_avg_variable_stroke' })).toBe('Variable rate');
+    expect(compactReadLabel('hr_drift', { value: 'low', drift_percent: 2.1 })).toBe('Low HR drift');
   });
 });
