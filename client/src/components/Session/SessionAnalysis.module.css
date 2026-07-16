@@ -4,13 +4,162 @@
   vertical-align: -2px;
 }
 
-/* Lead takeaway(s): the natural-language read, one compact line each. */
+.cardHeader.cardHeader {
+  padding-block: var(--space-3);
+}
+
+.narrative {
+  padding: var(--space-3) var(--space-5);
+}
+
+.narrativeHeading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.headline {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  line-height: 1.25;
+}
+
+.purposeTag {
+  display: inline-flex;
+  align-items: center;
+  max-width: 22ch;
+  padding: 2px 7px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--rule));
+  border-radius: 999px;
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.purposeTagButton {
+  font: inherit;
+  font-size: 0.62rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 120ms ease;
+}
+
+.purposeTagButton:hover,
+.purposeTagButton:focus-visible {
+  border-color: var(--accent);
+}
+
+.summary,
+.recommendation,
+.readLine,
+.qualityNotice {
+  margin: 6px 0 0;
+  line-height: 1.4;
+}
+
+.qualityNotice {
+  color: var(--ink-3);
+  font-size: 0.72rem;
+  font-style: italic;
+}
+
+.qualityNoticeStandalone {
+  margin: 0;
+  padding: var(--space-3) var(--space-5);
+}
+
+.summary {
+  max-width: 100ch;
+  color: var(--ink-2);
+  font-size: 0.82rem;
+}
+
+.recommendation {
+  color: var(--ink);
+  font-size: 0.8rem;
+}
+
+.nextTimeLabel {
+  margin-right: var(--space-2);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.readLine {
+  color: color-mix(in srgb, var(--ink) 65%, var(--surface));
+  font-size: 0.74rem;
+}
+
+.intentPrompt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-5);
+  border-top: 1px solid var(--rule);
+  background: var(--surface-alt);
+}
+
+.intentPrompt p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.intentChips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  /* The card's "?" info button is absolutely positioned in the bottom-right
+     corner; keep the chips clear of it when this prompt is the last row. */
+  margin-right: 26px;
+}
+
+.intentChip {
+  padding: 4px 9px;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 120ms ease, color 120ms ease, background 120ms ease;
+}
+
+.intentChip:hover:not(:disabled),
+.intentChip:focus-visible,
+.intentChip[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.intentChip:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+/* Fallback for responses captured before coaching narratives existed. */
 .takeaways {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
   padding: var(--space-3) var(--space-5);
-  border-bottom: 1px solid var(--rule);
 }
 
 .takeaway {
@@ -18,91 +167,32 @@
   padding-left: 10px;
   border-left: 2px solid var(--ink-3);
   color: var(--ink);
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   line-height: 1.4;
 }
 
 .tone_positive { border-left-color: var(--positive); }
 .tone_watch { border-left-color: var(--warn); }
 
-/* Execution reads: compact two-column grid of label → value rows, mirroring the
-   Details card. Each row is a button; tapping reveals its reasoning below. */
-.reads {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-}
-
-.read {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-5);
-  border: 0;
-  border-bottom: 1px solid var(--rule);
-  background: none;
-  font: inherit;
-  text-align: left;
-  color: inherit;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition: background 150ms ease;
-}
-
-.read:hover,
-.readOpen {
-  background: var(--surface-alt);
-}
-
-/* Drop the separators under the last row — correct for either parity: the last
-   read always, plus its left-column row-mate when the count is even (in which
-   case the second-to-last read sits at an odd position). A lone trailing read
-   stays in the left column so its value lines up with the column above it. */
-.read:last-child,
-.read:nth-last-child(2):nth-child(odd) {
-  border-bottom: none;
-}
-
-.readLabel {
-  color: var(--ink-3);
-  font-size: 0.8rem;
-}
-
-.readValue {
-  font-weight: 600;
-  color: var(--ink);
-}
-
-/* Reasoning for the tapped row, one line at the foot of the card. */
-.explain {
+.legacyReadLine {
   margin: 0;
-  padding: var(--space-2) var(--space-5);
-  border-top: 1px solid var(--rule);
-  color: var(--ink-2);
-  font-size: 0.8rem;
+  padding: 0 var(--space-5) var(--space-3);
+  color: color-mix(in srgb, var(--ink) 65%, var(--surface));
+  font-size: 0.74rem;
   line-height: 1.4;
 }
 
-.explainLabel {
-  color: var(--ink-3);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-size: 0.65rem;
-  font-weight: 600;
-  margin-right: var(--space-2);
-}
-
 @media (max-width: 720px) {
-  .reads {
-    grid-template-columns: 1fr;
+  .intentPrompt {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
-  /* Single column: every row but the last keeps its separator. */
-  .read:nth-last-child(2):nth-child(odd) {
-    border-bottom: 1px solid var(--rule);
+  .intentPrompt p {
+    white-space: normal;
   }
 
-  .read:last-child {
-    border-bottom: none;
+  .intentChips {
+    justify-content: flex-start;
   }
 }

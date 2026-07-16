@@ -144,7 +144,225 @@ function setWorkoutOverlay(id, patch) {
 
 function applyWorkoutOverlay(workout) {
   const overlay = getWorkoutOverlay(workout.id);
-  return Object.keys(overlay).length ? { ...workout, ...overlay } : workout;
+  return Object.keys(overlay).length === 0 ? workout : { ...workout, ...overlay };
+}
+
+export function applyDemoNarrativeContext(workout, plan = workout?.plan ?? null) {
+  if (!workout?.narrative) return { ...workout, plan };
+
+  const explicitIntent = ['steady', 'hard_distance', 'test_race', 'recovery', 'technique']
+    .includes(workout.intent)
+    ? workout.intent
+    : null;
+  const planIntent = plan?.type === 'steady'
+    ? 'steady'
+    : (plan?.type === 'test' || plan?.type === 'race' ? 'test_race' : null);
+  const intent = explicitIntent || planIntent;
+  const intentSource = explicitIntent ? 'workout' : (planIntent ? 'plan' : null);
+  const baseNarrative = { ...workout.narrative };
+  delete baseNarrative.plan_review;
+  const contextChanged = baseNarrative.intent !== intent
+    || (baseNarrative.intent_source ?? null) !== intentSource;
+  const narrative = {
+    ...baseNarrative,
+    intent,
+    intent_source: intentSource,
+    needs_intent: intent == null,
+    recommendation: contextChanged
+      ? (intent
+        ? demoIntentRecommendation(workout, intent)
+        : demoUnknownIntentRecommendation(workout))
+      : baseNarrative.recommendation,
+  };
+
+  return { ...workout, plan, narrative };
+}
+
+function demoIntentRecommendation(workout, intent) {
+  const analysis = workout.analysis || {};
+  const execution = analysis.execution || analysis;
+  const pacing = execution.pacing || null;
+  const finish = execution.finish || null;
+  const shape = pacing?.shape || {};
+  const fastStart = Boolean(shape.fast_start ?? pacing?.fast_start ?? false);
+  const lateFade = Boolean(shape.late_fade ?? pacing?.late_fade ?? false);
+  const fastFinish = Boolean(shape.fast_finish ?? pacing?.fast_finish ?? false);
+  const strongFinish = fastFinish || finish?.value === 'accelerated';
+  const faded = lateFade || ['mild_fade', 'significant_fade'].includes(pacing?.value);
+  const intervals = analysis.intervals ?? execution.intervals ?? null;
+  const averageRate = Number(execution.rate?.average_spm) > 0
+    ? ` around ${Math.round(Number(execution.rate.average_spm))} spm`
+    : '';
+  const rateVariable = ['variable', 'stable_avg_variable_stroke'].includes(execution.rate?.value);
+  const hasPacingRead = (pacing?.value != null && pacing.value !== 'unknown')
+    || (finish?.value != null && finish.value !== 'unknown')
+    || fastStart || strongFinish || lateFade;
+  const isInterval = analysis.structure?.value === 'interval'
+    || workout.inferred_tag === 'interval'
+    || intervals != null;
+
+  if (isInterval) {
+    const intervalRecommendation = demoIntervalRecommendation(
+      intent,
+      intervals,
+      averageRate,
+      rateVariable
+    );
+    if (intervalRecommendation) return intervalRecommendation;
+  }
+
+  if (intent === 'steady') {
+    if (fastStart) {
+      return `For steady work, make the opening slightly slower and settle into a smooth rhythm${averageRate}.`;
+    }
+    if (faded) {
+      return `For steady work, ease the middle pressure a touch so the pace holds all the way through${averageRate}.`;
+    }
+    if (rateVariable) {
+      return `For steady work, keep the pace controlled and reduce stroke-to-stroke rate variation${averageRate}.`;
+    }
+    const drift = Number(execution.hr_drift?.drift_percent ?? workout.metrics?.hr_drift_pct);
+    if (Number.isFinite(drift) && drift > 10) {
+      return 'For steady work, ease the pressure slightly so output and heart rate stay better coupled through the back half.';
+    }
+    if (!hasPacingRead) {
+      return `For steady work, keep the opening controlled and settle into a smooth rhythm${averageRate}.`;
+    }
+    return `For steady work, repeat this pacing pattern and keep the rate smooth${averageRate}.`;
+  }
+  if (intent === 'hard_distance') {
+    if (fastStart && faded) {
+      return 'For the next hard-distance row, hold back slightly in the opening so you can sustain pace through the back half.';
+    }
+    if (faded) {
+      return 'The fade suggests the middle sat above sustainable pace, so settle a touch slower after the opening next time.';
+    }
+    if (strongFinish) {
+      return 'This was controlled for a hard-distance effort, so next time bring the middle pace up slightly while preserving the finish.';
+    }
+    if (!hasPacingRead) {
+      return 'For hard-distance work, establish a sustainable opening pace and build the pressure through the final quarter.';
+    }
+    return 'Pacing control suited a hard-distance effort, so keep the same opening and begin the final press a little earlier.';
+  }
+  if (intent === 'test_race') {
+    if (fastStart && faded) {
+      return 'For the next test or race, open slightly slower and protect the target pace through the final quarter.';
+    }
+    if (faded) {
+      return 'For the next test or race, set a slightly more conservative target pace and protect it through the final quarter.';
+    }
+    if (strongFinish) {
+      return 'You finished with capacity in hand, so next time begin the final drive a little earlier.';
+    }
+    if (!hasPacingRead) {
+      return 'For the next test or race, set a sustainable opening pace and plan where the final drive will begin.';
+    }
+    return 'For the next test or race, keep this pacing control and commit to the final drive before the closing stretch.';
+  }
+  if (intent === 'recovery') {
+    if (['hard', 'very_hard', 'maximal'].includes(execution.intensity?.value)) {
+      return `This registered above a recovery effort, so lower the pressure and keep the rate relaxed${averageRate}.`;
+    }
+    return `For recovery work, keep the pressure light and the stroke rhythm relaxed${averageRate}.`;
+  }
+  return `For technique work, keep pace secondary and aim to reduce stroke-to-stroke rate variation${averageRate}.`;
+}
+
+function demoIntervalRecommendation(intent, intervals, averageRate, rateVariable) {
+  if (!intervals) return null;
+
+  const finiteNumber = (value) => {
+    if (value == null || value === '') return null;
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
+  };
+  const degradation = finiteNumber(intervals.degradation_percent);
+  const spread = finiteNumber(intervals.spread_percent);
+  const repCount = finiteNumber(intervals.rep_count);
+  const fastestIndex = finiteNumber(intervals.fastest_rep_index);
+  const wentOutHard = Boolean(intervals.first_rep_fast);
+  const fadedAcross = degradation != null && degradation > 1;
+  const built = degradation != null && degradation < -1;
+  const evenSet = spread != null && spread <= 2;
+  const finishedFastest = repCount > 0 && fastestIndex != null
+    && fastestIndex === repCount - 1;
+  const fastestCameEarlier = repCount > 0
+    && fastestIndex != null
+    && fastestIndex >= 0
+    && fastestIndex < repCount - 1;
+
+  if (intent === 'steady') {
+    if (wentOutHard) {
+      return `For steady interval work, open the first rep more conservatively and aim for even pace across the set${averageRate}.`;
+    }
+    if (fadedAcross) {
+      return `For steady interval work, target a rep pace you can repeat to the end of the set${averageRate}.`;
+    }
+    if (rateVariable) {
+      return `For steady interval work, keep rep pace controlled and smooth the stroke-to-stroke rate${averageRate}.`;
+    }
+    return `For steady interval work, keep the reps even and the rhythm smooth${averageRate}.`;
+  }
+
+  if (intent === 'hard_distance') {
+    if (wentOutHard) {
+      return 'For the next hard interval set, hold back on the first rep and protect pace through the final reps.';
+    }
+    if (fadedAcross) {
+      return 'The set faded rep to rep, so start the next hard set at a pace the final reps can hold.';
+    }
+    if (finishedFastest) {
+      return 'You finished the set strongly, so next time bring the early reps slightly closer to that sustainable pace.';
+    }
+    if (built) {
+      return fastestCameEarlier
+        ? 'The final rep was quicker than the first, but the fastest work came earlier; next time aim to carry that pace through the finish.'
+        : 'The final rep was quicker than the first; next time aim to make that progression more even across the full set.';
+    }
+    if (evenSet) {
+      return 'Rep pacing was controlled for a hard set, so repeat the even opening and press only in the final reps.';
+    }
+    return 'For the next hard interval set, use the opening reps to establish a pace you can hold through the finish.';
+  }
+
+  if (intent === 'test_race') {
+    if (wentOutHard) {
+      return 'For the next race-specific set, make the first rep more conservative and protect target pace through the finish.';
+    }
+    if (fadedAcross) {
+      return 'For the next race-specific set, pick a rep target the closing reps can hold and commit to it from the start.';
+    }
+    if (finishedFastest) {
+      return 'You had pace in hand late in the set, so next time bring the early reps slightly closer to race pace.';
+    }
+    if (built) {
+      return fastestCameEarlier
+        ? 'The final rep was quicker than the first, but the fastest work came earlier; next time aim to carry race pace through the finish.'
+        : 'The final rep was quicker than the first; next time aim to make the race-pace progression more even across the full set.';
+    }
+    return 'For the next race-specific set, keep the rep pacing controlled and commit to target pace in the closing reps.';
+  }
+
+  return null;
+}
+
+function demoUnknownIntentRecommendation(workout) {
+  const analysis = workout.analysis || {};
+  const execution = analysis.execution || analysis;
+  const pacing = execution.pacing?.value;
+  const intervals = analysis.intervals ?? execution.intervals ?? null;
+  const isInterval = analysis.structure?.value === 'interval'
+    || workout.inferred_tag === 'interval'
+    || intervals != null;
+  if (isInterval) {
+    return 'If this was steady interval work, prioritise even reps and smooth rate. If it was a hard set, judge whether the first rep left enough pace for the finish.';
+  }
+  const hasPacingRead = intervals != null
+    || (pacing != null && pacing !== 'unknown');
+  return hasPacingRead
+    ? 'If this was steady work, prioritise a smoother, controlled opening. If it was a hard effort, use the pacing pattern to decide whether to start more conservatively or press earlier.'
+    : 'If this was steady work, prioritise a smooth, controlled rhythm. If it was a hard effort, establish a sustainable opening pace and plan where to press.';
 }
 
 // --- planned-workout overlay (visitor-side plan edits) ---
@@ -196,6 +414,9 @@ async function findPlanForWorkout(plans, workoutId) {
     type: plan.type,
     target_distance: plan.target_distance,
     target_duration_ms: plan.target_duration_ms,
+    target_pace_ms: plan.target_pace_ms ?? null,
+    target_rate: plan.target_rate ?? null,
+    notes: plan.notes ?? null,
     match_type: plan.match_type,
     program_id: plan.program_id || null,
     program_week: plan.program_week ?? null,
@@ -457,7 +678,8 @@ async function handleGet(route, params) {
     });
     const patched = applyWorkoutOverlay(detail);
     const plans = await loadDemoPlans();
-    return { ...patched, plan: await findPlanForWorkout(plans, patched.id) };
+    const plan = await findPlanForWorkout(plans, patched.id);
+    return applyDemoNarrativeContext({ ...patched, plan }, plan);
   }
 
   if (route === '/api/stats/compare') {
@@ -610,9 +832,16 @@ async function handlePatch(route, body) {
     const patch = {};
     if ('pinned' in body) patch.pinned = !!body.pinned;
     if ('notes' in body) patch.notes = body.notes;
+    if ('intent' in body) {
+      const intents = ['steady', 'hard_distance', 'test_race', 'recovery', 'technique'];
+      if (body.intent != null && !intents.includes(body.intent)) throw new Error('Invalid workout intent');
+      patch.intent = body.intent;
+    }
     const merged = setWorkoutOverlay(id, patch);
     const detail = await fetch(await fixtureUrl(`workout/${id}.json`)).then(r => r.json());
-    return applyWorkoutOverlay({ ...detail, ...merged });
+    const patched = applyWorkoutOverlay({ ...detail, ...merged });
+    const plan = await findPlanForWorkout(await loadDemoPlans(), patched.id);
+    return applyDemoNarrativeContext({ ...patched, plan }, plan);
   }
 
   throw new Error('Demo mode - this action is not available in the live demo');

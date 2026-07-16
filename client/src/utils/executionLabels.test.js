@@ -7,6 +7,29 @@ describe('execLabel', () => {
     expect(execLabel('pacing', 'negative_split')).toBe('Negative split');
     expect(execLabel('finish', 'accelerated')).toBe('Accelerated');
     expect(execLabel('rate', 'stable')).toBe('Stable');
+    expect(execLabel('rate', 'stable_avg_variable_stroke')).toBe('Stable average, variable stroke-to-stroke');
+  });
+
+  it('qualifies effort when the HR zone model was estimated', () => {
+    expect(execLabel('intensity', { value: 'moderate', estimated: true })).toBe('Likely moderate');
+    expect(execLabel('intensity', { value: 'moderate', estimated: false })).toBe('Moderate');
+  });
+
+  it('combines pacing value with the canonical shape flags', () => {
+    expect(execLabel('pacing', {
+      value: 'even',
+      shape: { fast_start: true, even_core: true, late_fade: false, fast_finish: true },
+    })).toBe('Even core · fast start and finish');
+    expect(execLabel('pacing', {
+      value: 'mild_fade',
+      shape: { fast_start: false, even_core: false, late_fade: true, fast_finish: false },
+    })).toBe('Mild fade · late fade');
+  });
+
+  it('includes the measured power-to-HR drift', () => {
+    expect(execLabel('hr_drift', { value: 'moderate', drift_percent: 7.8 })).toBe('Moderate · +7.8%');
+    expect(execLabel('hr_drift', { value: 'low', drift_percent: -1.2 })).toBe('Low · -1.2%');
+    expect(execLabel('hr_drift', { value: 'low', drift_percent: null })).toBe('Low');
   });
 
   it('returns null for unknown value or channel', () => {

@@ -3,6 +3,8 @@
 
 const MIN_HR_STROKES = 20;
 const MIN_DRIFT_STROKES = 40;
+const HR_DRIFT_OPENING_TRIM_FRACTION = 0.1;
+const HR_DRIFT_FINISH_TRIM_FRACTION = 0.05;
 const MIN_RATE_STROKES = 20;
 const RECOVERY_WINDOW = 5;
 const MIN_RECOVERY_STROKES = 3;
@@ -76,15 +78,26 @@ export function wattsPerBeat(strokes = []) {
 }
 
 // Aerobic decoupling (Pw:Hr): power-to-HR ratio of the first half vs the
-// second half after discarding the warm-up transient. Positive = HR rose
-// relative to output; < 5% is the classic "coupled" threshold. Caller gates
-// this to steady sessions (endurance tag, >= 15 min).
+// second half after discarding the warm-up transient and finishing effort.
+// Trims are based on elapsed time, so a high-rate start or finish does not
+// remove a disproportionate share of the steady work.
+// Positive = HR rose relative to output; < 5% is the classic "coupled"
+// threshold. Caller gates this to steady sessions (endurance tag, >= 15 min).
 export function hrDrift(strokes = []) {
   const usable = strokes
     .map(s => ({ t: s?.time_s, hr: s?.heart_rate, w: s ? strokeWatts(s) : null }))
     .filter(p => p.t >= 0 && p.hr > 0 && p.w > 0);
 
-  const trimmed = usable.slice(Math.floor(usable.length * 0.1));
+  if (usable.length < MIN_DRIFT_STROKES) return null;
+
+  const usableStart = usable[0].t;
+  const usableEnd = usable[usable.length - 1].t;
+  const usableDuration = usableEnd - usableStart;
+  if (!(usableDuration > 0)) return null;
+
+  const trimStart = usableStart + usableDuration * HR_DRIFT_OPENING_TRIM_FRACTION;
+  const trimEnd = usableStart + usableDuration * (1 - HR_DRIFT_FINISH_TRIM_FRACTION);
+  const trimmed = usable.filter(p => p.t >= trimStart && p.t <= trimEnd);
   if (trimmed.length < MIN_DRIFT_STROKES) return null;
 
   const tStart = trimmed[0].t;

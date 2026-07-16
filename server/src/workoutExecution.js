@@ -15,7 +15,14 @@ import { wattsFromPace } from './strokeMetrics.js';
 // v2: observed effort is now HR-grounded (was pace-vs-benchmark only).
 // v3: added the HR-drift (aerobic decoupling) read.
 // v4: added data_quality (summary vs stroke-stream reconciliation).
-export const ANALYSIS_VERSION = 4;
+// v5: added phase-based pacing shape, two-level rate stability, explicit
+// HR-drift values, and estimated-zone metadata.
+// v6: reads run on the scored piece when the stroke stream carries
+// warmup/cooldown padding around it; phases carry absolute ranges.
+// v7: piece windows tolerate paddling pauses before the piece.
+// v8: windowed analyses also reconcile the scored piece separately from the
+// full padded recording, so unrelated summary errors remain visible.
+export const ANALYSIS_VERSION = 8;
 
 // --- thresholds (named so behaviour is easy to tune) -------------------------
 const MIN_PACING_STROKES = 8;
@@ -29,8 +36,12 @@ const PACING_EVEN_PCT = 1.0; // |fade| ≤ 1% reads as even
 const PACING_MILD_FADE_PCT = 3.0; // 1–3% slower = mild fade, > 3% = significant
 const PACING_NEG_SPLIT_PCT = -1.0; // ≥ 1% faster in the back half = negative split
 const PACING_VARIABLE_CV = 0.05; // pace CV above this, with no clear trend = variable
+const PACING_SHAPE_TOLERANCE_PCT = 1.0; // phase pace within ±1% of middle is neutral
 
 const RATE_STABLE_SD_SPM = 1.5; // stroke-rate SD ≤ 1.5 spm reads as stable
+// Average rate across five equal sections can be stable even when individual
+// strokes fluctuate. Keep this distinct from the raw stroke-level threshold.
+const RATE_PHASE_STABLE_SD_SPM = 1.5;
 
 const FINISH_FRACTION = 0.08; // final 8% is "the finish"
 const FINISH_PRECEDING_FRACTION = 0.25; // compared against the preceding 25%
@@ -51,6 +62,20 @@ const MIN_QUALITY_STROKES = 20;
 const HR_MISMATCH_BPM = 3; // summary avg HR vs stroke-derived avg HR
 const DURATION_MISMATCH_PCT = 1; // % of the summary duration
 const DURATION_MISMATCH_MIN_S = 5; // floor so short pieces don't trip on rounding
+
+// Scored-piece windowing: when the stroke stream clearly overshoots the
+// summary (the warmup/cooldown-padding signature), the reads run on the
+// contiguous stretch that matches the summary instead of the whole recording.
+const WINDOW_DISTANCE_OVERSHOOT = 1.05; // stream must exceed summary distance by 5%
+// Candidate windows are matched on average pace (duration over covered
+// distance) against the summary's pace. Pace is scale-free, so a window that
+// swaps piece metres for warmup metres cannot fake a match the way a raw
+// duration comparison can.
+const WINDOW_MATCH_PACE_PCT = 3;
+// A window may cover fractionally less than the summary distance: recorded
+// stroke odometers land a stroke-length short of round block boundaries, and
+// demanding full coverage would force the window across a rest pause.
+const WINDOW_DISTANCE_UNDERSHOOT_PCT = 0.5;
 
 // Observed intensity by pace vs the athlete's own best at this distance
 // (pacePct = best / this, ≤ 1; closer to 1 = harder). Bands are intentionally
@@ -80,7 +105,7 @@ const PHASE_BOUNDS = [
   { name: 'start', start: 0.0, end: 0.1 },
   { name: 'settle', start: 0.1, end: 0.25 },
   { name: 'middle', start: 0.25, end: 0.75 },
-  { name: 'pressure', start: 0.75, end: 0.95 },
+  { name: 'late', start: 0.75, end: 0.95 },
   { name: 'finish', start: 0.95, end: 1.0 },
 ];
 
@@ -115,13 +140,72 @@ function unknown(basis, extra = {}) {
   return { value: 'unknown', confidence: 0, basis, ...extra };
 }
 
+function sectionAverages(values, sectionCount) {
+  const sections = Array.from({ length: sectionCount }, () => []);
+  values.forEach((value, index) => {
+    const section = Math.min(sectionCount - 1, Math.floor((index * sectionCount) / values.length));
+    sections[section].push(value);
+  });
+  return sections.map(section => mean(section));
+}
+
+function phasePacesFromSamples(paceSamples) {
+  return PHASE_BOUNDS.map(({ name, start, end }) => {
+    const lo = Math.floor(start * paceSamples.length);
+    const hi = end === 1 ? paceSamples.length : Math.floor(end * paceSamples.length);
+    return { name, avg_pace_ms: mean(paceSamples.slice(lo, hi)) };
+  });
+}
+
+function pacingShape(phases, fallbackLabel) {
+  const phasePaces = Object.fromEntries(
+    phases
+      .filter(phase => phase?.avg_pace_ms > 0)
+      .map(phase => [phase.name, phase.avg_pace_ms])
+  );
+  const middle = phasePaces.middle;
+  if (!(middle > 0)) return null;
+
+  const deltaPct = (name) => {
+    const pace = phasePaces[name];
+    return pace > 0 ? ((pace - middle) / middle) * 100 : null;
+  };
+  const startDelta = deltaPct('start');
+  const settleDelta = deltaPct('settle');
+  const lateDelta = deltaPct('late');
+  const finishDelta = deltaPct('finish');
+  const withinTolerance = delta => delta != null && Math.abs(delta) <= PACING_SHAPE_TOLERANCE_PCT;
+
+  const fastStart = startDelta != null && startDelta < -PACING_SHAPE_TOLERANCE_PCT;
+  const evenCore = withinTolerance(settleDelta) && withinTolerance(lateDelta);
+  const lateFade = lateDelta != null && lateDelta > PACING_SHAPE_TOLERANCE_PCT;
+  const fastFinish = finishDelta != null && finishDelta < -PACING_SHAPE_TOLERANCE_PCT;
+
+  const labels = [];
+  if (evenCore) labels.push('even core');
+  if (lateFade) labels.push('late fade');
+  if (fastStart && fastFinish) labels.push('fast start and finish');
+  else if (fastStart) labels.push('fast start');
+  else if (fastFinish) labels.push('fast finish');
+
+  return {
+    fast_start: fastStart,
+    even_core: evenCore,
+    late_fade: lateFade,
+    fast_finish: fastFinish,
+    shape_label: labels.join(', ') || fallbackLabel,
+  };
+}
+
 // --- classifiers -------------------------------------------------------------
 
 // Even / negative_split / mild_fade / significant_fade / variable, from
 // first-half vs second-half pace plus intra-session variability.
-export function classifyPacing(strokes = []) {
+export function classifyPacing(strokes = [], phases = null) {
   const p = paces(strokes);
-  if (p.length < MIN_PACING_STROKES) return unknown('Not enough pace samples to judge pacing.', { fade_percent: null });
+  if (p.length < MIN_PACING_STROKES) {
+    return unknown('Not enough pace samples to judge pacing.', { fade_percent: null, shape: null });
+  }
 
   const half = Math.floor(p.length / 2);
   const firstAvg = mean(p.slice(0, half));
@@ -153,6 +237,10 @@ export function classifyPacing(strokes = []) {
   return {
     value,
     fade_percent: round(fade),
+    shape: pacingShape(
+      Array.isArray(phases) && phases.length > 0 ? phases : phasePacesFromSamples(p),
+      value.replaceAll('_', ' ')
+    ),
     confidence,
     basis: value === 'variable'
       ? `Pace varied ${round(cv * 100)}% around the average without a clear trend.`
@@ -165,15 +253,26 @@ export function classifyPacing(strokes = []) {
 export function rateStability(strokes = []) {
   const rates = strokes.map(s => s?.stroke_rate).filter(r => r > 0);
   if (rates.length < MIN_RATE_STROKES) {
-    return unknown('Not enough stroke-rate samples to judge rate.', { average_spm: null, variation_spm: null });
+    return unknown('Not enough stroke-rate samples to judge rate.', {
+      average_spm: null,
+      variation_spm: null,
+      phase_variation_spm: null,
+    });
   }
-  const sd = stddev(rates);
+  const strokeSd = stddev(rates);
+  const phaseSd = stddev(sectionAverages(rates, 5));
+  const phaseStable = phaseSd <= RATE_PHASE_STABLE_SD_SPM;
+  const strokeStable = strokeSd <= RATE_STABLE_SD_SPM;
+  const value = phaseStable
+    ? (strokeStable ? 'stable' : 'stable_avg_variable_stroke')
+    : 'variable';
   return {
-    value: sd <= RATE_STABLE_SD_SPM ? 'stable' : 'variable',
+    value,
     average_spm: round(mean(rates)),
-    variation_spm: round(sd),
+    variation_spm: round(strokeSd),
+    phase_variation_spm: round(phaseSd),
     confidence: 0.9,
-    basis: `Stroke rate held within ${round(sd)} spm (SD) of an average of ${round(mean(rates))} spm.`,
+    basis: `Across five equal sections, average-rate variation was ${round(phaseSd)} spm (SD). Stroke-to-stroke variation was ${round(strokeSd)} spm (SD) around ${round(mean(rates))} spm.`,
   };
 }
 
@@ -253,17 +352,19 @@ export function strokeEffectiveness(workout, strokes = []) {
 // (null for intervals / sessions too short to be meaningful → unknown).
 export function classifyHrDrift(hrDriftPct) {
   if (hrDriftPct == null || !Number.isFinite(hrDriftPct)) {
-    return unknown('No aerobic-decoupling reading for this session.');
+    return unknown('No aerobic-decoupling reading for this session.', { drift_percent: null });
   }
   let value = 'high';
   if (hrDriftPct <= HR_DRIFT_LOW_PCT) value = 'low';
   else if (hrDriftPct <= HR_DRIFT_HIGH_PCT) value = 'moderate';
+  const driftPercent = round(hrDriftPct);
   return {
     value,
+    drift_percent: driftPercent,
     confidence: 0.8,
-    basis: hrDriftPct <= HR_DRIFT_LOW_PCT
-      ? `Heart rate tracked output closely (${round(hrDriftPct)}% drift) — steady aerobic control.`
-      : `Heart rate rose ${round(hrDriftPct)}% relative to output across the session.`,
+    basis: driftPercent >= 0
+      ? `Power-to-HR efficiency declined by ${driftPercent}% between the first and second halves (opening 10% and final 5% excluded).`
+      : `Power-to-HR efficiency improved by ${Math.abs(driftPercent)}% between the first and second halves (opening 10% and final 5% excluded).`,
   };
 }
 
@@ -294,6 +395,8 @@ export function classifyIntensity({ workout, benchmarkPaceMs, zoneShares, zonesE
       return {
         value,
         confidence,
+        estimated: Boolean(zonesEstimated),
+        dominant_zone: dominant,
         basis: `Most of the session was in HR zone ${dominant}${zonesEstimated ? ' (max HR estimated)' : ''}.`,
       };
     }
@@ -306,11 +409,113 @@ export function classifyIntensity({ workout, benchmarkPaceMs, zoneShares, zonesE
     return {
       value: capIntensity(band.value, 'hard'),
       confidence: 0.5,
+      estimated: false,
+      dominant_zone: null,
       basis: `Pace was ${round(pacePct * 100)}% of your best at this distance (no heart-rate data).`,
     };
   }
 
-  return unknown('No heart-rate or benchmark data, so effort can’t be placed.');
+  return unknown('No heart-rate or benchmark data, so effort can’t be placed.', {
+    estimated: false,
+    dominant_zone: null,
+  });
+}
+
+// Finds the scored piece inside a stroke stream that carries extra recording
+// around it (warmup/cooldown padding is the common Concept2 shape: summary
+// says 2,000m / 7:00 while the stream spans 4,000m / 17:00). Looks for the
+// contiguous stretch covering the summary distance whose duration best
+// matches the summary time; only trims when the stream clearly overshoots the
+// summary AND a stretch matches it closely, so a genuinely mismatched summary
+// is never "fixed" by inventing a window. Returns { strokes, window } where
+// window is null when no trimming happened.
+export function locateScoredPiece(workout, strokes = []) {
+  const noWindow = { strokes, window: null };
+  const targetDistance = workout?.distance;
+  const targetDurationS = workout?.time_ms > 0 ? workout.time_ms / 1000 : null;
+  if (!(targetDistance > 0) || !(targetDurationS > 0)) return noWindow;
+
+  const usable = strokes.filter(s => s?.distance_m >= 0 && s?.time_s >= 0);
+  if (usable.length < MIN_QUALITY_STROKES) return noWindow;
+
+  const streamDistance = usable[usable.length - 1].distance_m - usable[0].distance_m;
+  const streamDurationS = usable[usable.length - 1].time_s - usable[0].time_s;
+  const durationTolerance = Math.max(DURATION_MISMATCH_MIN_S, targetDurationS * (DURATION_MISMATCH_PCT / 100));
+  if (streamDistance < targetDistance * WINDOW_DISTANCE_OVERSHOOT
+    || streamDurationS <= targetDurationS + durationTolerance) {
+    return noWindow;
+  }
+
+  // A stroke's own rowing time, from its pace and the distance it covered.
+  // Used to reconstruct where a window's first stroke actually began, so a
+  // paddling pause recorded before the piece never counts into its duration.
+  const strokeStartTime = (idx) => {
+    const stroke = usable[idx];
+    const prevD = idx > 0 ? usable[idx - 1].distance_m : 0;
+    const prevT = idx > 0 ? usable[idx - 1].time_s : 0;
+    const dist = stroke.distance_m - prevD;
+    const rowedS = stroke.pace_ms > 0 && dist > 0 ? (stroke.pace_ms / 1000) * (dist / 500) : null;
+    // Clamp to the previous stroke's clock: the stroke cannot have started
+    // before the previous one ended.
+    return rowedS != null ? Math.max(prevT, stroke.time_s - rowedS) : prevT;
+  };
+
+  // Two-pointer sweep over [s, j]: for each candidate first stroke s, the
+  // shortest span covering the summary distance, keeping the span whose
+  // duration best matches the summary time. Assumes distance_m and time_s are
+  // cumulative and monotonic.
+  const requiredDistance = targetDistance * (1 - WINDOW_DISTANCE_UNDERSHOOT_PCT / 100);
+  const targetPace = targetDurationS / targetDistance; // s per metre
+  let best = null;
+  let j = 0;
+  for (let s = 0; s < usable.length; s++) {
+    const originD = s > 0 ? usable[s - 1].distance_m : 0;
+    if (j < s) j = s;
+    while (j < usable.length && usable[j].distance_m - originD < requiredDistance) j++;
+    if (j >= usable.length) break;
+    const originT = strokeStartTime(s);
+    // Consider both the shortest qualifying window and the one covering the
+    // full summary distance (when it exists); full coverage wins ties, so the
+    // undershoot allowance never trims a window unnecessarily.
+    let jFull = j;
+    while (jFull < usable.length && usable[jFull].distance_m - originD < targetDistance) jFull++;
+    const ends = jFull < usable.length && jFull !== j ? [jFull, j] : [j];
+    for (const end of ends) {
+      const durationS = usable[end].time_s - originT;
+      const covered = usable[end].distance_m - originD;
+      const paceDiff = Math.abs(durationS / covered - targetPace) / targetPace;
+      if (!best || paceDiff < best.paceDiff - 1e-9) {
+        best = { s, j: end, originD, originT, paceDiff, durationS };
+      }
+    }
+  }
+
+  if (!best || best.paceDiff > WINDOW_MATCH_PACE_PCT / 100) return noWindow;
+
+  // Strokes s..j were rowed inside the piece. Rebase their clocks/odometers to
+  // the piece origin so every downstream consumer treats the window as a piece
+  // starting from zero.
+  const windowStrokes = usable.slice(best.s, best.j + 1).map(s => ({
+    ...s,
+    distance_m: s.distance_m - best.originD,
+    time_s: s.time_s - best.originT,
+  }));
+  if (windowStrokes.length < MIN_QUALITY_STROKES) return noWindow;
+
+  return {
+    strokes: windowStrokes,
+    window: {
+      start_distance_m: Math.round(best.originD),
+      end_distance_m: Math.round(usable[best.j].distance_m),
+      start_time_s: round(best.originT, 0),
+      end_time_s: round(usable[best.j].time_s, 0),
+      stroke_count: windowStrokes.length,
+      total_stroke_count: strokes.length,
+      stream_distance_m: Math.round(streamDistance),
+      stream_duration_s: round(streamDurationS, 0),
+      basis: `The recording spans ${Math.round(streamDistance).toLocaleString('en-GB')}m; the reads use the ${Math.round(targetDistance).toLocaleString('en-GB')}m stretch that matches the session summary.`,
+    },
+  };
 }
 
 // Reconciliation: does the workout's own summary (headline duration, average
@@ -382,10 +587,16 @@ export function computePhases(workout, strokes = []) {
     });
     const rate = mean(seg.map(s => s?.stroke_rate).filter(r => r > 0));
     const watts = mean(seg.map(s => strokeWatts(s)).filter(w => w > 0));
+    // Absolute range of the phase in the sliced axis, so the client never has
+    // to reconstruct it from percentages and a possibly-different total.
+    const range = byTime
+      ? { start_s: Math.round(lo), end_s: Math.round(hi) }
+      : { start_m: Math.round(lo), end_m: Math.round(hi) };
     return {
       name,
       start_pct: Math.round(start * 100),
       end_pct: Math.round(end * 100),
+      ...range,
       avg_pace_ms: round(mean(seg.map(s => s?.pace_ms).filter(p => p > 0)), 0),
       avg_power: round(watts, 0),
       avg_rate: round(rate),
@@ -447,15 +658,29 @@ export function buildWorkoutAnalysis({
   zoneShares = null,
   zonesEstimated = false,
   hrDriftPct = null,
+  // The untrimmed stream, when `strokes` was windowed to the scored piece.
+  // Reconciliation always judges the summary against the full recording.
+  fullStrokes = null,
+  analysisWindow = null,
 }) {
   const isInterval = structure?.value === 'interval';
+  const phases = isInterval ? [] : computePhases(workout, strokes);
+  const dataQuality = assessDataQuality(workout, fullStrokes ?? strokes, { isInterval });
+
+  // A padded recording is expected not to reconcile with a summary that only
+  // describes its scored piece. Keep that full-stream result, but also judge
+  // the summary against the selected piece so a genuinely incorrect HR/time
+  // summary is not hidden by the otherwise-successful window match.
+  if (analysisWindow) {
+    dataQuality.scored_piece = assessDataQuality(workout, strokes, { isInterval });
+  }
 
   const rate = rateStability(strokes);
   if (rateDisciplinePct != null) rate.discipline_pct = round(rateDisciplinePct, 0);
 
   const execution = {
     intensity: classifyIntensity({ workout, benchmarkPaceMs, zoneShares, zonesEstimated }),
-    pacing: isInterval ? null : classifyPacing(strokes),
+    pacing: isInterval ? null : classifyPacing(strokes, phases),
     rate,
     finish: isInterval ? null : analyzeFinish(strokes),
     stroke_effectiveness: strokeEffectiveness(workout, strokes),
@@ -473,8 +698,9 @@ export function buildWorkoutAnalysis({
       }
       : null,
     execution,
-    data_quality: assessDataQuality(workout, strokes, { isInterval }),
-    phases: isInterval ? [] : computePhases(workout, strokes),
+    data_quality: dataQuality,
+    analysis_window: analysisWindow,
+    phases,
     intervals: isInterval ? analyzeIntervals(intervals) : null,
   };
 }

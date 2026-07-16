@@ -2,6 +2,11 @@ import { Router } from 'express';
 import { getDb } from '../db.js';
 import { enrichSingleWorkout } from '../sync.js';
 import { buildWorkoutInsight } from '../insights.js';
+import {
+  WORKOUT_INTENTS,
+  isWorkoutIntent,
+  buildSessionNarrative,
+} from '../sessionNarrative.js';
 import { parseEditedFields } from '../workoutFields.js';
 import { classifyComparison, rankComparisonCandidates } from '../workoutComparison.js';
 import {
@@ -86,6 +91,9 @@ router.get('/', (req, res) => {
            pw.id as plan_id, pw.date as plan_date, pw.type as plan_type,
            pw.target_distance as plan_target_distance,
            pw.target_duration_ms as plan_target_duration_ms,
+           pw.target_pace_ms as plan_target_pace_ms,
+           pw.target_rate as plan_target_rate,
+           pw.notes as plan_notes,
            pw.match_type as plan_match_type,
            pw.program_id as plan_program_id,
            pw.program_week as plan_program_week,
@@ -173,6 +181,15 @@ router.patch('/:id', (req, res) => {
     } else {
       updates.push('notes = ?');
       params.push(body.notes);
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, 'intent')) {
+    if (body.intent !== null && !isWorkoutIntent(body.intent)) {
+      errors.push(`intent must be null or one of: ${WORKOUT_INTENTS.join(', ')}`);
+    } else {
+      updates.push('intent = ?');
+      params.push(body.intent);
     }
   }
 
@@ -359,6 +376,7 @@ router.get('/:id', (req, res) => {
   const summary = normalizeWorkoutTag(workout.inferred_tag) === 'interval'
     ? computeIntervalSummaryFromRows(intervals) : null;
   const formatted = formatWorkout(workout, summary);
+  const baseline = getTagBaseline(db, workout);
 
   res.json({
     ...formatted,
@@ -368,7 +386,13 @@ router.get('/:id', (req, res) => {
     recoveries,
     zone_times: zoneTimes,
     pace_profile: getPaceProfile(db, id),
-    insight: buildWorkoutInsight(formatted, getTagBaseline(db, workout), { intervals, recoveries }),
+    insight: buildWorkoutInsight(formatted, baseline, { intervals, recoveries }),
+    narrative: buildSessionNarrative({
+      workout: formatted,
+      analysis: formatted.analysis,
+      plan: formatted.plan,
+      baseline,
+    }),
   });
 });
 
@@ -432,6 +456,7 @@ function formatWorkout(row, intervalSummary = null) {
     comments: row.comments,
     pinned: !!row.pinned,
     notes: row.notes,
+    intent: row.intent ?? null,
     source: row.source || 'c2',
     edited_fields: parseEditedFields(row.edited_fields),
     pb_distances: [],
@@ -456,6 +481,9 @@ function formatWorkout(row, intervalSummary = null) {
       type: row.plan_type,
       target_distance: row.plan_target_distance,
       target_duration_ms: row.plan_target_duration_ms,
+      target_pace_ms: row.plan_target_pace_ms,
+      target_rate: row.plan_target_rate,
+      notes: row.plan_notes,
       match_type: row.plan_match_type,
       program_id: row.plan_program_id,
       program_week: row.plan_program_week,
@@ -545,6 +573,9 @@ function getWorkoutWithMetrics(db, id) {
            pw.id as plan_id, pw.date as plan_date, pw.type as plan_type,
            pw.target_distance as plan_target_distance,
            pw.target_duration_ms as plan_target_duration_ms,
+           pw.target_pace_ms as plan_target_pace_ms,
+           pw.target_rate as plan_target_rate,
+           pw.notes as plan_notes,
            pw.match_type as plan_match_type,
            pw.program_id as plan_program_id,
            pw.program_week as plan_program_week,

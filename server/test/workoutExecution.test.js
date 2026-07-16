@@ -9,6 +9,7 @@ import {
   computePhases,
   analyzeIntervals,
   buildWorkoutAnalysis,
+  locateScoredPiece,
   ANALYSIS_VERSION,
 } from '../src/workoutExecution.js';
 
@@ -33,7 +34,15 @@ describe('classifyPacing', () => {
   });
 
   it('flags even pacing', () => {
-    expect(classifyPacing(strokes(20)).value).toBe('even');
+    const result = classifyPacing(strokes(20));
+    expect(result.value).toBe('even');
+    expect(result.shape).toEqual({
+      fast_start: false,
+      even_core: true,
+      late_fade: false,
+      fast_finish: false,
+      shape_label: 'even core',
+    });
   });
 
   it('flags a negative split', () => {
@@ -56,20 +65,69 @@ describe('classifyPacing', () => {
     const s = strokes(20, (i) => ({ pace_ms: (Math.floor(i / 5) % 2 === 0) ? 115000 : 130000 }));
     expect(classifyPacing(s).value).toBe('variable');
   });
+
+  it('describes a fast start and finish around an even core from phase averages', () => {
+    const s = strokes(100, (i) => ({
+      pace_ms: i < 10 || i >= 95 ? 118000 : 120000,
+    }));
+    const result = classifyPacing(s);
+    expect(result.shape).toEqual({
+      fast_start: true,
+      even_core: true,
+      late_fade: false,
+      fast_finish: true,
+      shape_label: 'even core, fast start and finish',
+    });
+  });
+
+  it('detects a late fade relative to middle-phase pace', () => {
+    const s = strokes(100, (i) => ({
+      pace_ms: i >= 75 && i < 95 ? 122000 : 120000,
+    }));
+    const result = classifyPacing(s);
+    expect(result.shape.even_core).toBe(false);
+    expect(result.shape.late_fade).toBe(true);
+    expect(result.shape.shape_label).toBe('late fade');
+  });
+
+  it('treats a phase exactly 1% from the middle as inside the neutral band', () => {
+    const phases = [
+      { name: 'start', avg_pace_ms: 118800 },
+      { name: 'settle', avg_pace_ms: 120000 },
+      { name: 'middle', avg_pace_ms: 120000 },
+      { name: 'late', avg_pace_ms: 120000 },
+      { name: 'finish', avg_pace_ms: 118700 },
+    ];
+    const result = classifyPacing(strokes(20), phases);
+    expect(result.shape.fast_start).toBe(false);
+    expect(result.shape.fast_finish).toBe(true);
+  });
 });
 
 describe('rateStability', () => {
   it('is stable for a steady rate', () => {
-    expect(rateStability(strokes(20)).value).toBe('stable');
+    const result = rateStability(strokes(20));
+    expect(result.value).toBe('stable');
+    expect(result.phase_variation_spm).toBe(0);
   });
 
-  it('is variable for a swinging rate', () => {
-    const s = strokes(20, (i) => ({ stroke_rate: i % 2 === 0 ? 20 : 30 }));
+  it('is variable when section-average rate changes', () => {
+    const s = strokes(20, (i) => ({ stroke_rate: i < 10 ? 20 : 30 }));
     expect(rateStability(s).value).toBe('variable');
   });
 
+  it('distinguishes a stable average from variable stroke-to-stroke rate', () => {
+    const s = strokes(20, (i) => ({ stroke_rate: i % 2 === 0 ? 22 : 26 }));
+    const result = rateStability(s);
+    expect(result.value).toBe('stable_avg_variable_stroke');
+    expect(result.phase_variation_spm).toBe(0);
+    expect(result.variation_spm).toBe(2);
+  });
+
   it('is unknown below the sample floor', () => {
-    expect(rateStability(strokes(10)).value).toBe('unknown');
+    const result = rateStability(strokes(10));
+    expect(result.value).toBe('unknown');
+    expect(result.phase_variation_spm).toBeNull();
   });
 });
 
@@ -130,10 +188,15 @@ describe('classifyIntensity', () => {
     const r = classifyIntensity({ zoneShares: [0, 0, 0, 0.2, 0.8], zonesEstimated: true });
     expect(r.value).toBe('hard');
     expect(r.confidence).toBeLessThan(0.7);
+    expect(r.estimated).toBe(true);
+    expect(r.dominant_zone).toBe(5);
   });
 
   it('falls back to pace vs best (capped at hard) when there is no HR', () => {
-    expect(classifyIntensity({ workout: { pace_ms: 118000 }, benchmarkPaceMs: 118000 }).value).toBe('hard');
+    const nearBest = classifyIntensity({ workout: { pace_ms: 118000 }, benchmarkPaceMs: 118000 });
+    expect(nearBest.value).toBe('hard');
+    expect(nearBest.estimated).toBe(false);
+    expect(nearBest.dominant_zone).toBeNull();
     expect(classifyIntensity({ workout: { pace_ms: 160000 }, benchmarkPaceMs: 118000 }).value).toBe('easy');
   });
 
@@ -145,20 +208,25 @@ describe('classifyIntensity', () => {
 describe('classifyHrDrift', () => {
   it('bands the drift percentage', () => {
     expect(classifyHrDrift(3).value).toBe('low');
-    expect(classifyHrDrift(7.7).value).toBe('moderate');
+    const moderate = classifyHrDrift(7.7);
+    expect(moderate.value).toBe('moderate');
+    expect(moderate.drift_percent).toBe(7.7);
+    expect(moderate.basis).toBe('Power-to-HR efficiency declined by 7.7% between the first and second halves (opening 10% and final 5% excluded).');
     expect(classifyHrDrift(14).value).toBe('high');
     expect(classifyHrDrift(-2).value).toBe('low');
   });
 
   it('is unknown when no drift was computed', () => {
-    expect(classifyHrDrift(null).value).toBe('unknown');
+    const result = classifyHrDrift(null);
+    expect(result.value).toBe('unknown');
+    expect(result.drift_percent).toBeNull();
   });
 });
 
 describe('computePhases', () => {
   it('returns five phases with aggregates for a fixed-distance piece', () => {
     const phases = computePhases({ workout_type: 'FixedDistanceSplits' }, strokes(100));
-    expect(phases.map(p => p.name)).toEqual(['start', 'settle', 'middle', 'pressure', 'finish']);
+    expect(phases.map(p => p.name)).toEqual(['start', 'settle', 'middle', 'late', 'finish']);
     expect(phases[0].avg_pace_ms).toBe(120000);
     expect(phases[0].avg_rate).toBe(24);
   });
@@ -196,6 +264,90 @@ describe('analyzeIntervals', () => {
   });
 });
 
+// A recording with warmup/cooldown padding around a scored piece: slow 10m
+// strokes, then the piece at `piecePaceMs`, then slow strokes again. The
+// summary describes only the piece. `gapS` inserts a paddling pause between
+// blocks, the way real device imports arrive.
+function paddedStream({ warmup = 100, piece = 200, cooldown = 100, piecePaceMs = 120000, gapS = 0 } = {}) {
+  const rows = [];
+  let t = 0;
+  let d = 0;
+  let n = 0;
+  const push = (count, paceMs, extra = {}) => {
+    const secPerStroke = (paceMs / 1000) / 50; // 10m per stroke
+    for (let i = 0; i < count; i++) {
+      t += secPerStroke;
+      d += 10;
+      rows.push({
+        stroke_number: n++,
+        time_s: t,
+        distance_m: d,
+        pace_ms: paceMs,
+        stroke_rate: 22,
+        heart_rate: 140,
+        watts: 180,
+        ...extra,
+      });
+    }
+  };
+  push(warmup, 150000);
+  t += gapS;
+  push(piece, piecePaceMs, { stroke_rate: 26, heart_rate: 165, watts: 210 });
+  t += gapS;
+  push(cooldown, 156000, { stroke_rate: 18, heart_rate: 130 });
+  return rows;
+}
+
+describe('locateScoredPiece', () => {
+  const summary = { distance: 2000, time_ms: 480000, workout_type: 'FixedDistanceSplits' };
+
+  it('finds and rebases the scored piece inside a padded recording', () => {
+    const stream = paddedStream();
+    const { strokes: windowed, window } = locateScoredPiece(summary, stream);
+
+    expect(window).not.toBeNull();
+    expect(window.start_distance_m).toBe(1000);
+    expect(window.end_distance_m).toBe(3000);
+    expect(window.stream_distance_m).toBe(3990); // first-to-last stroke span
+    // Rebased to the piece origin so downstream reads see a piece from zero.
+    expect(windowed[0].distance_m).toBe(10);
+    expect(windowed[windowed.length - 1].distance_m).toBe(2000);
+    // The windowed strokes are the fast ones, so pacing reads even, not faded.
+    expect(classifyPacing(windowed).value).toBe('even');
+  });
+
+  it('tolerates paddling pauses between warmup, piece and cooldown', () => {
+    // Real imports pause the clock between blocks; the piece must still be
+    // found without the 30s rests counting into its duration.
+    const stream = paddedStream({ gapS: 30 });
+    const { strokes: windowed, window } = locateScoredPiece(summary, stream);
+
+    expect(window).not.toBeNull();
+    expect(window.start_distance_m).toBe(1000);
+    expect(classifyPacing(windowed).value).toBe('even');
+  });
+
+  it('leaves a reconciled stream untouched', () => {
+    const clean = strokes(200); // 2000m in 400s
+    const result = locateScoredPiece({ distance: 2000, time_ms: 398000 }, clean);
+    expect(result.window).toBeNull();
+    expect(result.strokes).toBe(clean);
+  });
+
+  it('refuses to invent a window when no stretch matches the summary time', () => {
+    // Piece rowed far slower than the summary claims: nothing matches.
+    const stream = paddedStream({ piecePaceMs: 140000 });
+    const result = locateScoredPiece(summary, stream);
+    expect(result.window).toBeNull();
+    expect(result.strokes).toBe(stream);
+  });
+
+  it('does nothing without a usable summary target', () => {
+    expect(locateScoredPiece({ distance: 0, time_ms: 480000 }, paddedStream()).window).toBeNull();
+    expect(locateScoredPiece({ distance: 2000, time_ms: 0 }, paddedStream()).window).toBeNull();
+  });
+});
+
 describe('buildWorkoutAnalysis', () => {
   it('builds a versioned continuous analysis with phases, no interval block', () => {
     const analysis = buildWorkoutAnalysis({
@@ -213,7 +365,69 @@ describe('buildWorkoutAnalysis', () => {
     expect(analysis.execution.rate.discipline_pct).toBe(94);
     expect(analysis.execution.hr_drift.value).toBe('moderate');
     expect(analysis.phases).toHaveLength(5);
+    // Phases carry the absolute range they were sliced from.
+    expect(analysis.phases[0].start_m).toBe(0);
+    expect(analysis.phases[4].end_m).toBe(990);
     expect(analysis.intervals).toBeNull();
+  });
+
+  it('judges data quality on the full stream while reads use the window', () => {
+    const stream = paddedStream();
+    const summary = {
+      distance: 2000,
+      time_ms: 480000,
+      heart_rate_avg: 165,
+      workout_type: 'FixedDistanceSplits',
+    };
+    const { strokes: windowed, window } = locateScoredPiece(summary, stream);
+
+    const analysis = buildWorkoutAnalysis({
+      workout: summary,
+      strokes: windowed,
+      structure: { value: 'continuous', subtype: 'fixed_distance', confidence: 1, reasons: [] },
+      fullStrokes: stream,
+      analysisWindow: window,
+    });
+
+    expect(analysis.analysis_window).toBe(window);
+    // Reconciliation still sees the padded recording, so it keeps flagging
+    // that the summary describes less than the stream.
+    expect(analysis.data_quality.reconciled).toBe(false);
+    // The summary does reconcile with the selected piece, which lets clients
+    // explain the padding without suppressing unrelated quality failures.
+    expect(analysis.data_quality.scored_piece).toEqual({ reconciled: true, issues: [] });
+    // But the reads describe the piece: even pacing, phases spanning 2,000m.
+    expect(analysis.execution.pacing.value).toBe('even');
+    expect(analysis.phases[0].start_m).toBe(0);
+    expect(analysis.phases[4].end_m).toBe(2000);
+  });
+
+  it('retains summary errors that remain inside a located scored piece', () => {
+    const stream = paddedStream();
+    const summary = {
+      distance: 2000,
+      time_ms: 480000,
+      heart_rate_avg: 120,
+      workout_type: 'FixedDistanceSplits',
+    };
+    const { strokes: windowed, window } = locateScoredPiece(summary, stream);
+
+    const analysis = buildWorkoutAnalysis({
+      workout: summary,
+      strokes: windowed,
+      structure: { value: 'continuous', subtype: 'fixed_distance', confidence: 1, reasons: [] },
+      fullStrokes: stream,
+      analysisWindow: window,
+    });
+
+    expect(analysis.data_quality.scored_piece.reconciled).toBe(false);
+    expect(analysis.data_quality.scored_piece.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ field: 'heart_rate_avg' }),
+    ]));
+  });
+
+  it('uses analysis schema version 8', () => {
+    expect(ANALYSIS_VERSION).toBe(8);
   });
 
   it('builds an interval analysis with no pacing/phases', () => {
