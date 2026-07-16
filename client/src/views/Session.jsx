@@ -372,8 +372,12 @@ export default function Session() {
   const strokeData = useMemo(() => buildStrokeSeries(workout?.strokes), [workout?.strokes]);
   const splitRows = useMemo(() => buildSplitRows(workout), [workout]);
   const phaseBoundaries = useMemo(
-    () => buildPhaseBoundaryDistances(workout?.analysis?.phases, workout?.distance),
-    [workout?.analysis?.phases, workout?.distance]
+    () => buildPhaseBoundaryDistances(
+      workout?.analysis?.phases,
+      workout?.distance,
+      workout?.analysis?.analysis_window
+    ),
+    [workout?.analysis?.phases, workout?.distance, workout?.analysis?.analysis_window]
   );
   const maxStrokeDistance = strokeData.length ? Math.max(...strokeData.map(p => p.distance)) : 0;
   const distanceTicks = useMemo(
@@ -1201,8 +1205,26 @@ function rollingMedianRate(strokes, index, windowSize) {
     : (values[middle - 1] + values[middle]) / 2;
 }
 
-function buildPhaseBoundaryDistances(phases, distance) {
-  if (!Array.isArray(phases) || phases.length === 0 || !(Number(distance) > 0)) return [];
+function buildPhaseBoundaryDistances(phases, distance, analysisWindow) {
+  if (!Array.isArray(phases) || phases.length === 0) return [];
+
+  // Phases describe the scored piece; the charts plot the whole recording.
+  // When the analysis windowed the stream, shift boundaries to where the
+  // piece actually sits in the recording.
+  const offset = Number(analysisWindow?.start_distance_m) > 0
+    ? Number(analysisWindow.start_distance_m)
+    : 0;
+
+  // Absolute phase ranges (analysis v6+): every interior phase start.
+  const absolute = phases
+    .map(phase => Number(phase?.start_m))
+    .filter(start => Number.isFinite(start) && start > 0);
+  if (absolute.length > 0) {
+    return [...new Set(absolute.map(start => Math.round(offset + start)))].sort((a, b) => a - b);
+  }
+
+  // Percentage fallback for older cached analyses (never windowed).
+  if (!(Number(distance) > 0)) return [];
   const percentages = new Set();
   for (const phase of phases) {
     for (const value of [phase?.start_pct, phase?.end_pct]) {

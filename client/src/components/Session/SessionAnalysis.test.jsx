@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import SessionAnalysis, { compactReadLabel, firstSentence } from './SessionAnalysis.jsx';
+import SessionAnalysis, { compactReadLabel, dataQualityNotice } from './SessionAnalysis.jsx';
 
 const cardStyles = {
   card: 'card',
@@ -8,19 +8,8 @@ const cardStyles = {
   cardTitle: 'cardTitle',
 };
 
-describe('firstSentence', () => {
-  it('keeps decimal readings intact while removing later sentences', () => {
-    expect(firstSentence('Rate averaged 23.3 spm. Pace rose later.'))
-      .toBe('Rate averaged 23.3 spm.');
-  });
-
-  it('keeps a summary without terminal punctuation', () => {
-    expect(firstSentence('A single concise observation')).toBe('A single concise observation');
-  });
-});
-
 describe('SessionAnalysis compact view', () => {
-  it('renders only the four-line coaching summary and ignores plan-review detail', () => {
+  it('renders the full coaching summary and ignores plan-review detail', () => {
     const markup = renderToStaticMarkup(
       <SessionAnalysis
         cardStyles={cardStyles}
@@ -36,10 +25,7 @@ describe('SessionAnalysis compact view', () => {
           },
         }}
         analysis={{
-          data_quality: {
-            reconciled: false,
-            issues: [{ field: 'distance', message: 'Distance does not reconcile.' }],
-          },
+          data_quality: { reconciled: true, issues: [] },
           execution: {
             intensity: { value: 'hard', estimated: true, confidence: 0.9, basis: 'Mostly upper zones.' },
             pacing: { value: 'variable', confidence: 0.9, basis: 'Pace varied.' },
@@ -51,8 +37,8 @@ describe('SessionAnalysis compact view', () => {
 
     expect(markup).toContain('Controlled opening');
     expect(markup).toContain('aria-label="Purpose: Steady"');
-    expect(markup).toContain('The opening held steady.');
-    expect(markup).not.toContain('Rate rose in the final phase.');
+    // The server owns summary length now; the client renders it verbatim.
+    expect(markup).toContain('The opening held steady. Rate rose in the final phase.');
     expect(markup).toContain('Next time:');
     expect(markup).toContain('Effort: likely hard · Pacing: variable · Rate: variable');
     expect(markup.indexOf('Effort: likely hard')).toBeLessThan(markup.indexOf('Next time:'));
@@ -61,6 +47,68 @@ describe('SessionAnalysis compact view', () => {
     expect(markup).not.toContain('Steady aerobic distance.');
     expect(markup).not.toContain('Data quality');
   });
+
+  it('shows a single caution line when the summary does not reconcile', () => {
+    const markup = renderToStaticMarkup(
+      <SessionAnalysis
+        cardStyles={cardStyles}
+        narrative={{ headline: 'Session complete', summary: 'A row.', intent: null }}
+        analysis={{
+          data_quality: {
+            reconciled: false,
+            issues: [{ field: 'time_ms', message: 'Durations differ.' }],
+          },
+          execution: {},
+        }}
+      />,
+    );
+
+    expect(markup).toContain('do not fully reconcile');
+    // The per-field detail stays out of the card.
+    expect(markup).not.toContain('Durations differ.');
+  });
+
+  it('describes the analysis window instead of a caution when the piece was located', () => {
+    const markup = renderToStaticMarkup(
+      <SessionAnalysis
+        cardStyles={cardStyles}
+        narrative={{ headline: 'Even from start to finish', summary: 'A row.', intent: 'steady' }}
+        analysis={{
+          data_quality: { reconciled: false, issues: [{ field: 'time_ms', message: 'Durations differ.' }] },
+          analysis_window: {
+            start_distance_m: 1000,
+            end_distance_m: 3000,
+            stream_distance_m: 4000,
+          },
+          execution: {},
+        }}
+      />,
+    );
+
+    expect(markup).toContain('reads the 2,000m stretch');
+    expect(markup).not.toContain('do not fully reconcile');
+  });
+
+  it('lets the user change a resolved purpose from the tag', () => {
+    const markup = renderToStaticMarkup(
+      <SessionAnalysis
+        cardStyles={cardStyles}
+        narrative={{ headline: 'Session complete', summary: 'A row.', intent: 'steady', needs_intent: false }}
+        onIntentChange={() => {}}
+        analysis={{ data_quality: { reconciled: true, issues: [] }, execution: {} }}
+      />,
+    );
+
+    expect(markup).toContain('Change session purpose');
+    expect(markup).toContain('<button');
+  });
+});
+
+describe('dataQualityNotice', () => {
+  it('is quiet for reconciled sessions', () => {
+    expect(dataQualityNotice({ data_quality: { reconciled: true, issues: [] } })).toBeNull();
+    expect(dataQualityNotice(null)).toBeNull();
+  });
 });
 
 describe('compactReadLabel', () => {
@@ -68,7 +116,10 @@ describe('compactReadLabel', () => {
     expect(compactReadLabel('intensity', { value: 'hard', estimated: true })).toBe('Effort: likely hard');
     expect(compactReadLabel('pacing', { value: 'variable', shape: { late_fade: true } }))
       .toBe('Pacing: variable');
-    expect(compactReadLabel('rate', { value: 'stable_avg_variable_stroke' })).toBe('Rate: variable');
-    expect(compactReadLabel('hr_drift', { value: 'low', drift_percent: 2.1 })).toBe('HR drift: low');
+    expect(compactReadLabel('rate', { value: 'stable_avg_variable_stroke' }))
+      .toBe('Rate: variable stroke-to-stroke');
+    expect(compactReadLabel('hr_drift', { value: 'low', drift_percent: 2.1 }))
+      .toBe('HR drift: low (+2.1%)');
+    expect(compactReadLabel('hr_drift', { value: 'moderate' })).toBe('HR drift: moderate');
   });
 });

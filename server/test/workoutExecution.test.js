@@ -9,6 +9,7 @@ import {
   computePhases,
   analyzeIntervals,
   buildWorkoutAnalysis,
+  locateScoredPiece,
   ANALYSIS_VERSION,
 } from '../src/workoutExecution.js';
 
@@ -263,6 +264,76 @@ describe('analyzeIntervals', () => {
   });
 });
 
+// A recording with warmup/cooldown padding around a scored piece: slow 10m
+// strokes, then the piece at `piecePaceMs`, then slow strokes again. The
+// summary describes only the piece.
+function paddedStream({ warmup = 100, piece = 200, cooldown = 100, piecePaceMs = 120000 } = {}) {
+  const rows = [];
+  let t = 0;
+  let d = 0;
+  let n = 0;
+  const push = (count, paceMs, extra = {}) => {
+    const secPerStroke = (paceMs / 1000) / 50; // 10m per stroke
+    for (let i = 0; i < count; i++) {
+      t += secPerStroke;
+      d += 10;
+      rows.push({
+        stroke_number: n++,
+        time_s: t,
+        distance_m: d,
+        pace_ms: paceMs,
+        stroke_rate: 22,
+        heart_rate: 140,
+        watts: 180,
+        ...extra,
+      });
+    }
+  };
+  push(warmup, 150000);
+  push(piece, piecePaceMs, { stroke_rate: 26, heart_rate: 165, watts: 210 });
+  push(cooldown, 156000, { stroke_rate: 18, heart_rate: 130 });
+  return rows;
+}
+
+describe('locateScoredPiece', () => {
+  const summary = { distance: 2000, time_ms: 480000, workout_type: 'FixedDistanceSplits' };
+
+  it('finds and rebases the scored piece inside a padded recording', () => {
+    const stream = paddedStream();
+    const { strokes: windowed, window } = locateScoredPiece(summary, stream);
+
+    expect(window).not.toBeNull();
+    expect(window.start_distance_m).toBe(1000);
+    expect(window.end_distance_m).toBe(3000);
+    expect(window.stream_distance_m).toBe(3990); // first-to-last stroke span
+    // Rebased to the piece origin so downstream reads see a piece from zero.
+    expect(windowed[0].distance_m).toBe(10);
+    expect(windowed[windowed.length - 1].distance_m).toBe(2000);
+    // The windowed strokes are the fast ones, so pacing reads even, not faded.
+    expect(classifyPacing(windowed).value).toBe('even');
+  });
+
+  it('leaves a reconciled stream untouched', () => {
+    const clean = strokes(200); // 2000m in 400s
+    const result = locateScoredPiece({ distance: 2000, time_ms: 398000 }, clean);
+    expect(result.window).toBeNull();
+    expect(result.strokes).toBe(clean);
+  });
+
+  it('refuses to invent a window when no stretch matches the summary time', () => {
+    // Piece rowed far slower than the summary claims: nothing matches.
+    const stream = paddedStream({ piecePaceMs: 140000 });
+    const result = locateScoredPiece(summary, stream);
+    expect(result.window).toBeNull();
+    expect(result.strokes).toBe(stream);
+  });
+
+  it('does nothing without a usable summary target', () => {
+    expect(locateScoredPiece({ distance: 0, time_ms: 480000 }, paddedStream()).window).toBeNull();
+    expect(locateScoredPiece({ distance: 2000, time_ms: 0 }, paddedStream()).window).toBeNull();
+  });
+});
+
 describe('buildWorkoutAnalysis', () => {
   it('builds a versioned continuous analysis with phases, no interval block', () => {
     const analysis = buildWorkoutAnalysis({
@@ -280,11 +351,42 @@ describe('buildWorkoutAnalysis', () => {
     expect(analysis.execution.rate.discipline_pct).toBe(94);
     expect(analysis.execution.hr_drift.value).toBe('moderate');
     expect(analysis.phases).toHaveLength(5);
+    // Phases carry the absolute range they were sliced from.
+    expect(analysis.phases[0].start_m).toBe(0);
+    expect(analysis.phases[4].end_m).toBe(990);
     expect(analysis.intervals).toBeNull();
   });
 
-  it('uses analysis schema version 5', () => {
-    expect(ANALYSIS_VERSION).toBe(5);
+  it('judges data quality on the full stream while reads use the window', () => {
+    const stream = paddedStream();
+    const summary = {
+      distance: 2000,
+      time_ms: 480000,
+      heart_rate_avg: 165,
+      workout_type: 'FixedDistanceSplits',
+    };
+    const { strokes: windowed, window } = locateScoredPiece(summary, stream);
+
+    const analysis = buildWorkoutAnalysis({
+      workout: summary,
+      strokes: windowed,
+      structure: { value: 'continuous', subtype: 'fixed_distance', confidence: 1, reasons: [] },
+      fullStrokes: stream,
+      analysisWindow: window,
+    });
+
+    expect(analysis.analysis_window).toBe(window);
+    // Reconciliation still sees the padded recording, so it keeps flagging
+    // that the summary describes less than the stream.
+    expect(analysis.data_quality.reconciled).toBe(false);
+    // But the reads describe the piece: even pacing, phases spanning 2,000m.
+    expect(analysis.execution.pacing.value).toBe('even');
+    expect(analysis.phases[0].start_m).toBe(0);
+    expect(analysis.phases[4].end_m).toBe(2000);
+  });
+
+  it('uses analysis schema version 6', () => {
+    expect(ANALYSIS_VERSION).toBe(6);
   });
 
   it('builds an interval analysis with no pacing/phases', () => {

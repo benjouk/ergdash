@@ -17,7 +17,9 @@ import { wattsFromPace } from './strokeMetrics.js';
 // v4: added data_quality (summary vs stroke-stream reconciliation).
 // v5: added phase-based pacing shape, two-level rate stability, explicit
 // HR-drift values, and estimated-zone metadata.
-export const ANALYSIS_VERSION = 5;
+// v6: reads run on the scored piece when the stroke stream carries
+// warmup/cooldown padding around it; phases carry absolute ranges.
+export const ANALYSIS_VERSION = 6;
 
 // --- thresholds (named so behaviour is easy to tune) -------------------------
 const MIN_PACING_STROKES = 8;
@@ -57,6 +59,13 @@ const MIN_QUALITY_STROKES = 20;
 const HR_MISMATCH_BPM = 3; // summary avg HR vs stroke-derived avg HR
 const DURATION_MISMATCH_PCT = 1; // % of the summary duration
 const DURATION_MISMATCH_MIN_S = 5; // floor so short pieces don't trip on rounding
+
+// Scored-piece windowing: when the stroke stream clearly overshoots the
+// summary (the warmup/cooldown-padding signature), the reads run on the
+// contiguous stretch that matches the summary instead of the whole recording.
+const WINDOW_DISTANCE_OVERSHOOT = 1.05; // stream must exceed summary distance by 5%
+const WINDOW_MATCH_PCT = 3; // window duration must land within 3% of the summary
+const WINDOW_MATCH_MIN_S = 10; // absolute floor for that match tolerance
 
 // Observed intensity by pace vs the athlete's own best at this distance
 // (pacePct = best / this, ≤ 1; closer to 1 = harder). Bands are intentionally
@@ -402,6 +411,77 @@ export function classifyIntensity({ workout, benchmarkPaceMs, zoneShares, zonesE
   });
 }
 
+// Finds the scored piece inside a stroke stream that carries extra recording
+// around it (warmup/cooldown padding is the common Concept2 shape: summary
+// says 2,000m / 7:00 while the stream spans 4,000m / 17:00). Looks for the
+// contiguous stretch covering the summary distance whose duration best
+// matches the summary time; only trims when the stream clearly overshoots the
+// summary AND a stretch matches it closely, so a genuinely mismatched summary
+// is never "fixed" by inventing a window. Returns { strokes, window } where
+// window is null when no trimming happened.
+export function locateScoredPiece(workout, strokes = []) {
+  const noWindow = { strokes, window: null };
+  const targetDistance = workout?.distance;
+  const targetDurationS = workout?.time_ms > 0 ? workout.time_ms / 1000 : null;
+  if (!(targetDistance > 0) || !(targetDurationS > 0)) return noWindow;
+
+  const usable = strokes.filter(s => s?.distance_m >= 0 && s?.time_s >= 0);
+  if (usable.length < MIN_QUALITY_STROKES) return noWindow;
+
+  const streamDistance = usable[usable.length - 1].distance_m - usable[0].distance_m;
+  const streamDurationS = usable[usable.length - 1].time_s - usable[0].time_s;
+  const durationTolerance = Math.max(DURATION_MISMATCH_MIN_S, targetDurationS * (DURATION_MISMATCH_PCT / 100));
+  if (streamDistance < targetDistance * WINDOW_DISTANCE_OVERSHOOT
+    || streamDurationS <= targetDurationS + durationTolerance) {
+    return noWindow;
+  }
+
+  // Two-pointer sweep over [i, j]: the shortest span from stroke i that covers
+  // the summary distance, keeping the span whose duration best matches the
+  // summary time. Assumes distance_m and time_s are cumulative and monotonic.
+  let best = null;
+  let j = 0;
+  for (let i = 0; i < usable.length; i++) {
+    if (j < i) j = i;
+    while (j < usable.length && usable[j].distance_m - usable[i].distance_m < targetDistance) j++;
+    if (j >= usable.length) break;
+    const durationS = usable[j].time_s - usable[i].time_s;
+    const diff = Math.abs(durationS - targetDurationS);
+    if (!best || diff < best.diff) best = { i, j, diff, durationS };
+  }
+
+  const acceptS = Math.max(WINDOW_MATCH_MIN_S, targetDurationS * (WINDOW_MATCH_PCT / 100));
+  if (!best || best.diff > acceptS) return noWindow;
+
+  // Stroke i marks the state at the piece boundary; strokes i+1..j were rowed
+  // inside the piece, so those are the ones the reads should see. Rebase their
+  // clocks/odometers to the piece origin so every downstream consumer treats
+  // the window as a piece starting from zero.
+  const originD = usable[best.i].distance_m;
+  const originT = usable[best.i].time_s;
+  const windowStrokes = usable.slice(best.i + 1, best.j + 1).map(s => ({
+    ...s,
+    distance_m: s.distance_m - originD,
+    time_s: s.time_s - originT,
+  }));
+  if (windowStrokes.length < MIN_QUALITY_STROKES) return noWindow;
+
+  return {
+    strokes: windowStrokes,
+    window: {
+      start_distance_m: Math.round(usable[best.i].distance_m),
+      end_distance_m: Math.round(usable[best.j].distance_m),
+      start_time_s: round(usable[best.i].time_s, 0),
+      end_time_s: round(usable[best.j].time_s, 0),
+      stroke_count: windowStrokes.length,
+      total_stroke_count: strokes.length,
+      stream_distance_m: Math.round(streamDistance),
+      stream_duration_s: round(streamDurationS, 0),
+      basis: `The recording spans ${Math.round(streamDistance).toLocaleString('en-GB')}m; the reads use the ${Math.round(targetDistance).toLocaleString('en-GB')}m stretch that matches the session summary.`,
+    },
+  };
+}
+
 // Reconciliation: does the workout's own summary (headline duration, average
 // HR) agree with what its stroke stream implies? Real devices compute both
 // from the same recording, so a real disagreement usually means the summary
@@ -471,10 +551,16 @@ export function computePhases(workout, strokes = []) {
     });
     const rate = mean(seg.map(s => s?.stroke_rate).filter(r => r > 0));
     const watts = mean(seg.map(s => strokeWatts(s)).filter(w => w > 0));
+    // Absolute range of the phase in the sliced axis, so the client never has
+    // to reconstruct it from percentages and a possibly-different total.
+    const range = byTime
+      ? { start_s: Math.round(lo), end_s: Math.round(hi) }
+      : { start_m: Math.round(lo), end_m: Math.round(hi) };
     return {
       name,
       start_pct: Math.round(start * 100),
       end_pct: Math.round(end * 100),
+      ...range,
       avg_pace_ms: round(mean(seg.map(s => s?.pace_ms).filter(p => p > 0)), 0),
       avg_power: round(watts, 0),
       avg_rate: round(rate),
@@ -536,6 +622,10 @@ export function buildWorkoutAnalysis({
   zoneShares = null,
   zonesEstimated = false,
   hrDriftPct = null,
+  // The untrimmed stream, when `strokes` was windowed to the scored piece.
+  // Reconciliation always judges the summary against the full recording.
+  fullStrokes = null,
+  analysisWindow = null,
 }) {
   const isInterval = structure?.value === 'interval';
   const phases = isInterval ? [] : computePhases(workout, strokes);
@@ -563,7 +653,8 @@ export function buildWorkoutAnalysis({
       }
       : null,
     execution,
-    data_quality: assessDataQuality(workout, strokes, { isInterval }),
+    data_quality: assessDataQuality(workout, fullStrokes ?? strokes, { isInterval }),
+    analysis_window: analysisWindow,
     phases,
     intervals: isInterval ? analyzeIntervals(intervals) : null,
   };

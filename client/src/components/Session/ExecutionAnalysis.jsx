@@ -90,6 +90,15 @@ function phaseName(name) {
 }
 
 function phaseRange(phase, workout, formatTime) {
+  // Prefer the absolute range the server sliced with (analysis v6+); the
+  // percentage fallback covers older cached analyses.
+  if (Number.isFinite(Number(phase?.start_m)) && Number.isFinite(Number(phase?.end_m))) {
+    return `${Number(phase.start_m).toLocaleString()}–${Number(phase.end_m).toLocaleString()}m`;
+  }
+  if (Number.isFinite(Number(phase?.start_s)) && Number.isFinite(Number(phase?.end_s))) {
+    return `${formatRangeTime(Number(phase.start_s) * 1000, formatTime)}–${formatRangeTime(Number(phase.end_s) * 1000, formatTime)}`;
+  }
+
   const startPct = Number(phase?.start_pct);
   const endPct = Number(phase?.end_pct);
   if (!Number.isFinite(startPct) || !Number.isFinite(endPct)) return '--';

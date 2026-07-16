@@ -18,6 +18,10 @@ const COMPARABLE_PACE_GAP_MS = 3000;
 const TYPICAL_HR_GAP_BPM = 4;
 const PHASE_PACE_EVEN_PCT = 1;
 const HIGH_HR_DRIFT_PCT = 10;
+const NOTABLE_HR_DRIFT_PCT = 5;
+// Beyond this, an opening-vs-middle pace gap is session structure (warmup,
+// stops, padding), not a pacing choice, so the prose stays quiet about it.
+const OPENING_STRUCTURE_CAP_PCT = 12;
 
 export function isWorkoutIntent(value) {
   return WORKOUT_INTENT_SET.has(value);
@@ -133,8 +137,29 @@ function continuousHeadline(workout, context) {
     : 'Session complete';
 }
 
+// At most two sentences: the pacing story, then the single most useful
+// supporting read (notable drift beats vs-typical beats rate). The client
+// renders this verbatim, so length is controlled here, not by truncation.
 function continuousSummary(workout, context, baseline) {
   const sentences = [];
+  const story = pacingStory(context) ?? describeSessionOverview(workout);
+  if (story) sentences.push(story);
+
+  const drift = context.hrDriftPct;
+  const supporting = (drift != null && Math.abs(drift) >= NOTABLE_HR_DRIFT_PCT ? describeDrift(drift) : null)
+    ?? describeAgainstTypical(workout, baseline)[0]
+    ?? describeRate(workout, context.rate);
+  if (supporting) sentences.push(supporting);
+
+  if (sentences.length === 0) return fallbackWorkoutSummary(workout);
+  return sentences.join(' ');
+}
+
+// One sentence combining the opening, core and finish reads, e.g. "The opening
+// was 1.8 s/500m quicker than the middle, pace held even through the core, and
+// the finish accelerated."
+function pacingStory(context) {
+  const clauses = [];
   const start = findPhase(context.phases, 'start');
   const middle = findPhase(context.phases, 'middle');
   const startPace = positiveNumber(start?.avg_pace_ms);
@@ -142,30 +167,44 @@ function continuousSummary(workout, context, baseline) {
 
   if (startPace && middlePace) {
     const difference = startPace - middlePace;
-    const gapSeconds = Math.abs(difference) / 1000;
-    if (Math.abs(difference) <= middlePace * (PHASE_PACE_EVEN_PCT / 100)) {
-      sentences.push('The opening matched the middle pace.');
-    } else {
-      sentences.push(`The opening was ${gapSeconds.toFixed(1)} s/500m ${difference < 0 ? 'faster' : 'slower'} than the middle.`);
+    const gapPct = (Math.abs(difference) / middlePace) * 100;
+    if (gapPct > PHASE_PACE_EVEN_PCT && gapPct <= OPENING_STRUCTURE_CAP_PCT) {
+      clauses.push(`the opening was ${(Math.abs(difference) / 1000).toFixed(1)} s/500m ${difference < 0 ? 'quicker' : 'slower'} than the middle`);
     }
   }
 
-  const coreSentence = describeCore(context);
-  if (coreSentence) sentences.push(coreSentence);
-  const finishSentence = describeFinish(context);
-  if (finishSentence) sentences.push(finishSentence);
-  if (sentences.length === 0) {
-    const overview = describeSessionOverview(workout);
-    if (overview) sentences.push(overview);
-  }
-  const rateSentence = describeRate(workout, context.rate);
-  if (rateSentence) sentences.push(rateSentence);
-  const driftSentence = describeDrift(context.hrDriftPct);
-  if (driftSentence) sentences.push(driftSentence);
-  sentences.push(...describeAgainstTypical(workout, baseline));
+  const core = coreClause(context);
+  if (core) clauses.push(core);
+  const finish = finishClause(context);
+  if (finish) clauses.push(finish);
 
-  if (sentences.length === 0) return fallbackWorkoutSummary(workout);
-  return sentences.join(' ');
+  return sentenceFromClauses(clauses);
+}
+
+function coreClause(context) {
+  const pacing = context.pacing?.value;
+  if (context.shape.late_fade) return 'pace faded through the late stages';
+  if (context.shape.even_core || pacing === 'even') return 'pace held even through the core';
+  if (pacing === 'negative_split') return 'pace built through the second half';
+  if (pacing === 'mild_fade') return 'pace eased slightly through the back half';
+  if (pacing === 'significant_fade') return 'pace faded through the back half';
+  if (pacing === 'variable') return 'pace varied through the middle';
+  return null;
+}
+
+function finishClause(context) {
+  const finish = context.finish?.value;
+  if (context.shape.fast_finish || finish === 'accelerated') return 'the finish accelerated';
+  if (finish === 'faded') return 'the finish eased';
+  return null;
+}
+
+function sentenceFromClauses(clauses) {
+  if (clauses.length === 0) return null;
+  const joined = clauses.length === 1
+    ? clauses[0]
+    : `${clauses.slice(0, -1).join(', ')}, and ${clauses[clauses.length - 1]}`;
+  return `${joined.charAt(0).toUpperCase()}${joined.slice(1)}.`;
 }
 
 function intervalHeadline(workout, context) {
@@ -199,42 +238,27 @@ function intervalSummary(workout, context, baseline) {
   const fastestPace = positiveNumber(intervals.fastest_pace_ms);
   const finalPace = positiveNumber(intervals.final_rep_pace_ms);
 
-  if (repCount && spread != null) {
+  // Same two-sentence budget as continuous pieces: the set story, then the
+  // single most useful supporting read.
+  if (repCount && spread != null && fastestIndex != null && fastestPace) {
+    sentences.push(`Across ${repCount} work reps the pace spread was ${formatAbsPercent(spread)}, with rep ${fastestIndex + 1} fastest at ${formatPace(fastestPace)}/500m.`);
+  } else if (repCount && spread != null) {
     sentences.push(`Across ${repCount} work reps, the fastest-to-slowest pace spread was ${formatAbsPercent(spread)}.`);
+  } else if (fastestIndex != null && fastestPace) {
+    sentences.push(`Rep ${fastestIndex + 1} was fastest at ${formatPace(fastestPace)}/500m.`);
   } else if (repCount) {
     sentences.push(`The session contained ${repCount} work reps.`);
   }
-  if (fastestIndex != null && fastestPace) {
-    sentences.push(`Rep ${fastestIndex + 1} was fastest at ${formatPace(fastestPace)}/500m.`);
-  }
-  if (finalPace && fastestPace && finalPace !== fastestPace) {
-    sentences.push(`The final rep averaged ${formatPace(finalPace)}/500m.`);
-  }
-  const rateSentence = describeRate(workout, context.rate);
-  if (rateSentence) sentences.push(rateSentence);
-  sentences.push(...describeAgainstTypical(workout, baseline));
+
+  const supporting = (finalPace && fastestPace && finalPace !== fastestPace
+    ? `The final rep averaged ${formatPace(finalPace)}/500m.`
+    : null)
+    ?? describeAgainstTypical(workout, baseline)[0]
+    ?? describeRate(workout, context.rate);
+  if (supporting) sentences.push(supporting);
 
   if (sentences.length === 0) return fallbackWorkoutSummary(workout);
   return sentences.join(' ');
-}
-
-function describeCore(context) {
-  const pacing = context.pacing?.value;
-  if (context.shape.late_fade) return 'Pace then faded through the late phase.';
-  if (context.shape.even_core || pacing === 'even') return 'Pace stayed even through the core of the piece.';
-  if (pacing === 'negative_split') return 'Pace built through the second half.';
-  if (pacing === 'mild_fade') return 'Pace eased slightly through the back half.';
-  if (pacing === 'significant_fade') return 'Pace faded through the back half.';
-  if (pacing === 'variable') return 'Pace varied through the middle of the piece.';
-  return null;
-}
-
-function describeFinish(context) {
-  const finish = context.finish?.value;
-  if (context.shape.fast_finish || finish === 'accelerated') return 'The final stretch accelerated.';
-  if (finish === 'faded') return 'The final stretch eased.';
-  if (finish === 'even') return 'The final stretch held pace.';
-  return null;
 }
 
 function describeRate(workout, rate) {
@@ -301,8 +325,11 @@ function recommendationFor(intent, context, plan) {
   }
 
   if (intent === 'steady') {
-    if (fastStart || faded) {
+    if (fastStart) {
       return `For steady work, make the opening slightly slower and settle into a smooth rhythm${rhythm}.`;
+    }
+    if (faded) {
+      return `For steady work, ease the middle pressure a touch so the pace holds all the way through${rhythm}.`;
     }
     if (rateVariable) {
       return `For steady work, keep the pace controlled and reduce stroke-to-stroke rate variation${rhythm}.`;
@@ -317,8 +344,11 @@ function recommendationFor(intent, context, plan) {
   }
 
   if (intent === 'hard_distance') {
-    if (fastStart || faded) {
+    if (fastStart) {
       return 'For the next hard-distance row, hold back slightly in the opening so you can sustain pace through the back half.';
+    }
+    if (faded) {
+      return 'The fade suggests the middle sat above sustainable pace, so settle a touch slower after the opening next time.';
     }
     if (strongFinish) {
       return 'This was controlled for a hard-distance effort, so next time bring the middle pace up slightly while preserving the finish.';
@@ -330,8 +360,11 @@ function recommendationFor(intent, context, plan) {
   }
 
   if (intent === 'test_race') {
-    if (fastStart || faded) {
+    if (fastStart) {
       return 'For the next test or race, open slightly slower and protect the target pace through the final quarter.';
+    }
+    if (faded) {
+      return 'For the next test or race, set a slightly more conservative target pace and protect it through the final quarter.';
     }
     if (strongFinish) {
       return 'You finished with capacity in hand, so next time begin the final drive a little earlier.';
@@ -367,14 +400,18 @@ function recommendationForIntervals(intent, context, rhythm, rateVariable) {
   const spread = finiteNumber(intervals.spread_percent);
   const repCount = positiveNumber(intervals.rep_count);
   const fastestIndex = finiteNumber(intervals.fastest_rep_index);
-  const faded = intervals.first_rep_fast || (degradation != null && degradation > 1);
+  const wentOutHard = Boolean(intervals.first_rep_fast);
+  const fadedAcross = degradation != null && degradation > 1;
   const built = degradation != null && degradation < -1;
   const evenSet = spread != null && spread <= 2;
   const finishedFastest = repCount != null && fastestIndex === repCount - 1;
 
   if (intent === 'steady') {
-    if (faded) {
+    if (wentOutHard) {
       return `For steady interval work, open the first rep more conservatively and aim for even pace across the set${rhythm}.`;
+    }
+    if (fadedAcross) {
+      return `For steady interval work, target a rep pace you can repeat to the end of the set${rhythm}.`;
     }
     if (rateVariable) {
       return `For steady interval work, keep rep pace controlled and smooth the stroke-to-stroke rate${rhythm}.`;
@@ -383,8 +420,11 @@ function recommendationForIntervals(intent, context, rhythm, rateVariable) {
   }
 
   if (intent === 'hard_distance') {
-    if (faded) {
+    if (wentOutHard) {
       return 'For the next hard interval set, hold back on the first rep and protect pace through the final reps.';
+    }
+    if (fadedAcross) {
+      return 'The set faded rep to rep, so start the next hard set at a pace the final reps can hold.';
     }
     if (built || finishedFastest) {
       return 'You finished the set strongly, so next time bring the early reps slightly closer to that sustainable pace.';
@@ -396,8 +436,11 @@ function recommendationForIntervals(intent, context, rhythm, rateVariable) {
   }
 
   if (intent === 'test_race') {
-    if (faded) {
+    if (wentOutHard) {
       return 'For the next race-specific set, make the first rep more conservative and protect target pace through the finish.';
+    }
+    if (fadedAcross) {
+      return 'For the next race-specific set, pick a rep target the closing reps can hold and commit to it from the start.';
     }
     if (built || finishedFastest) {
       return 'You had pace in hand late in the set, so next time bring the early reps slightly closer to race pace.';

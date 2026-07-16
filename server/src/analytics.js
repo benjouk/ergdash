@@ -11,7 +11,7 @@ import {
 } from './strokeMetrics.js';
 import { getZoneModel, zoneForHr } from './hrZones.js';
 import { isIntervalWorkoutType, isContinuousWorkoutType, workoutSubtype } from './workoutTypes.js';
-import { buildWorkoutAnalysis, ANALYSIS_VERSION } from './workoutExecution.js';
+import { buildWorkoutAnalysis, locateScoredPiece, ANALYSIS_VERSION } from './workoutExecution.js';
 
 export { ANALYSIS_VERSION };
 
@@ -20,7 +20,9 @@ export const BEST_EFFORT_DURATIONS = [60, 240, 600, 1800, 3600];
 // Bump whenever computed_metrics gains columns or an algorithm changes;
 // computeAllMetrics() recomputes any row written with an older version.
 // v4: aerobic drift excludes the final 5% finishing effort.
-export const METRICS_VERSION = 4;
+// v5: drift/discipline/zone shares read the scored piece when the stroke
+// stream carries warmup/cooldown padding around it.
+export const METRICS_VERSION = 5;
 
 const MIN_DRIFT_DURATION_MS = 15 * 60 * 1000;
 
@@ -95,14 +97,20 @@ export function computeMetricsForWorkout(workoutId) {
   const dps = distancePerStroke(workout, strokes);
   const wpb = wattsPerBeat(strokes);
 
+  // When the stream carries warmup/cooldown padding around the scored piece,
+  // every execution read (drift, discipline, zones, the analysis itself) runs
+  // on the piece; only reconciliation sees the full recording.
+  const scored = isInterval ? { strokes, window: null } : locateScoredPiece(workout, strokes);
+  const analysisStrokes = scored.strokes;
+
   const drift = !isInterval && workout.time_ms >= MIN_DRIFT_DURATION_MS
-    ? hrDrift(strokes)
+    ? hrDrift(analysisStrokes)
     : null;
 
   const tolerance = getRateBandTolerance(db, workout.profile_id);
   const rateSegments = isInterval && intervals.length > 0
     ? segmentStrokesByIntervals(strokes, intervals).workSegments
-    : [strokes];
+    : [analysisStrokes];
   const discipline = rateDiscipline(rateSegments, tolerance);
 
   const recoveries = isInterval ? hrRecoveries(strokes, intervals) : [];
@@ -122,7 +130,7 @@ export function computeMetricsForWorkout(workoutId) {
   const zoneModel = getZoneModel(db, workout.profile_id);
   let zoneShares = null;
   if (zoneModel) {
-    const zt = zoneTimes(strokes, zoneModel.bounds);
+    const zt = zoneTimes(analysisStrokes, zoneModel.bounds);
     if (zt) {
       zoneShares = [1, 2, 3, 4, 5].map(z => zt[z] || 0);
     } else if (workout.heart_rate_avg > 0) {
@@ -133,7 +141,7 @@ export function computeMetricsForWorkout(workoutId) {
 
   const analysis = buildWorkoutAnalysis({
     workout,
-    strokes,
+    strokes: analysisStrokes,
     intervals,
     structure,
     benchmarkPaceMs: benchmark?.best || null,
@@ -141,6 +149,8 @@ export function computeMetricsForWorkout(workoutId) {
     zoneShares,
     zonesEstimated: zoneModel?.estimated ?? false,
     hrDriftPct: drift,
+    fullStrokes: strokes,
+    analysisWindow: scored.window,
   });
 
   const insertRecovery = db.prepare(`

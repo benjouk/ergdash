@@ -95,12 +95,14 @@ describe('buildSessionNarrative', () => {
       intent_source: 'workout',
       needs_intent: false,
     });
-    expect(result.summary).toContain('opening was 3.0 s/500m faster');
-    expect(result.summary).toContain('stable phase averages');
-    expect(result.summary).toContain('stroke-to-stroke variation was 2.2 spm');
+    // Two sentences: the pacing story, then the single most useful supporting
+    // read (notable drift wins over the vs-typical and rate reads here).
+    expect(result.summary).toContain('opening was 3.0 s/500m quicker');
+    expect(result.summary).toContain('pace held even through the core');
+    expect(result.summary).toContain('the finish accelerated');
     expect(result.summary).toContain('declined by 7.8%');
-    expect(result.summary).toContain('2.0 s/500m faster than your typical endurance session');
-    expect(result.summary).toContain('5 bpm lower than usual');
+    expect(result.summary).not.toContain('typical endurance session');
+    expect(result.summary.split('. ').length).toBeLessThanOrEqual(2);
     expect(result.recommendation).toContain('For steady work');
     expect(result.recommendation).toContain('opening slightly slower');
     expect(JSON.stringify(result)).not.toContain('—');
@@ -149,8 +151,7 @@ describe('buildSessionNarrative', () => {
 
     expect(result.headline).toBe('Finished the set with your strongest work');
     expect(result.summary).toContain('Across 5 work reps');
-    expect(result.summary).toContain('Rep 5 was fastest at 1:45.0/500m');
-    expect(result.summary).toContain('Rate averaged 29.2 spm');
+    expect(result.summary).toContain('rep 5 fastest at 1:45.0/500m');
     expect(result.summary).not.toContain('opening');
   });
 

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import ChartInfo from '../Charts/ChartInfo.jsx';
 import { execLabel, showsExecution } from '../../utils/executionLabels.js';
@@ -23,6 +24,7 @@ export default function SessionAnalysis({
   intentSaving = null,
   cardStyles,
 }) {
+  const [intentPickerOpen, setIntentPickerOpen] = useState(false);
   const reads = analysis?.execution
     ? READ_ORDER
       .map(kind => ({
@@ -35,8 +37,10 @@ export default function SessionAnalysis({
   const readLine = reads.map(read => read.label).join(' · ');
   const hasNarrative = narrative != null && typeof narrative === 'object';
   const insights = !hasNarrative && Array.isArray(insight) ? insight : [];
-  const needsIntent = Boolean(hasNarrative && narrative.needs_intent && onIntentChange);
+  const showIntentPicker = Boolean(onIntentChange)
+    && (Boolean(hasNarrative && narrative.needs_intent) || intentPickerOpen);
   const intentLabel = INTENT_OPTIONS.find(option => option.value === narrative?.intent)?.label;
+  const qualityNotice = dataQualityNotice(analysis);
 
   if (reads.length === 0 && insights.length === 0 && !hasNarrative) return null;
 
@@ -46,6 +50,11 @@ export default function SessionAnalysis({
     || narrative.recommendation
     || readLine
   );
+
+  const selectIntent = (value) => {
+    setIntentPickerOpen(false);
+    onIntentChange(value);
+  };
 
   return (
     <div className={cardStyles.card}>
@@ -63,13 +72,25 @@ export default function SessionAnalysis({
             <div className={styles.narrativeHeading}>
               {narrative.headline && <h2 className={styles.headline}>{narrative.headline}</h2>}
               {intentLabel && (
-                <span className={styles.purposeTag} aria-label={`Purpose: ${intentLabel}`}>
-                  {intentLabel}
-                </span>
+                onIntentChange ? (
+                  <button
+                    type="button"
+                    className={`${styles.purposeTag} ${styles.purposeTagButton}`}
+                    aria-label={`Purpose: ${intentLabel}. Change session purpose`}
+                    aria-expanded={showIntentPicker}
+                    onClick={() => setIntentPickerOpen(open => !open)}
+                  >
+                    {intentLabel}
+                  </button>
+                ) : (
+                  <span className={styles.purposeTag} aria-label={`Purpose: ${intentLabel}`}>
+                    {intentLabel}
+                  </span>
+                )
               )}
             </div>
           )}
-          {narrative.summary && <p className={styles.summary}>{firstSentence(narrative.summary)}</p>}
+          {narrative.summary && <p className={styles.summary}>{narrative.summary}</p>}
           {readLine && <p className={styles.readLine}>{readLine}</p>}
           {narrative.recommendation && (
             <p className={styles.recommendation}>
@@ -77,10 +98,15 @@ export default function SessionAnalysis({
               {narrative.recommendation}
             </p>
           )}
+          {qualityNotice && <p className={styles.qualityNotice}>{qualityNotice}</p>}
         </section>
       )}
 
-      {needsIntent && (
+      {!hasCoachingContent && qualityNotice && (
+        <p className={`${styles.qualityNotice} ${styles.qualityNoticeStandalone}`}>{qualityNotice}</p>
+      )}
+
+      {showIntentPicker && (
         <section className={styles.intentPrompt} aria-label="Set session purpose">
           <p>What was the purpose of this row?</p>
           <div className={styles.intentChips} role="group" aria-label="Session purpose">
@@ -90,8 +116,8 @@ export default function SessionAnalysis({
                 key={option.value}
                 className={styles.intentChip}
                 disabled={Boolean(intentSaving)}
-                aria-pressed={narrative.intent === option.value}
-                onClick={() => onIntentChange(option.value)}
+                aria-pressed={narrative?.intent === option.value}
+                onClick={() => selectIntent(option.value)}
               >
                 {intentSaving === option.value ? 'Saving…' : option.label}
               </button>
@@ -115,10 +141,25 @@ export default function SessionAnalysis({
   );
 }
 
-export function firstSentence(value) {
-  const text = String(value ?? '').trim();
-  if (!text) return '';
-  return text.match(/^.*?[.!?](?=\s|$)/)?.[0] ?? text;
+// One quiet line about how trustworthy the reads are. A located scored piece
+// is reassurance (the reads deliberately ignore the padding); an unresolved
+// mismatch is a caution.
+export function dataQualityNotice(analysis) {
+  const window = analysis?.analysis_window;
+  if (window) {
+    const stream = Number(window.stream_distance_m);
+    const start = Number(window.start_distance_m);
+    const end = Number(window.end_distance_m);
+    if (Number.isFinite(stream) && Number.isFinite(start) && Number.isFinite(end)) {
+      return `The recording spans ${stream.toLocaleString()}m around the scored piece; the analysis reads the ${(end - start).toLocaleString()}m stretch that matches the summary.`;
+    }
+    return 'The recording extends beyond the scored piece; the analysis reads the stretch that matches the summary.';
+  }
+  const quality = analysis?.data_quality;
+  if (quality && quality.reconciled === false) {
+    return 'The session summary and stroke data do not fully reconcile, so treat these reads with some caution.';
+  }
+  return null;
 }
 
 export function compactReadLabel(kind, metric) {
@@ -133,10 +174,16 @@ export function compactReadLabel(kind, metric) {
   if (!base) return null;
   if (kind === 'pacing') return `Pacing: ${lowerFirst(base)}`;
   if (kind === 'rate') {
-    const rate = metric.value === 'stable_avg_variable_stroke' ? 'Variable' : base;
+    const rate = metric.value === 'stable_avg_variable_stroke' ? 'Variable stroke-to-stroke' : base;
     return `Rate: ${lowerFirst(rate)}`;
   }
-  if (kind === 'hr_drift') return `HR drift: ${lowerFirst(base)}`;
+  if (kind === 'hr_drift') {
+    const drift = metric.drift_percent == null ? NaN : Number(metric.drift_percent);
+    if (Number.isFinite(drift)) {
+      return `HR drift: ${lowerFirst(base)} (${drift > 0 ? '+' : ''}${drift.toFixed(1)}%)`;
+    }
+    return `HR drift: ${lowerFirst(base)}`;
+  }
   return base;
 }
 

@@ -46,11 +46,36 @@
   white-space: nowrap;
 }
 
+.purposeTagButton {
+  font: inherit;
+  font-size: 0.62rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 120ms ease;
+}
+
+.purposeTagButton:hover,
+.purposeTagButton:focus-visible {
+  border-color: var(--accent);
+}
+
 .summary,
 .recommendation,
-.readLine {
+.readLine,
+.qualityNotice {
   margin: 6px 0 0;
   line-height: 1.4;
+}
+
+.qualityNotice {
+  color: var(--ink-3);
+  font-size: 0.72rem;
+  font-style: italic;
+}
+
+.qualityNoticeStandalone {
+  margin: 0;
+  padding: var(--space-3) var(--space-5);
 }
 
 .summary {
