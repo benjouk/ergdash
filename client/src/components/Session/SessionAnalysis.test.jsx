@@ -54,7 +54,8 @@ describe('SessionAnalysis compact view', () => {
     expect(markup).toContain('The opening held steady.');
     expect(markup).not.toContain('Rate rose in the final phase.');
     expect(markup).toContain('Next time:');
-    expect(markup).toContain('Likely hard · Variable pacing · Variable rate');
+    expect(markup).toContain('Effort: likely hard · Pacing: variable · Rate: variable');
+    expect(markup.indexOf('Effort: likely hard')).toBeLessThan(markup.indexOf('Next time:'));
     expect(markup).not.toContain('<details');
     expect(markup).not.toContain('Distance was 6 km shorter than prescribed.');
     expect(markup).not.toContain('Steady aerobic distance.');
@@ -64,10 +65,10 @@ describe('SessionAnalysis compact view', () => {
 
 describe('compactReadLabel', () => {
   it('produces short, self-describing labels for the muted read line', () => {
-    expect(compactReadLabel('intensity', { value: 'hard', estimated: true })).toBe('Likely hard');
+    expect(compactReadLabel('intensity', { value: 'hard', estimated: true })).toBe('Effort: likely hard');
     expect(compactReadLabel('pacing', { value: 'variable', shape: { late_fade: true } }))
-      .toBe('Variable pacing');
-    expect(compactReadLabel('rate', { value: 'stable_avg_variable_stroke' })).toBe('Variable rate');
-    expect(compactReadLabel('hr_drift', { value: 'low', drift_percent: 2.1 })).toBe('Low HR drift');
+      .toBe('Pacing: variable');
+    expect(compactReadLabel('rate', { value: 'stable_avg_variable_stroke' })).toBe('Rate: variable');
+    expect(compactReadLabel('hr_drift', { value: 'low', drift_percent: 2.1 })).toBe('HR drift: low');
   });
 });

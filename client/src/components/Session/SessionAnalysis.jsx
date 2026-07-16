@@ -70,13 +70,13 @@ export default function SessionAnalysis({
             </div>
           )}
           {narrative.summary && <p className={styles.summary}>{firstSentence(narrative.summary)}</p>}
+          {readLine && <p className={styles.readLine}>{readLine}</p>}
           {narrative.recommendation && (
             <p className={styles.recommendation}>
               <span className={styles.nextTimeLabel}>Next time:</span>
               {narrative.recommendation}
             </p>
           )}
-          {readLine && <p className={styles.readLine}>{readLine}</p>}
         </section>
       )}
 
@@ -124,14 +124,22 @@ export function firstSentence(value) {
 export function compactReadLabel(kind, metric) {
   if (!metric) return null;
 
-  if (kind === 'intensity') return execLabel(kind, metric);
+  if (kind === 'intensity') {
+    const effort = execLabel(kind, metric);
+    return effort ? `Effort: ${lowerFirst(effort)}` : null;
+  }
 
   const base = execLabel(kind, { value: metric.value });
   if (!base) return null;
-  if (kind === 'pacing') return `${base} pacing`;
+  if (kind === 'pacing') return `Pacing: ${lowerFirst(base)}`;
   if (kind === 'rate') {
-    return metric.value === 'stable_avg_variable_stroke' ? 'Variable rate' : `${base} rate`;
+    const rate = metric.value === 'stable_avg_variable_stroke' ? 'Variable' : base;
+    return `Rate: ${lowerFirst(rate)}`;
   }
-  if (kind === 'hr_drift') return `${base} HR drift`;
+  if (kind === 'hr_drift') return `HR drift: ${lowerFirst(base)}`;
   return base;
+}
+
+function lowerFirst(value) {
+  return value.charAt(0).toLowerCase() + value.slice(1);
 }
