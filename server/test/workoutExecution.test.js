@@ -33,7 +33,15 @@ describe('classifyPacing', () => {
   });
 
   it('flags even pacing', () => {
-    expect(classifyPacing(strokes(20)).value).toBe('even');
+    const result = classifyPacing(strokes(20));
+    expect(result.value).toBe('even');
+    expect(result.shape).toEqual({
+      fast_start: false,
+      even_core: true,
+      late_fade: false,
+      fast_finish: false,
+      shape_label: 'even core',
+    });
   });
 
   it('flags a negative split', () => {
@@ -56,20 +64,69 @@ describe('classifyPacing', () => {
     const s = strokes(20, (i) => ({ pace_ms: (Math.floor(i / 5) % 2 === 0) ? 115000 : 130000 }));
     expect(classifyPacing(s).value).toBe('variable');
   });
+
+  it('describes a fast start and finish around an even core from phase averages', () => {
+    const s = strokes(100, (i) => ({
+      pace_ms: i < 10 || i >= 95 ? 118000 : 120000,
+    }));
+    const result = classifyPacing(s);
+    expect(result.shape).toEqual({
+      fast_start: true,
+      even_core: true,
+      late_fade: false,
+      fast_finish: true,
+      shape_label: 'even core, fast start and finish',
+    });
+  });
+
+  it('detects a late fade relative to middle-phase pace', () => {
+    const s = strokes(100, (i) => ({
+      pace_ms: i >= 75 && i < 95 ? 122000 : 120000,
+    }));
+    const result = classifyPacing(s);
+    expect(result.shape.even_core).toBe(false);
+    expect(result.shape.late_fade).toBe(true);
+    expect(result.shape.shape_label).toBe('late fade');
+  });
+
+  it('treats a phase exactly 1% from the middle as inside the neutral band', () => {
+    const phases = [
+      { name: 'start', avg_pace_ms: 118800 },
+      { name: 'settle', avg_pace_ms: 120000 },
+      { name: 'middle', avg_pace_ms: 120000 },
+      { name: 'late', avg_pace_ms: 120000 },
+      { name: 'finish', avg_pace_ms: 118700 },
+    ];
+    const result = classifyPacing(strokes(20), phases);
+    expect(result.shape.fast_start).toBe(false);
+    expect(result.shape.fast_finish).toBe(true);
+  });
 });
 
 describe('rateStability', () => {
   it('is stable for a steady rate', () => {
-    expect(rateStability(strokes(20)).value).toBe('stable');
+    const result = rateStability(strokes(20));
+    expect(result.value).toBe('stable');
+    expect(result.phase_variation_spm).toBe(0);
   });
 
-  it('is variable for a swinging rate', () => {
-    const s = strokes(20, (i) => ({ stroke_rate: i % 2 === 0 ? 20 : 30 }));
+  it('is variable when section-average rate changes', () => {
+    const s = strokes(20, (i) => ({ stroke_rate: i < 10 ? 20 : 30 }));
     expect(rateStability(s).value).toBe('variable');
   });
 
+  it('distinguishes a stable average from variable stroke-to-stroke rate', () => {
+    const s = strokes(20, (i) => ({ stroke_rate: i % 2 === 0 ? 22 : 26 }));
+    const result = rateStability(s);
+    expect(result.value).toBe('stable_avg_variable_stroke');
+    expect(result.phase_variation_spm).toBe(0);
+    expect(result.variation_spm).toBe(2);
+  });
+
   it('is unknown below the sample floor', () => {
-    expect(rateStability(strokes(10)).value).toBe('unknown');
+    const result = rateStability(strokes(10));
+    expect(result.value).toBe('unknown');
+    expect(result.phase_variation_spm).toBeNull();
   });
 });
 
@@ -130,10 +187,15 @@ describe('classifyIntensity', () => {
     const r = classifyIntensity({ zoneShares: [0, 0, 0, 0.2, 0.8], zonesEstimated: true });
     expect(r.value).toBe('hard');
     expect(r.confidence).toBeLessThan(0.7);
+    expect(r.estimated).toBe(true);
+    expect(r.dominant_zone).toBe(5);
   });
 
   it('falls back to pace vs best (capped at hard) when there is no HR', () => {
-    expect(classifyIntensity({ workout: { pace_ms: 118000 }, benchmarkPaceMs: 118000 }).value).toBe('hard');
+    const nearBest = classifyIntensity({ workout: { pace_ms: 118000 }, benchmarkPaceMs: 118000 });
+    expect(nearBest.value).toBe('hard');
+    expect(nearBest.estimated).toBe(false);
+    expect(nearBest.dominant_zone).toBeNull();
     expect(classifyIntensity({ workout: { pace_ms: 160000 }, benchmarkPaceMs: 118000 }).value).toBe('easy');
   });
 
@@ -145,20 +207,25 @@ describe('classifyIntensity', () => {
 describe('classifyHrDrift', () => {
   it('bands the drift percentage', () => {
     expect(classifyHrDrift(3).value).toBe('low');
-    expect(classifyHrDrift(7.7).value).toBe('moderate');
+    const moderate = classifyHrDrift(7.7);
+    expect(moderate.value).toBe('moderate');
+    expect(moderate.drift_percent).toBe(7.7);
+    expect(moderate.basis).toBe('Power-to-HR efficiency declined by 7.7% between the first and second halves (opening 10% excluded).');
     expect(classifyHrDrift(14).value).toBe('high');
     expect(classifyHrDrift(-2).value).toBe('low');
   });
 
   it('is unknown when no drift was computed', () => {
-    expect(classifyHrDrift(null).value).toBe('unknown');
+    const result = classifyHrDrift(null);
+    expect(result.value).toBe('unknown');
+    expect(result.drift_percent).toBeNull();
   });
 });
 
 describe('computePhases', () => {
   it('returns five phases with aggregates for a fixed-distance piece', () => {
     const phases = computePhases({ workout_type: 'FixedDistanceSplits' }, strokes(100));
-    expect(phases.map(p => p.name)).toEqual(['start', 'settle', 'middle', 'pressure', 'finish']);
+    expect(phases.map(p => p.name)).toEqual(['start', 'settle', 'middle', 'late', 'finish']);
     expect(phases[0].avg_pace_ms).toBe(120000);
     expect(phases[0].avg_rate).toBe(24);
   });
@@ -214,6 +281,10 @@ describe('buildWorkoutAnalysis', () => {
     expect(analysis.execution.hr_drift.value).toBe('moderate');
     expect(analysis.phases).toHaveLength(5);
     expect(analysis.intervals).toBeNull();
+  });
+
+  it('uses analysis schema version 5', () => {
+    expect(ANALYSIS_VERSION).toBe(5);
   });
 
   it('builds an interval analysis with no pacing/phases', () => {

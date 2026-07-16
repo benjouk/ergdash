@@ -100,6 +100,13 @@ describe('hrDrift', () => {
     expect(hrDrift(strokes)).toBeLessThan(-3);
   });
 
+  it('excludes a finishing sprint from the drift calculation', () => {
+    const strokes = makeStrokes(200, {
+      pace: (i) => (i >= 190 ? 100000 : 120000),
+    });
+    expect(Math.abs(hrDrift(strokes))).toBeLessThan(0.01);
+  });
+
   it('returns null on short sessions', () => {
     expect(hrDrift(makeStrokes(30))).toBeNull();
   });

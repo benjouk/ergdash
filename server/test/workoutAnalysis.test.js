@@ -11,6 +11,7 @@ let closeDb;
 let computeMetricsForWorkout;
 let computeAllMetrics;
 let ANALYSIS_VERSION;
+let METRICS_VERSION;
 
 beforeEach(async () => {
   dataDir = mkdtempSync(join(tmpdir(), 'ergdash-analysis-test-'));
@@ -18,7 +19,12 @@ beforeEach(async () => {
 
   vi.resetModules();
   ({ getDb, initDb, closeDb } = await import('../src/db.js'));
-  ({ computeMetricsForWorkout, computeAllMetrics, ANALYSIS_VERSION } = await import('../src/analytics.js'));
+  ({
+    computeMetricsForWorkout,
+    computeAllMetrics,
+    ANALYSIS_VERSION,
+    METRICS_VERSION,
+  } = await import('../src/analytics.js'));
 
   initDb();
   db = getDb();
@@ -66,8 +72,10 @@ describe('workout analysis persistence', () => {
     insertStrokes(1, 100);
     computeMetricsForWorkout(1);
 
-    const row = db.prepare('SELECT analysis_json, analysis_version FROM computed_metrics WHERE workout_id = 1').get();
+    const row = db.prepare('SELECT analysis_json, analysis_version, metrics_version FROM computed_metrics WHERE workout_id = 1').get();
     expect(row.analysis_version).toBe(ANALYSIS_VERSION);
+    expect(row.metrics_version).toBe(METRICS_VERSION);
+    expect(METRICS_VERSION).toBe(4);
     const analysis = JSON.parse(row.analysis_json);
     expect(analysis.version).toBe(ANALYSIS_VERSION);
     expect(analysis.structure.value).toBe('continuous');
@@ -87,6 +95,18 @@ describe('workout analysis persistence', () => {
     const row = db.prepare('SELECT analysis_json, analysis_version FROM computed_metrics WHERE workout_id = 1').get();
     expect(row.analysis_version).toBe(ANALYSIS_VERSION);
     expect(JSON.parse(row.analysis_json).structure.value).toBe('continuous');
+  });
+
+  it('computeAllMetrics recomputes rows with a stale metrics_version', () => {
+    insertWorkout(1);
+    insertStrokes(1, 100);
+    computeMetricsForWorkout(1);
+    db.prepare('UPDATE computed_metrics SET metrics_version = 0 WHERE workout_id = 1').run();
+
+    computeAllMetrics(1);
+
+    const row = db.prepare('SELECT metrics_version FROM computed_metrics WHERE workout_id = 1').get();
+    expect(row.metrics_version).toBe(METRICS_VERSION);
   });
 
   it('excludes the current workout from its own intensity benchmark', () => {

@@ -144,7 +144,191 @@ function setWorkoutOverlay(id, patch) {
 
 function applyWorkoutOverlay(workout) {
   const overlay = getWorkoutOverlay(workout.id);
-  return Object.keys(overlay).length ? { ...workout, ...overlay } : workout;
+  return Object.keys(overlay).length === 0 ? workout : { ...workout, ...overlay };
+}
+
+export function applyDemoNarrativeContext(workout, plan = workout?.plan ?? null) {
+  if (!workout?.narrative) return { ...workout, plan };
+
+  const explicitIntent = ['steady', 'hard_distance', 'test_race', 'recovery', 'technique']
+    .includes(workout.intent)
+    ? workout.intent
+    : null;
+  const planIntent = plan?.type === 'steady'
+    ? 'steady'
+    : (plan?.type === 'test' || plan?.type === 'race' ? 'test_race' : null);
+  const intent = explicitIntent || planIntent;
+  const intentSource = explicitIntent ? 'workout' : (planIntent ? 'plan' : null);
+  const { plan_review: _stalePlanReview, ...baseNarrative } = workout.narrative;
+  const planReview = buildDemoPlanReview(workout, plan);
+  const contextChanged = baseNarrative.intent !== intent
+    || (baseNarrative.intent_source ?? null) !== intentSource
+    || !sameDemoPlanPrescription(_stalePlanReview, planReview);
+  const narrative = {
+    ...baseNarrative,
+    intent,
+    intent_source: intentSource,
+    needs_intent: intent == null,
+    recommendation: contextChanged
+      ? (intent
+        ? demoIntentRecommendation(workout, intent)
+        : demoUnknownIntentRecommendation(workout))
+      : baseNarrative.recommendation,
+  };
+  if (contextChanged) {
+    if (planReview) narrative.plan_review = planReview;
+  } else if (_stalePlanReview) {
+    narrative.plan_review = _stalePlanReview;
+  }
+
+  return { ...workout, plan, narrative };
+}
+
+function demoIntentRecommendation(workout, intent) {
+  const execution = workout.analysis?.execution || {};
+  const intervals = workout.analysis?.intervals || execution.intervals || null;
+  const averageRate = Number(execution.rate?.average_spm) > 0
+    ? ` around ${Number(execution.rate.average_spm).toFixed(1).replace(/\.0$/, '')} spm`
+    : '';
+  const faded = execution.pacing?.shape?.late_fade
+    || ['mild_fade', 'significant_fade'].includes(execution.pacing?.value)
+    || intervals?.first_rep_fast
+    || Number(intervals?.degradation_percent) > 1;
+  const hasPacingRead = intervals != null
+    || (execution.pacing?.value != null && execution.pacing.value !== 'unknown');
+
+  if (intent === 'steady') {
+    if (!hasPacingRead) {
+      return `For steady work, keep the opening controlled and settle into a smooth rhythm${averageRate}.`;
+    }
+    return faded
+      ? `For steady work, make the opening slightly slower and settle into a smooth rhythm${averageRate}.`
+      : `For steady work, repeat this pacing pattern and keep the rate smooth${averageRate}.`;
+  }
+  if (intent === 'hard_distance') {
+    if (!hasPacingRead) {
+      return 'For hard-distance work, establish a sustainable opening pace and build the pressure through the final quarter.';
+    }
+    return faded
+      ? 'For the next hard-distance row, hold back slightly in the opening so you can sustain pace through the back half.'
+      : 'Pacing control suited a hard-distance effort, so keep the same opening and begin the final press a little earlier.';
+  }
+  if (intent === 'test_race') {
+    if (!hasPacingRead) {
+      return 'For the next test or race, set a sustainable opening pace and plan where the final drive will begin.';
+    }
+    return faded
+      ? 'For the next test or race, open slightly slower and protect the target pace through the final quarter.'
+      : 'For the next test or race, keep this pacing control and commit to the final drive before the closing stretch.';
+  }
+  if (intent === 'recovery') {
+    return `For recovery work, keep the pressure light and the stroke rhythm relaxed${averageRate}.`;
+  }
+  return `For technique work, keep pace secondary and aim to reduce stroke-to-stroke rate variation${averageRate}.`;
+}
+
+function demoUnknownIntentRecommendation(workout) {
+  const pacing = workout.analysis?.execution?.pacing?.value;
+  const hasPacingRead = workout.analysis?.intervals != null
+    || (pacing != null && pacing !== 'unknown');
+  return hasPacingRead
+    ? 'If this was steady work, prioritise a smoother, controlled opening. If it was a hard effort, use the pacing pattern to decide whether to start more conservatively or press earlier.'
+    : 'If this was steady work, prioritise a smooth, controlled rhythm. If it was a hard effort, establish a sustainable opening pace and plan where to press.';
+}
+
+function buildDemoPlanReview(workout, plan) {
+  const targets = [
+    plan?.target_pace_ms,
+    plan?.target_rate,
+    plan?.target_distance,
+    plan?.target_duration_ms,
+  ];
+  if (!targets.some(value => Number(value) > 0)) return null;
+
+  const execution = workout.analysis?.execution || {};
+  const actualRate = positiveDemoNumber(execution.rate?.average_spm)
+    ?? positiveDemoNumber(workout.stroke_rate);
+  const drift = finiteDemoNumber(execution.hr_drift?.drift_percent)
+    ?? finiteDemoNumber(workout.metrics?.hr_drift_pct);
+  return {
+    planned: {
+      target_pace_ms: positiveDemoNumber(plan.target_pace_ms),
+      target_rate: positiveDemoNumber(plan.target_rate),
+      target_distance: positiveDemoNumber(plan.target_distance),
+      target_duration_ms: positiveDemoNumber(plan.target_duration_ms),
+      notes: typeof plan.notes === 'string' && plan.notes ? plan.notes : null,
+    },
+    actual: {
+      pace_ms: positiveDemoNumber(workout.pace_ms),
+      avg_rate: roundDemo(actualRate),
+      dominant_zone: execution.intensity?.dominant_zone ?? null,
+      hr_drift_pct: roundDemo(drift),
+    },
+    assessment: demoPlanAssessment(workout, plan, actualRate),
+  };
+}
+
+function sameDemoPlanPrescription(existingReview, nextReview) {
+  if (!existingReview && !nextReview) return true;
+  if (!existingReview || !nextReview) return false;
+  const existing = existingReview.planned || {};
+  const next = nextReview.planned || {};
+  return ['target_pace_ms', 'target_rate', 'target_distance', 'target_duration_ms']
+    .every(key => positiveDemoNumber(existing[key]) === positiveDemoNumber(next[key]))
+    && (existing.notes ?? null) === (next.notes ?? null);
+}
+
+function demoPlanAssessment(workout, plan, actualRate) {
+  const notes = [];
+  const actualPace = positiveDemoNumber(workout.pace_ms);
+  const targetPace = positiveDemoNumber(plan.target_pace_ms);
+  if (targetPace && actualPace) {
+    const difference = actualPace - targetPace;
+    notes.push(Math.abs(difference) <= targetPace * 0.01
+      ? 'Pace matched the prescribed target.'
+      : `Pace was ${(Math.abs(difference) / 1000).toFixed(1)} s/500m ${difference < 0 ? 'faster' : 'slower'} than prescribed.`);
+  }
+
+  const targetRate = positiveDemoNumber(plan.target_rate);
+  if (targetRate && actualRate) {
+    const difference = actualRate - targetRate;
+    notes.push(Math.abs(difference) <= 1
+      ? `Rate matched the ${targetRate} spm target.`
+      : `Rate averaged ${Math.abs(difference).toFixed(1).replace(/\.0$/, '')} spm ${difference > 0 ? 'above' : 'below'} the target.`);
+  }
+
+  addDemoVolumeAssessment(notes, 'Distance', workout.distance, plan.target_distance, 'm');
+  addDemoVolumeAssessment(notes, 'Duration', workout.time_ms, plan.target_duration_ms, 'ms');
+  return notes.join(' ') || 'The completed session is recorded against this prescription.';
+}
+
+function addDemoVolumeAssessment(notes, label, actualValue, targetValue, unit) {
+  const actual = positiveDemoNumber(actualValue);
+  const target = positiveDemoNumber(targetValue);
+  if (!actual || !target) return;
+  const difference = actual - target;
+  if (Math.abs(difference) <= target * 0.02) {
+    notes.push(`${label} matched the prescribed target.`);
+    return;
+  }
+  const absolute = Math.round(Math.abs(difference));
+  const display = unit === 'ms' ? `${Math.round(absolute / 1000)} seconds` : `${absolute.toLocaleString()}m`;
+  notes.push(`${label} was ${display} ${difference > 0 ? 'over' : 'under'} the target.`);
+}
+
+function positiveDemoNumber(value) {
+  const number = Number(value);
+  return number > 0 && Number.isFinite(number) ? number : null;
+}
+
+function finiteDemoNumber(value) {
+  if (value == null) return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function roundDemo(value) {
+  return value == null ? null : Math.round(value * 10) / 10;
 }
 
 // --- planned-workout overlay (visitor-side plan edits) ---
@@ -196,6 +380,9 @@ async function findPlanForWorkout(plans, workoutId) {
     type: plan.type,
     target_distance: plan.target_distance,
     target_duration_ms: plan.target_duration_ms,
+    target_pace_ms: plan.target_pace_ms ?? null,
+    target_rate: plan.target_rate ?? null,
+    notes: plan.notes ?? null,
     match_type: plan.match_type,
     program_id: plan.program_id || null,
     program_week: plan.program_week ?? null,
@@ -457,7 +644,8 @@ async function handleGet(route, params) {
     });
     const patched = applyWorkoutOverlay(detail);
     const plans = await loadDemoPlans();
-    return { ...patched, plan: await findPlanForWorkout(plans, patched.id) };
+    const plan = await findPlanForWorkout(plans, patched.id);
+    return applyDemoNarrativeContext({ ...patched, plan }, plan);
   }
 
   if (route === '/api/stats/compare') {
@@ -610,9 +798,16 @@ async function handlePatch(route, body) {
     const patch = {};
     if ('pinned' in body) patch.pinned = !!body.pinned;
     if ('notes' in body) patch.notes = body.notes;
+    if ('intent' in body) {
+      const intents = ['steady', 'hard_distance', 'test_race', 'recovery', 'technique'];
+      if (body.intent != null && !intents.includes(body.intent)) throw new Error('Invalid workout intent');
+      patch.intent = body.intent;
+    }
     const merged = setWorkoutOverlay(id, patch);
     const detail = await fetch(await fixtureUrl(`workout/${id}.json`)).then(r => r.json());
-    return applyWorkoutOverlay({ ...detail, ...merged });
+    const patched = applyWorkoutOverlay({ ...detail, ...merged });
+    const plan = await findPlanForWorkout(await loadDemoPlans(), patched.id);
+    return applyDemoNarrativeContext({ ...patched, plan }, plan);
   }
 
   throw new Error('Demo mode - this action is not available in the live demo');

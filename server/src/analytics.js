@@ -19,7 +19,8 @@ export const BEST_EFFORT_DURATIONS = [60, 240, 600, 1800, 3600];
 
 // Bump whenever computed_metrics gains columns or an algorithm changes;
 // computeAllMetrics() recomputes any row written with an older version.
-export const METRICS_VERSION = 3;
+// v4: aerobic drift excludes the final 5% finishing effort.
+export const METRICS_VERSION = 4;
 
 const MIN_DRIFT_DURATION_MS = 15 * 60 * 1000;
 
@@ -185,6 +186,20 @@ export function computeAllMetrics(profileId) {
   if (workouts.length > 0) {
     console.log(`Computed metrics for ${workouts.length} workouts (v${METRICS_VERSION})`);
   }
+}
+
+// Force every workout for a profile back through the metric/analysis pipeline.
+// Used when a setting changes the meaning of cached analysis without changing
+// the formula version itself (for example max HR, HR-zone bounds or the rate
+// discipline tolerance).
+export function recomputeAllMetrics(profileId) {
+  const db = getDb();
+  db.prepare(`
+    UPDATE computed_metrics
+    SET analysis_version = 0
+    WHERE workout_id IN (SELECT id FROM workouts WHERE profile_id = ?)
+  `).run(profileId);
+  computeAllMetrics(profileId);
 }
 
 export function computeZoneTimesForWorkout(workoutId, zoneModel) {

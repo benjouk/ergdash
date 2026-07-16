@@ -15,7 +15,9 @@ import { wattsFromPace } from './strokeMetrics.js';
 // v2: observed effort is now HR-grounded (was pace-vs-benchmark only).
 // v3: added the HR-drift (aerobic decoupling) read.
 // v4: added data_quality (summary vs stroke-stream reconciliation).
-export const ANALYSIS_VERSION = 4;
+// v5: added phase-based pacing shape, two-level rate stability, explicit
+// HR-drift values, and estimated-zone metadata.
+export const ANALYSIS_VERSION = 5;
 
 // --- thresholds (named so behaviour is easy to tune) -------------------------
 const MIN_PACING_STROKES = 8;
@@ -29,8 +31,12 @@ const PACING_EVEN_PCT = 1.0; // |fade| ≤ 1% reads as even
 const PACING_MILD_FADE_PCT = 3.0; // 1–3% slower = mild fade, > 3% = significant
 const PACING_NEG_SPLIT_PCT = -1.0; // ≥ 1% faster in the back half = negative split
 const PACING_VARIABLE_CV = 0.05; // pace CV above this, with no clear trend = variable
+const PACING_SHAPE_TOLERANCE_PCT = 1.0; // phase pace within ±1% of middle is neutral
 
 const RATE_STABLE_SD_SPM = 1.5; // stroke-rate SD ≤ 1.5 spm reads as stable
+// Average rate across five equal sections can be stable even when individual
+// strokes fluctuate. Keep this distinct from the raw stroke-level threshold.
+const RATE_PHASE_STABLE_SD_SPM = 1.5;
 
 const FINISH_FRACTION = 0.08; // final 8% is "the finish"
 const FINISH_PRECEDING_FRACTION = 0.25; // compared against the preceding 25%
@@ -80,7 +86,7 @@ const PHASE_BOUNDS = [
   { name: 'start', start: 0.0, end: 0.1 },
   { name: 'settle', start: 0.1, end: 0.25 },
   { name: 'middle', start: 0.25, end: 0.75 },
-  { name: 'pressure', start: 0.75, end: 0.95 },
+  { name: 'late', start: 0.75, end: 0.95 },
   { name: 'finish', start: 0.95, end: 1.0 },
 ];
 
@@ -115,13 +121,72 @@ function unknown(basis, extra = {}) {
   return { value: 'unknown', confidence: 0, basis, ...extra };
 }
 
+function sectionAverages(values, sectionCount) {
+  const sections = Array.from({ length: sectionCount }, () => []);
+  values.forEach((value, index) => {
+    const section = Math.min(sectionCount - 1, Math.floor((index * sectionCount) / values.length));
+    sections[section].push(value);
+  });
+  return sections.map(section => mean(section));
+}
+
+function phasePacesFromSamples(paceSamples) {
+  return PHASE_BOUNDS.map(({ name, start, end }) => {
+    const lo = Math.floor(start * paceSamples.length);
+    const hi = end === 1 ? paceSamples.length : Math.floor(end * paceSamples.length);
+    return { name, avg_pace_ms: mean(paceSamples.slice(lo, hi)) };
+  });
+}
+
+function pacingShape(phases, fallbackLabel) {
+  const phasePaces = Object.fromEntries(
+    phases
+      .filter(phase => phase?.avg_pace_ms > 0)
+      .map(phase => [phase.name, phase.avg_pace_ms])
+  );
+  const middle = phasePaces.middle;
+  if (!(middle > 0)) return null;
+
+  const deltaPct = (name) => {
+    const pace = phasePaces[name];
+    return pace > 0 ? ((pace - middle) / middle) * 100 : null;
+  };
+  const startDelta = deltaPct('start');
+  const settleDelta = deltaPct('settle');
+  const lateDelta = deltaPct('late');
+  const finishDelta = deltaPct('finish');
+  const withinTolerance = delta => delta != null && Math.abs(delta) <= PACING_SHAPE_TOLERANCE_PCT;
+
+  const fastStart = startDelta != null && startDelta < -PACING_SHAPE_TOLERANCE_PCT;
+  const evenCore = withinTolerance(settleDelta) && withinTolerance(lateDelta);
+  const lateFade = lateDelta != null && lateDelta > PACING_SHAPE_TOLERANCE_PCT;
+  const fastFinish = finishDelta != null && finishDelta < -PACING_SHAPE_TOLERANCE_PCT;
+
+  const labels = [];
+  if (evenCore) labels.push('even core');
+  if (lateFade) labels.push('late fade');
+  if (fastStart && fastFinish) labels.push('fast start and finish');
+  else if (fastStart) labels.push('fast start');
+  else if (fastFinish) labels.push('fast finish');
+
+  return {
+    fast_start: fastStart,
+    even_core: evenCore,
+    late_fade: lateFade,
+    fast_finish: fastFinish,
+    shape_label: labels.join(', ') || fallbackLabel,
+  };
+}
+
 // --- classifiers -------------------------------------------------------------
 
 // Even / negative_split / mild_fade / significant_fade / variable, from
 // first-half vs second-half pace plus intra-session variability.
-export function classifyPacing(strokes = []) {
+export function classifyPacing(strokes = [], phases = null) {
   const p = paces(strokes);
-  if (p.length < MIN_PACING_STROKES) return unknown('Not enough pace samples to judge pacing.', { fade_percent: null });
+  if (p.length < MIN_PACING_STROKES) {
+    return unknown('Not enough pace samples to judge pacing.', { fade_percent: null, shape: null });
+  }
 
   const half = Math.floor(p.length / 2);
   const firstAvg = mean(p.slice(0, half));
@@ -153,6 +218,10 @@ export function classifyPacing(strokes = []) {
   return {
     value,
     fade_percent: round(fade),
+    shape: pacingShape(
+      Array.isArray(phases) && phases.length > 0 ? phases : phasePacesFromSamples(p),
+      value.replaceAll('_', ' ')
+    ),
     confidence,
     basis: value === 'variable'
       ? `Pace varied ${round(cv * 100)}% around the average without a clear trend.`
@@ -165,15 +234,26 @@ export function classifyPacing(strokes = []) {
 export function rateStability(strokes = []) {
   const rates = strokes.map(s => s?.stroke_rate).filter(r => r > 0);
   if (rates.length < MIN_RATE_STROKES) {
-    return unknown('Not enough stroke-rate samples to judge rate.', { average_spm: null, variation_spm: null });
+    return unknown('Not enough stroke-rate samples to judge rate.', {
+      average_spm: null,
+      variation_spm: null,
+      phase_variation_spm: null,
+    });
   }
-  const sd = stddev(rates);
+  const strokeSd = stddev(rates);
+  const phaseSd = stddev(sectionAverages(rates, 5));
+  const phaseStable = phaseSd <= RATE_PHASE_STABLE_SD_SPM;
+  const strokeStable = strokeSd <= RATE_STABLE_SD_SPM;
+  const value = phaseStable
+    ? (strokeStable ? 'stable' : 'stable_avg_variable_stroke')
+    : 'variable';
   return {
-    value: sd <= RATE_STABLE_SD_SPM ? 'stable' : 'variable',
+    value,
     average_spm: round(mean(rates)),
-    variation_spm: round(sd),
+    variation_spm: round(strokeSd),
+    phase_variation_spm: round(phaseSd),
     confidence: 0.9,
-    basis: `Stroke rate held within ${round(sd)} spm (SD) of an average of ${round(mean(rates))} spm.`,
+    basis: `Across five equal sections, average-rate variation was ${round(phaseSd)} spm (SD). Stroke-to-stroke variation was ${round(strokeSd)} spm (SD) around ${round(mean(rates))} spm.`,
   };
 }
 
@@ -253,17 +333,19 @@ export function strokeEffectiveness(workout, strokes = []) {
 // (null for intervals / sessions too short to be meaningful → unknown).
 export function classifyHrDrift(hrDriftPct) {
   if (hrDriftPct == null || !Number.isFinite(hrDriftPct)) {
-    return unknown('No aerobic-decoupling reading for this session.');
+    return unknown('No aerobic-decoupling reading for this session.', { drift_percent: null });
   }
   let value = 'high';
   if (hrDriftPct <= HR_DRIFT_LOW_PCT) value = 'low';
   else if (hrDriftPct <= HR_DRIFT_HIGH_PCT) value = 'moderate';
+  const driftPercent = round(hrDriftPct);
   return {
     value,
+    drift_percent: driftPercent,
     confidence: 0.8,
-    basis: hrDriftPct <= HR_DRIFT_LOW_PCT
-      ? `Heart rate tracked output closely (${round(hrDriftPct)}% drift) — steady aerobic control.`
-      : `Heart rate rose ${round(hrDriftPct)}% relative to output across the session.`,
+    basis: driftPercent >= 0
+      ? `Power-to-HR efficiency declined by ${driftPercent}% between the first and second halves (opening 10% excluded).`
+      : `Power-to-HR efficiency improved by ${Math.abs(driftPercent)}% between the first and second halves (opening 10% excluded).`,
   };
 }
 
@@ -294,6 +376,8 @@ export function classifyIntensity({ workout, benchmarkPaceMs, zoneShares, zonesE
       return {
         value,
         confidence,
+        estimated: Boolean(zonesEstimated),
+        dominant_zone: dominant,
         basis: `Most of the session was in HR zone ${dominant}${zonesEstimated ? ' (max HR estimated)' : ''}.`,
       };
     }
@@ -306,11 +390,16 @@ export function classifyIntensity({ workout, benchmarkPaceMs, zoneShares, zonesE
     return {
       value: capIntensity(band.value, 'hard'),
       confidence: 0.5,
+      estimated: false,
+      dominant_zone: null,
       basis: `Pace was ${round(pacePct * 100)}% of your best at this distance (no heart-rate data).`,
     };
   }
 
-  return unknown('No heart-rate or benchmark data, so effort can’t be placed.');
+  return unknown('No heart-rate or benchmark data, so effort can’t be placed.', {
+    estimated: false,
+    dominant_zone: null,
+  });
 }
 
 // Reconciliation: does the workout's own summary (headline duration, average
@@ -449,13 +538,14 @@ export function buildWorkoutAnalysis({
   hrDriftPct = null,
 }) {
   const isInterval = structure?.value === 'interval';
+  const phases = isInterval ? [] : computePhases(workout, strokes);
 
   const rate = rateStability(strokes);
   if (rateDisciplinePct != null) rate.discipline_pct = round(rateDisciplinePct, 0);
 
   const execution = {
     intensity: classifyIntensity({ workout, benchmarkPaceMs, zoneShares, zonesEstimated }),
-    pacing: isInterval ? null : classifyPacing(strokes),
+    pacing: isInterval ? null : classifyPacing(strokes, phases),
     rate,
     finish: isInterval ? null : analyzeFinish(strokes),
     stroke_effectiveness: strokeEffectiveness(workout, strokes),
@@ -474,7 +564,7 @@ export function buildWorkoutAnalysis({
       : null,
     execution,
     data_quality: assessDataQuality(workout, strokes, { isInterval }),
-    phases: isInterval ? [] : computePhases(workout, strokes),
+    phases,
     intervals: isInterval ? analyzeIntervals(intervals) : null,
   };
 }
