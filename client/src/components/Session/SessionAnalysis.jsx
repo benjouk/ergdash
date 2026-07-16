@@ -1,6 +1,6 @@
 import { useEffect, useId, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Sparkles } from 'lucide-react';
+import { AlertTriangle, ChevronDown, Sparkles } from 'lucide-react';
 import ChartInfo from '../Charts/ChartInfo.jsx';
 import { execLabel, showsExecution } from '../../utils/executionLabels.js';
 import styles from './SessionAnalysis.module.css';
@@ -60,6 +60,7 @@ export default function SessionAnalysis({
     ? dataQuality.issues
     : [];
   const needsIntent = Boolean(hasNarrative && narrative.needs_intent && onIntentChange);
+  const intentLabel = INTENT_OPTIONS.find(option => option.value === narrative?.intent)?.label;
 
   if (
     reads.length === 0
@@ -73,18 +74,42 @@ export default function SessionAnalysis({
 
   return (
     <div className={cardStyles.card}>
-      <div className={cardStyles.cardHeader}>
+      <div className={`${cardStyles.cardHeader} ${styles.cardHeader}`}>
         <div className={cardStyles.cardTitle}>
           <Sparkles size={13} className={styles.titleIcon} aria-hidden="true" />
           Session analysis
         </div>
-        <ChartInfo>Automated reads of this session from pace, power, rate and heart rate. They are interpretations, not measured facts. Tap a read to see the reasoning.</ChartInfo>
+        <div className={styles.headerActions}>
+          {qualityIssues.length > 0 && (
+            <button
+              type="button"
+              className={`${styles.qualityIndicator} ${qualityOpen ? styles.qualityIndicatorOpen : ''}`}
+              aria-expanded={qualityOpen}
+              aria-controls={explainId}
+              title="Summary totals do not fully reconcile with stroke data"
+              onClick={() => setOpenKind(kind => (kind === 'data_quality' ? null : 'data_quality'))}
+            >
+              <AlertTriangle size={12} aria-hidden="true" />
+              Data quality
+            </button>
+          )}
+          <ChartInfo>Automated reads of this session from pace, power, rate and heart rate. They are interpretations, not measured facts. Tap a read to see the reasoning.</ChartInfo>
+        </div>
       </div>
 
       {hasNarrative && (narrative.headline || narrative.summary || narrative.recommendation) && (
         <section className={styles.narrative} aria-label="Coaching summary">
-          {narrative.headline && <h2 className={styles.headline}>{narrative.headline}</h2>}
-          {narrative.summary && <p className={styles.summary}>{narrative.summary}</p>}
+          {(narrative.headline || intentLabel) && (
+            <div className={styles.narrativeHeading}>
+              {narrative.headline && <h2 className={styles.headline}>{narrative.headline}</h2>}
+              {intentLabel && (
+                <span className={styles.purposeTag} aria-label={`Purpose: ${intentLabel}`}>
+                  {intentLabel}
+                </span>
+              )}
+            </div>
+          )}
+          {narrative.summary && <p className={styles.summary}>{firstSentence(narrative.summary)}</p>}
           {narrative.recommendation && (
             <p className={styles.recommendation}>
               <span className={styles.sectionLabel}>Recommendation</span>
@@ -121,18 +146,6 @@ export default function SessionAnalysis({
           formatPace={formatPace}
           formatTime={formatTime}
         />
-      )}
-
-      {qualityIssues.length > 0 && (
-        <button
-          type="button"
-          className={`${styles.qualityNotice} ${qualityOpen ? styles.qualityNoticeOpen : ''}`}
-          aria-expanded={qualityOpen}
-          aria-controls={explainId}
-          onClick={() => setOpenKind(kind => (kind === 'data_quality' ? null : 'data_quality'))}
-        >
-          Summary totals don&apos;t fully reconcile with stroke data
-        </button>
       )}
 
       {insights.length > 0 && (
@@ -210,23 +223,38 @@ function PlanReview({ review, plan, formatPace, formatTime }) {
   ]);
 
   return (
-    <section className={styles.planReview} aria-label="Plan review">
-      {purpose && (
-        <p className={styles.purpose}>
-          <span className={styles.sectionLabel}>Purpose</span>
-          {purpose}
-        </p>
-      )}
-      <div className={styles.reviewGrid}>
-        <ReviewColumn label="Planned" items={plannedItems} />
-        <ReviewColumn label="Actual" items={actualItems} />
-        <div className={styles.reviewColumn}>
-          <span className={styles.reviewHeading}>Assessment</span>
-          <p className={styles.assessment}>{review.assessment || 'No target comparison available.'}</p>
+    <details className={styles.planReview}>
+      <summary className={styles.reviewSummary}>
+        <span className={styles.reviewHeading}>Plan review</span>
+        <span className={styles.reviewSummaryText}>
+          {review.assessment || 'No target comparison available.'}
+        </span>
+        <ChevronDown size={13} className={styles.reviewChevron} aria-hidden="true" />
+      </summary>
+      <div className={styles.reviewDetails}>
+        {purpose && (
+          <p className={styles.purpose}>
+            <span className={styles.sectionLabel}>Plan note</span>
+            {purpose}
+          </p>
+        )}
+        <div className={styles.reviewGrid}>
+          <ReviewColumn label="Planned" items={plannedItems} />
+          <ReviewColumn label="Actual" items={actualItems} />
+          <div className={styles.reviewColumn}>
+            <span className={styles.reviewHeading}>Assessment</span>
+            <p className={styles.assessment}>{review.assessment || 'No target comparison available.'}</p>
+          </div>
         </div>
       </div>
-    </section>
+    </details>
   );
+}
+
+export function firstSentence(value) {
+  const text = String(value ?? '').trim();
+  if (!text) return '';
+  return text.match(/^.*?[.!?](?=\s|$)/)?.[0] ?? text;
 }
 
 function ReviewColumn({ label, items }) {

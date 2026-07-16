@@ -4,9 +4,26 @@
   vertical-align: -2px;
 }
 
+.cardHeader.cardHeader {
+  padding-block: var(--space-3);
+}
+
+.headerActions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 .narrative {
-  padding: var(--space-4) var(--space-5);
+  padding: var(--space-3) var(--space-5);
   border-bottom: 1px solid var(--rule);
+}
+
+.narrativeHeading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 
 .headline {
@@ -17,20 +34,39 @@
   line-height: 1.25;
 }
 
+.purposeTag {
+  display: inline-flex;
+  align-items: center;
+  max-width: 22ch;
+  padding: 2px 7px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--rule));
+  border-radius: 999px;
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
 .summary {
-  margin: var(--space-2) 0 0;
-  max-width: 82ch;
+  margin: 6px 0 0;
+  max-width: 100ch;
   color: var(--ink-2);
-  font-size: 0.85rem;
-  line-height: 1.45;
+  font-size: 0.82rem;
+  line-height: 1.4;
 }
 
 .recommendation,
 .purpose {
-  margin: var(--space-3) 0 0;
+  margin: var(--space-2) 0 0;
   color: var(--ink);
-  font-size: 0.82rem;
-  line-height: 1.4;
+  font-size: 0.8rem;
+  line-height: 1.35;
 }
 
 .recommendation {
@@ -103,9 +139,63 @@
   border-bottom: 1px solid var(--rule);
 }
 
+.reviewSummary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: 9px var(--space-5);
+  color: var(--ink-2);
+  cursor: pointer;
+  list-style: none;
+  transition: background 120ms ease;
+}
+
+.reviewSummary::-webkit-details-marker {
+  display: none;
+}
+
+.reviewSummary::marker {
+  content: '';
+}
+
+.reviewSummary:hover,
+.reviewSummary:focus-visible {
+  background: var(--surface-alt);
+}
+
+.reviewSummary .reviewHeading {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.reviewSummaryText {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.76rem;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reviewChevron {
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: var(--ink-3);
+  transition: transform 120ms ease;
+}
+
+.planReview[open] .reviewChevron {
+  transform: rotate(180deg);
+}
+
+.reviewDetails {
+  border-top: 1px solid var(--rule);
+}
+
 .purpose {
   margin: 0;
-  padding: var(--space-3) var(--space-5);
+  padding: var(--space-2) var(--space-5);
   border-bottom: 1px solid var(--rule);
   color: var(--ink-2);
 }
@@ -169,34 +259,31 @@
   line-height: 1.4;
 }
 
-.qualityNotice {
-  display: block;
-  width: 100%;
-  padding: var(--space-2) var(--space-5);
+.qualityIndicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 26px;
+  padding: 3px 6px;
   border: 0;
-  border-bottom: 1px solid var(--rule);
-  background: color-mix(in srgb, var(--warn) 7%, transparent);
-  color: var(--ink-2);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-3);
   font: inherit;
-  font-size: 0.74rem;
-  text-align: left;
+  font-size: 0.66rem;
+  font-weight: 600;
   cursor: pointer;
+  transition: color 120ms ease, background 120ms ease;
 }
 
-.qualityNotice::before {
-  content: '';
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  margin-right: 7px;
-  border-radius: 50%;
-  background: var(--warn);
-  vertical-align: 1px;
+.qualityIndicator svg {
+  color: var(--warn);
 }
 
-.qualityNotice:hover,
-.qualityNoticeOpen {
+.qualityIndicator:hover,
+.qualityIndicatorOpen {
   background: color-mix(in srgb, var(--warn) 12%, transparent);
+  color: var(--ink-2);
 }
 
 /* Legacy insight fallback for responses captured before narratives existed. */
@@ -220,12 +307,12 @@
 .tone_positive { border-left-color: var(--positive); }
 .tone_watch { border-left-color: var(--warn); }
 
-/* The four remaining reads form a compact 2 by 2 chip matrix on desktop. */
+/* Keep all four coaching reads on one compact row at desktop widths. */
 .reads {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--space-2);
-  padding: var(--space-3) var(--space-5);
+  padding: var(--space-2) var(--space-5);
 }
 
 .read {
@@ -234,7 +321,7 @@
   align-items: flex-start;
   gap: 3px;
   min-width: 0;
-  padding: 8px 10px;
+  padding: 7px 9px;
   border: 1px solid var(--rule);
   border-radius: var(--radius-sm);
   background: var(--surface-alt);
@@ -319,6 +406,10 @@
     grid-template-columns: 1fr 1fr;
   }
 
+  .reads {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .reviewColumn:nth-child(2) {
     border-right: 0;
   }
@@ -330,12 +421,14 @@
 }
 
 @media (max-width: 520px) {
-  .reads {
-    grid-template-columns: 1fr;
-  }
-
   .explain {
     align-items: flex-start;
     flex-direction: column;
+  }
+}
+
+@media (max-width: 360px) {
+  .reads {
+    grid-template-columns: 1fr;
   }
 }
