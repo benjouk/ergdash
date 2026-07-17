@@ -15,10 +15,27 @@ export default function Connect() {
   const { checkAuth } = useAuth();
   const [syncing, setSyncing] = useState(false);
   const [syncProgress, setSyncProgress] = useState(null);
+  const [restoring, setRestoring] = useState(false);
+  const [restoreError, setRestoreError] = useState(null);
 
   // The OAuth callback redirects with the new profile's id.
   const connected = !!searchParams.get('connected');
   const isDev = import.meta.env.DEV;
+
+  const handleRestore = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = ''; // allow re-selecting the same file after an error
+    if (!file) return;
+    setRestoreError(null);
+    setRestoring(true);
+    try {
+      await api.bootstrapRestore(file);
+      await checkAuth(); // session + profile now exist -> app renders the dashboard
+    } catch (err) {
+      setRestoreError(err.message || 'Restore failed');
+      setRestoring(false);
+    }
+  };
 
   useEffect(() => {
     if (connected) {
@@ -70,6 +87,20 @@ export default function Connect() {
             <a href="/auth/login?profile=new" className={styles.cta}>
               Connect with Concept2
             </a>
+
+            <label className={styles.devLink} style={{ cursor: restoring ? 'default' : 'pointer' }}>
+              {restoring ? 'Restoring backup...' : 'Restore from an ErgDash backup'}
+              <input
+                type="file"
+                accept=".json,application/json"
+                onChange={handleRestore}
+                disabled={restoring}
+                hidden
+              />
+            </label>
+            {restoreError && (
+              <div className={styles.restoreError} role="alert">{restoreError}</div>
+            )}
 
             {isDev && (
               <a href="/auth/mock-login" className={styles.devLink}>

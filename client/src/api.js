@@ -174,6 +174,9 @@ export const api = {
   resetSettings: () => request('/api/settings/reset', { method: 'POST' }),
   restoreDatabase: (file) => uploadRaw('/api/admin/restore', file, 'Demo mode - run ErgDash self-hosted to restore a backup'),
   restoreBackup: (file) => uploadRaw('/api/admin/restore-data', file, 'Demo mode - run ErgDash self-hosted to restore a backup'),
+  // First-run restore on a fresh install (no session/profile yet), before any
+  // Concept2 connection. Creates the profile, restores the data, and logs in.
+  bootstrapRestore: (file) => uploadRaw('/auth/restore-bootstrap', file, 'Demo mode - run ErgDash self-hosted to restore a backup'),
   // Fetched (not a plain <a href>) so the X-Profile-Id header goes with it and
   // the backup is scoped to the active profile, not the fallback first one.
   downloadBackup: async () => {

@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import express, { Router } from 'express';
 import {
   getAuthorizationUrl,
   consumeOauthState,
@@ -16,6 +16,8 @@ import {
   setProfileIdentity,
   resolveConnectingProfile,
 } from '../auth.js';
+import { getDb } from '../db.js';
+import { isValidBackup, restoreProfileData } from '../backup.js';
 import { runFullSync, startSyncSchedule } from '../sync.js';
 
 const router = Router();
@@ -105,6 +107,53 @@ router.post('/logout', (req, res) => {
   }
   clearAuthSession(req, res);
   res.json({ ok: true });
+});
+
+// First-run restore: rebuild a profile from an ErgDash data backup on a fresh
+// install, WITHOUT connecting Concept2. This is the disaster-recovery entry
+// point - the normal restore lives behind requireAuth + resolveProfile, which
+// a brand-new install (no session, no profile) can't satisfy, and completing
+// OAuth is impossible if Concept2 itself is down. Allowed only while no profile
+// exists yet; once initialized it 403s and users restore from Settings. The
+// raw octet-stream body (like /api/admin/restore-data) bypasses the small
+// global JSON parser. A session is established on success so the browser lands
+// straight in the dashboard.
+router.post('/restore-bootstrap', express.raw({ type: 'application/octet-stream', limit: '250mb' }), (req, res, next) => {
+  if (listProfiles().length > 0) {
+    return res.status(403).json({ error: 'ErgDash is already set up. Restore from Settings instead.' });
+  }
+  if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+    return res.status(400).json({ error: 'No backup file uploaded' });
+  }
+
+  let backup;
+  try {
+    backup = JSON.parse(req.body.toString('utf8'));
+  } catch {
+    return res.status(400).json({ error: 'File is not valid JSON' });
+  }
+  if (!isValidBackup(backup)) {
+    return res.status(400).json({ error: 'File is not an ErgDash data backup' });
+  }
+
+  try {
+    const meta = backup.profile || {};
+    const profile = createProfile(meta.name || 'Restored profile');
+    // user_info is stored (and exported) as a JSON string; parse before
+    // re-applying so identity round-trips instead of being double-encoded.
+    if (meta.user_info) {
+      let info = meta.user_info;
+      if (typeof info === 'string') {
+        try { info = JSON.parse(info); } catch { info = null; }
+      }
+      if (info && typeof info === 'object') setProfileIdentity(profile.id, info);
+    }
+    const restored = restoreProfileData(getDb(), profile.id, backup);
+    createAuthSession(res);
+    res.json({ ok: true, profile_id: profile.id, restored });
+  } catch (err) {
+    next(err);
+  }
 });
 
 if (process.env.NODE_ENV !== 'production') {
