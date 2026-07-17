@@ -1,19 +1,13 @@
 // Request-time coaching narrative for a completed session. This module is
 // deliberately pure: it only interprets the formatted workout, its stored
-// execution analysis, an optional matched plan and the athlete's tag baseline.
-
-export const WORKOUT_INTENTS = Object.freeze([
-  'steady',
-  'hard_distance',
-  'test_race',
-  'recovery',
-  'technique',
-]);
-
-const WORKOUT_INTENT_SET = new Set(WORKOUT_INTENTS);
+// execution analysis and the athlete's tag baseline.
 
 // A difference has to clear these thresholds before the prose calls it out.
 const TYPICAL_PACE_GAP_MS = 1500;
+// A vs-typical pace comparison is only meaningful within a comparable band. A
+// gap wider than this means the session was a different kind of work (a test
+// or hard piece against easy endurance days), not a faster version of it.
+const COMPARABLE_MAX_PACE_GAP_MS = 8000;
 const COMPARABLE_PACE_GAP_MS = 3000;
 const TYPICAL_HR_GAP_BPM = 4;
 const PHASE_PACE_EVEN_PCT = 1;
@@ -22,49 +16,29 @@ const NOTABLE_HR_DRIFT_PCT = 5;
 // Beyond this, an opening-vs-middle pace gap is session structure (warmup,
 // stops, padding), not a pacing choice, so the prose stays quiet about it.
 const OPENING_STRUCTURE_CAP_PCT = 12;
+// Effort reads that put the piece well above endurance; the vs-typical
+// endurance comparison is dropped for these because they are not comparable.
+const HARD_EFFORT_VALUES = new Set(['very_hard', 'maximal']);
 
-export function isWorkoutIntent(value) {
-  return WORKOUT_INTENT_SET.has(value);
-}
-
-// Explicit user intent wins. A plan supplies intent only for types whose
-// purpose is unambiguous; intervals and other plans still need the athlete's
-// input because they can represent several kinds of work.
-export function resolveWorkoutIntent(workout = {}, plan = workout?.plan ?? null) {
-  if (isWorkoutIntent(workout?.intent)) {
-    return { intent: workout.intent, intent_source: 'workout' };
-  }
-
-  const planIntent = workoutIntentForPlan(plan);
-  return {
-    intent: planIntent,
-    intent_source: planIntent ? 'plan' : null,
-  };
-}
-
+// The narrative describes what the recording shows. It no longer asks the
+// athlete to declare an intent: heart rate and pacing are the reads, and the
+// coaching stays observational so it can never contradict the measured effort.
 export function buildSessionNarrative(input = {}) {
   const workout = input.workout ?? {};
   const analysis = input.analysis ?? workout.analysis ?? null;
-  const plan = input.plan ?? workout.plan ?? null;
   const baseline = input.baseline ?? {};
-  const { intent, intent_source: intentSource } = resolveWorkoutIntent(workout, plan);
   const context = analysisContext(workout, analysis);
   const isInterval = context.isInterval;
 
-  const narrative = {
+  return {
     headline: isInterval
       ? intervalHeadline(workout, context)
       : continuousHeadline(workout, context),
     summary: isInterval
       ? intervalSummary(workout, context, baseline)
       : continuousSummary(workout, context, baseline),
-    recommendation: recommendationFor(intent, intentSource, context, plan),
-    intent,
-    intent_source: intentSource,
-    needs_intent: intent == null,
+    recommendation: recommendationFor(context),
   };
-
-  return narrative;
 }
 
 function analysisContext(workout, analysis) {
@@ -109,24 +83,21 @@ function continuousHeadline(workout, context) {
   const pacing = context.pacing?.value;
   const finish = context.finish?.value;
   const { fast_start: fastStart, even_core: evenCore, late_fade: lateFade, fast_finish: fastFinish } = context.shape;
+  const strongFinish = fastFinish || finish === 'accelerated';
+  const faded = lateFade || pacing === 'significant_fade' || (pacing === 'mild_fade' && finish === 'faded');
 
-  if (lateFade || pacing === 'significant_fade' || (pacing === 'mild_fade' && finish === 'faded')) {
-    return 'Faded through the back half';
-  }
-  if (evenCore && (fastFinish || finish === 'accelerated')) {
-    return 'Controlled middle with a strong finish';
-  }
-  if (pacing === 'negative_split' && (fastFinish || finish === 'accelerated')) {
-    return 'Built through the piece and finished strongly';
-  }
-  if (pacing === 'even' && finish === 'even') {
-    return 'Even from start to finish';
-  }
+  // A fade only leads the headline when the piece did not recover: a late dip
+  // that ends in a strong finish is a kick, not a fade, so the more prominent
+  // (and more alarming) "Faded through the back half" would misread it.
+  if (faded && !strongFinish) return 'Faded through the back half';
+  if (evenCore && strongFinish) return 'Controlled middle with a strong finish';
+  if (pacing === 'negative_split' && strongFinish) return 'Built through the piece and finished strongly';
+  if (pacing === 'even' && finish === 'even') return 'Even from start to finish';
+  if (strongFinish) return 'Strong finish after a steady middle';
   if (pacing === 'negative_split') return 'Built pace through the second half';
   if (pacing === 'mild_fade') return 'A slight fade through the second half';
   if (pacing === 'variable') return 'Variable pacing across the piece';
   if (fastStart) return 'Fast opening before settling';
-  if (fastFinish || finish === 'accelerated') return 'Strong finish after a steady middle';
   if (finish === 'faded') return 'Pace eased at the finish';
   if (pacing && pacing !== 'unknown') return 'A controlled continuous row';
 
@@ -145,7 +116,7 @@ function continuousSummary(workout, context, baseline) {
 
   const drift = context.hrDriftPct;
   const supporting = (drift != null && Math.abs(drift) >= NOTABLE_HR_DRIFT_PCT ? describeDrift(drift) : null)
-    ?? describeAgainstTypical(workout, baseline)[0]
+    ?? describeAgainstTypical(workout, baseline, context)[0]
     ?? describeRate(workout, context.rate);
   if (supporting) sentences.push(supporting);
 
@@ -252,7 +223,7 @@ function intervalSummary(workout, context, baseline) {
   const supporting = (finalPace && fastestPace && finalPace !== fastestPace
     ? `The final rep averaged ${formatPace(finalPace)}/500m.`
     : null)
-    ?? describeAgainstTypical(workout, baseline)[0]
+    ?? describeAgainstTypical(workout, baseline, context)[0]
     ?? describeRate(workout, context.rate);
   if (supporting) sentences.push(supporting);
 
@@ -282,16 +253,24 @@ function describeDrift(driftPct) {
   return `Power-to-HR efficiency was unchanged between the measured halves (${formatSignedPercent(driftPct)} drift).`;
 }
 
-function describeAgainstTypical(workout, baseline) {
+function describeAgainstTypical(workout, baseline, context = null) {
   const sentences = [];
   const workoutPace = positiveNumber(workout?.pace_ms);
   const medianPace = positiveNumber(baseline?.medianPaceMs);
   const workoutHr = positiveNumber(workout?.heart_rate_avg);
   const medianHr = positiveNumber(baseline?.medianHr);
   const tag = workout?.inferred_tag === 'interval' ? 'interval' : 'endurance';
+  // A hard/maximal effort is a different kind of session from the endurance
+  // days it would be measured against, so the comparison is dropped rather
+  // than reporting an athlete is "15 s/500m faster than typical".
+  const hardEffort = HARD_EFFORT_VALUES.has(context?.intensity?.value);
 
-  if (workoutPace && medianPace && Math.abs(workoutPace - medianPace) >= TYPICAL_PACE_GAP_MS) {
-    sentences.push(`${(Math.abs(workoutPace - medianPace) / 1000).toFixed(1)} s/500m ${workoutPace < medianPace ? 'faster' : 'easier'} than your typical ${tag} session.`);
+  const paceGap = workoutPace && medianPace ? Math.abs(workoutPace - medianPace) : null;
+  if (
+    paceGap != null && !hardEffort
+    && paceGap >= TYPICAL_PACE_GAP_MS && paceGap <= COMPARABLE_MAX_PACE_GAP_MS
+  ) {
+    sentences.push(`${(paceGap / 1000).toFixed(1)} s/500m ${workoutPace < medianPace ? 'faster' : 'easier'} than your typical ${tag} session.`);
   }
   if (
     workoutPace && medianPace && workoutHr && medianHr
@@ -303,100 +282,47 @@ function describeAgainstTypical(workout, baseline) {
   return sentences;
 }
 
-function recommendationFor(intent, intentSource, context, plan) {
+// Coaching is drawn from what the recording shows, not from a declared
+// purpose. Each line describes the pacing shape and points at the one change
+// that would sharpen it, so it never argues with the measured effort.
+function recommendationFor(context) {
+  if (context.isInterval) {
+    const intervalRecommendation = recommendationForIntervals(context);
+    if (intervalRecommendation) return intervalRecommendation;
+  }
+
   const pacing = context.pacing?.value;
   const finish = context.finish?.value;
   const fastStart = context.shape.fast_start;
   const strongFinish = context.shape.fast_finish || finish === 'accelerated';
   const faded = context.shape.late_fade || pacing === 'mild_fade' || pacing === 'significant_fade';
-  const averageRate = finiteNumber(context.rate?.average_spm);
-  const planRateApplies = intentSource === 'plan'
-    || (intentSource === 'workout' && workoutIntentForPlan(plan) === intent);
-  const planTargetRate = planRateApplies ? positiveNumber(plan?.target_rate) : null;
-  const targetRate = planTargetRate ?? (averageRate == null ? null : Math.round(averageRate));
-  const rhythm = targetRate ? ` around ${formatNumber(targetRate)} spm` : '';
   const rateVariable = context.rate?.value === 'variable'
     || context.rate?.value === 'stable_avg_variable_stroke';
-  const hasPacingRead = (pacing != null && pacing !== 'unknown')
-    || (finish != null && finish !== 'unknown')
-    || fastStart || strongFinish || context.shape.late_fade;
+  const highDrift = context.hrDriftPct != null && context.hrDriftPct > HIGH_HR_DRIFT_PCT;
+  const evenlyPaced = pacing === 'even' || pacing === 'negative_split' || context.shape.even_core;
 
-  if (context.isInterval) {
-    const intervalRecommendation = recommendationForIntervals(intent, context, rhythm, rateVariable);
-    if (intervalRecommendation) return intervalRecommendation;
+  if (fastStart && faded) {
+    return 'The opening was quick and the pace faded through the back half; holding back a little at the start would let you carry it further.';
   }
-
-  if (intent === 'steady') {
-    if (fastStart) {
-      return `For steady work, make the opening slightly slower and settle into a smooth rhythm${rhythm}.`;
-    }
-    if (faded) {
-      return `For steady work, ease the middle pressure a touch so the pace holds all the way through${rhythm}.`;
-    }
-    if (rateVariable) {
-      return `For steady work, keep the pace controlled and reduce stroke-to-stroke rate variation${rhythm}.`;
-    }
-    if (context.hrDriftPct != null && context.hrDriftPct > HIGH_HR_DRIFT_PCT) {
-      return 'For steady work, ease the pressure slightly so output and heart rate stay better coupled through the back half.';
-    }
-    if (!hasPacingRead) {
-      return `For steady work, keep the opening controlled and settle into a smooth rhythm${rhythm}.`;
-    }
-    return `For steady work, repeat this pacing pattern and keep the rate smooth${rhythm}.`;
+  if (faded) {
+    return 'Pace faded through the back half, so settling a touch slower after the opening would help it hold to the finish.';
   }
-
-  if (intent === 'hard_distance') {
-    // A quick opening is only a problem when the back half paid for it; a
-    // sustained fast start on a hard piece is well-executed racing shape.
-    if (fastStart && faded) {
-      return 'For the next hard-distance row, hold back slightly in the opening so you can sustain pace through the back half.';
-    }
-    if (faded) {
-      return 'The fade suggests the middle sat above sustainable pace, so settle a touch slower after the opening next time.';
-    }
-    if (strongFinish) {
-      return 'This was controlled for a hard-distance effort, so next time bring the middle pace up slightly while preserving the finish.';
-    }
-    if (!hasPacingRead) {
-      return 'For hard-distance work, establish a sustainable opening pace and build the pressure through the final quarter.';
-    }
-    return 'Pacing control suited a hard-distance effort, so keep the same opening and begin the final press a little earlier.';
+  if (strongFinish) {
+    return 'You finished with pace in hand, so there was room to commit to the final drive a little earlier.';
   }
-
-  if (intent === 'test_race') {
-    if (fastStart && faded) {
-      return 'For the next test or race, open slightly slower and protect the target pace through the final quarter.';
-    }
-    if (faded) {
-      return 'For the next test or race, set a slightly more conservative target pace and protect it through the final quarter.';
-    }
-    if (strongFinish) {
-      return 'You finished with capacity in hand, so next time begin the final drive a little earlier.';
-    }
-    if (!hasPacingRead) {
-      return 'For the next test or race, set a sustainable opening pace and plan where the final drive will begin.';
-    }
-    return 'For the next test or race, keep this pacing control and commit to the final drive before the closing stretch.';
+  if (highDrift) {
+    return 'Heart rate climbed relative to output through the piece; easing the pressure slightly would keep effort and pace better coupled.';
   }
-
-  if (intent === 'recovery') {
-    if (['hard', 'very_hard', 'maximal'].includes(context.intensity?.value)) {
-      return `This registered above a recovery effort, so lower the pressure and keep the rate relaxed${rhythm}.`;
-    }
-    return `For recovery work, keep the pressure light and the stroke rhythm relaxed${rhythm}.`;
+  if (rateVariable) {
+    return 'Smoothing the stroke-to-stroke rate would sharpen an otherwise well-controlled row.';
   }
-
-  if (intent === 'technique') {
-    return `For technique work, keep pace secondary and aim to reduce stroke-to-stroke rate variation${rhythm}.`;
+  if (evenlyPaced) {
+    return 'Evenly controlled from start to finish; a repeatable execution to build on.';
   }
-
-  if (!hasPacingRead) {
-    return 'If this was steady work, prioritise a smooth, controlled rhythm. If it was a hard effort, establish a sustainable opening pace and plan where to press.';
-  }
-  return 'If this was steady work, prioritise a smoother, controlled opening. If it was a hard effort, use the pacing pattern to decide whether to start more conservatively or press earlier.';
+  return 'A controlled row; keep the opening measured and the rhythm smooth to repeat it.';
 }
 
-function recommendationForIntervals(intent, context, rhythm, rateVariable) {
+function recommendationForIntervals(context) {
   const intervals = context.intervals;
   if (!intervals) return null;
 
@@ -413,64 +339,30 @@ function recommendationForIntervals(intent, context, rhythm, rateVariable) {
     && fastestIndex != null
     && fastestIndex >= 0
     && fastestIndex < repCount - 1;
+  const rateVariable = context.rate?.value === 'variable'
+    || context.rate?.value === 'stable_avg_variable_stroke';
 
-  if (intent === 'steady') {
-    if (wentOutHard) {
-      return `For steady interval work, open the first rep more conservatively and aim for even pace across the set${rhythm}.`;
-    }
-    if (fadedAcross) {
-      return `For steady interval work, target a rep pace you can repeat to the end of the set${rhythm}.`;
-    }
-    if (rateVariable) {
-      return `For steady interval work, keep rep pace controlled and smooth the stroke-to-stroke rate${rhythm}.`;
-    }
-    return `For steady interval work, keep the reps even and the rhythm smooth${rhythm}.`;
+  if (wentOutHard && fadedAcross) {
+    return 'The first rep was quick and the set faded; a more even opening rep would let the closing reps hold pace.';
   }
-
-  if (intent === 'hard_distance') {
-    if (wentOutHard) {
-      return 'For the next hard interval set, hold back on the first rep and protect pace through the final reps.';
-    }
-    if (fadedAcross) {
-      return 'The set faded rep to rep, so start the next hard set at a pace the final reps can hold.';
-    }
-    if (finishedFastest) {
-      return 'You finished the set strongly, so next time bring the early reps slightly closer to that sustainable pace.';
-    }
-    if (built) {
-      return fastestCameEarlier
-        ? 'The final rep was quicker than the first, but the fastest work came earlier; next time aim to carry that pace through the finish.'
-        : 'The final rep was quicker than the first; next time aim to make that progression more even across the full set.';
-    }
-    if (evenSet) {
-      return 'Rep pacing was controlled for a hard set, so repeat the even opening and press only in the final reps.';
-    }
-    return 'For the next hard interval set, use the opening reps to establish a pace you can hold through the finish.';
+  if (fadedAcross) {
+    return 'The set faded rep to rep, so targeting a rep pace you can repeat to the end would even it out.';
   }
-
-  if (intent === 'test_race') {
-    if (wentOutHard) {
-      return 'For the next race-specific set, make the first rep more conservative and protect target pace through the finish.';
-    }
-    if (fadedAcross) {
-      return 'For the next race-specific set, pick a rep target the closing reps can hold and commit to it from the start.';
-    }
-    if (finishedFastest) {
-      return 'You had pace in hand late in the set, so next time bring the early reps slightly closer to race pace.';
-    }
-    if (built) {
-      return fastestCameEarlier
-        ? 'The final rep was quicker than the first, but the fastest work came earlier; next time aim to carry race pace through the finish.'
-        : 'The final rep was quicker than the first; next time aim to make the race-pace progression more even across the full set.';
-    }
-    return 'For the next race-specific set, keep the rep pacing controlled and commit to target pace in the closing reps.';
+  if (finishedFastest) {
+    return 'You finished on your fastest rep, so the early reps had a little more to give.';
   }
-
-  if (intent == null) {
-    return 'If this was steady interval work, prioritise even reps and smooth rate. If it was a hard set, judge whether the first rep left enough pace for the finish.';
+  if (built) {
+    return fastestCameEarlier
+      ? 'The final rep beat the first, but the fastest work came earlier; carrying that pace through to the finish is the next step.'
+      : 'The set built rep to rep; aiming for a more even progression would balance the effort across it.';
   }
-
-  return null;
+  if (evenSet) {
+    return 'Rep pacing was tightly matched, a well-controlled set to repeat.';
+  }
+  if (rateVariable) {
+    return 'Smoothing the stroke-to-stroke rate across the reps would sharpen the set.';
+  }
+  return 'Keep the rep pacing even and the rhythm smooth to repeat this set.';
 }
 
 
@@ -505,12 +397,6 @@ function positiveNumber(value) {
 
 function finiteNumber(value) {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
-}
-
-function workoutIntentForPlan(plan) {
-  if (plan?.type === 'steady') return 'steady';
-  if (plan?.type === 'test' || plan?.type === 'race') return 'test_race';
-  return null;
 }
 
 function round(value, digits = 1) {
