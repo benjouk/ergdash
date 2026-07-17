@@ -136,21 +136,30 @@ router.post('/restore-bootstrap', express.raw({ type: 'application/octet-stream'
     return res.status(400).json({ error: 'File is not an ErgDash data backup' });
   }
 
+  const meta = backup.profile || {};
+  // user_info is stored (and exported) as a JSON string; parse before
+  // re-applying so identity round-trips instead of being double-encoded.
+  let info = meta.user_info;
+  if (typeof info === 'string') {
+    try { info = JSON.parse(info); } catch { info = null; }
+  }
+
   try {
-    const meta = backup.profile || {};
-    const profile = createProfile(meta.name || 'Restored profile');
-    // user_info is stored (and exported) as a JSON string; parse before
-    // re-applying so identity round-trips instead of being double-encoded.
-    if (meta.user_info) {
-      let info = meta.user_info;
-      if (typeof info === 'string') {
-        try { info = JSON.parse(info); } catch { info = null; }
-      }
+    const db = getDb();
+    // Profile creation + restore must be atomic: if the restore throws (a
+    // malformed row, a too-new format), the new profile must NOT survive - an
+    // orphaned profile would make listProfiles() non-empty and 403 every future
+    // bootstrap, bricking the recovery path. better-sqlite3 nests this
+    // transaction as a savepoint around restoreProfileData's own transaction,
+    // so any failure rolls the whole thing back to a truly fresh install.
+    const result = db.transaction(() => {
+      const profile = createProfile(meta.name || 'Restored profile');
       if (info && typeof info === 'object') setProfileIdentity(profile.id, info);
-    }
-    const restored = restoreProfileData(getDb(), profile.id, backup);
+      const restored = restoreProfileData(db, profile.id, backup);
+      return { profileId: profile.id, restored };
+    })();
     createAuthSession(res);
-    res.json({ ok: true, profile_id: profile.id, restored });
+    res.json({ ok: true, profile_id: result.profileId, restored: result.restored });
   } catch (err) {
     next(err);
   }

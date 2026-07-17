@@ -116,4 +116,22 @@ describe('POST /auth/restore-bootstrap', () => {
     expect(res.status).toBe(400);
     expect(db.prepare('SELECT COUNT(*) AS c FROM profiles').get().c).toBe(0);
   });
+
+  it('leaves NO orphan profile when the restore fails mid-way, so retry still works', async () => {
+    const good = makeBackupFromSeededProfile();
+    // A syntactically valid backup whose restore throws (malformed row shape).
+    const broken = JSON.parse(JSON.stringify(good));
+    broken.tables.strokes.push(42);
+
+    const failed = await post('/auth/restore-bootstrap', JSON.stringify(broken));
+    expect(failed.status).toBeGreaterThanOrEqual(400);
+    // The would-be profile was rolled back - the install is still fresh.
+    expect(db.prepare('SELECT COUNT(*) AS c FROM profiles').get().c).toBe(0);
+
+    // A subsequent good restore is not blocked by a 403.
+    const retry = await post('/auth/restore-bootstrap', JSON.stringify(good));
+    expect(retry.status).toBe(200);
+    expect(db.prepare('SELECT COUNT(*) AS c FROM profiles').get().c).toBe(1);
+    expect(db.prepare('SELECT id FROM workouts').get().id).toBe(900123);
+  });
 });
