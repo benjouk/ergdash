@@ -78,8 +78,8 @@ function pacingLabel(base, shape) {
   }
 
   if (shape.even_core) return `Even core · ${details.join(' · ')}`;
-  // "Even · fast start and finish" is self-contradictory — an even split can't
-  // also be quick at both ends — so let the U-shape carry the label alone.
+  // "Even · fast start and finish" is self-contradictory (an even split can't
+  // also be quick at both ends), so let the U-shape carry the label alone.
   if (base === 'Even' && shape.fast_start && shape.fast_finish) {
     const joined = details.join(' · ');
     return joined.charAt(0).toUpperCase() + joined.slice(1);

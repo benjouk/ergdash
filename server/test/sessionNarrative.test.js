@@ -123,6 +123,43 @@ describe('buildSessionNarrative', () => {
     expect(result.summary).not.toContain('faster than your typical');
   });
 
+  it('skips the endurance comparison for a piece too short to compare', () => {
+    const result = buildSessionNarrative({
+      workout: workout({ distance: 2000, time_ms: 420000, pace_ms: 115000, metrics: {} }),
+      analysis: continuousAnalysis({
+        execution: {
+          pacing: { value: 'even', shape: { even_core: true } },
+          finish: { value: 'even' },
+          rate: { value: 'stable', average_spm: 26, variation_spm: 1 },
+          intensity: { value: 'moderate' },
+          hr_drift: { value: 'low', drift_percent: 1 },
+        },
+      }),
+      baseline: { medianPaceMs: 120000, medianHr: 150 },
+    });
+
+    // A 2k is faster than the endurance median on distance alone, not fitness.
+    expect(result.summary).not.toContain('faster than your typical');
+  });
+
+  it('keeps the endurance comparison for an endurance-length piece', () => {
+    const result = buildSessionNarrative({
+      workout: workout({ distance: 6000, time_ms: 1440000, pace_ms: 115000, metrics: {} }),
+      analysis: continuousAnalysis({
+        execution: {
+          pacing: { value: 'even', shape: { even_core: true } },
+          finish: { value: 'even' },
+          rate: { value: 'stable', average_spm: 24, variation_spm: 1 },
+          intensity: { value: 'moderate' },
+          hr_drift: { value: 'low', drift_percent: 1 },
+        },
+      }),
+      baseline: { medianPaceMs: 120000, medianHr: 150 },
+    });
+
+    expect(result.summary).toContain('faster than your typical endurance session');
+  });
+
   it('leads with the fade only when the piece did not finish strong', () => {
     const faded = buildSessionNarrative({
       workout: workout(),

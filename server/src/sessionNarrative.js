@@ -8,6 +8,10 @@ const TYPICAL_PACE_GAP_MS = 1500;
 // gap wider than this means the session was a different kind of work (a test
 // or hard piece against easy endurance days), not a faster version of it.
 const COMPARABLE_MAX_PACE_GAP_MS = 8000;
+// Below this a piece is too short to sit against the endurance median, which is
+// weighted by long steady rows: a 2k reads "faster than typical" on distance
+// alone, not fitness. Short pieces skip the endurance comparison.
+const COMPARABLE_MIN_DISTANCE_M = 5000;
 const COMPARABLE_PACE_GAP_MS = 3000;
 const TYPICAL_HR_GAP_BPM = 4;
 const PHASE_PACE_EVEN_PCT = 1;
@@ -273,16 +277,20 @@ function describeAgainstTypical(workout, baseline, context = null) {
   // days it would be measured against, so the comparison is dropped rather
   // than reporting an athlete is "15 s/500m faster than typical".
   const hardEffort = HARD_EFFORT_VALUES.has(context?.intensity?.value);
+  // An endurance comparison only holds for endurance-length pieces; a short row
+  // is not the same kind of session as the long steady rows in the median.
+  const comparableLength = tag !== 'endurance'
+    || (positiveNumber(workout?.distance) ?? 0) >= COMPARABLE_MIN_DISTANCE_M;
 
   const paceGap = workoutPace && medianPace ? Math.abs(workoutPace - medianPace) : null;
   if (
-    paceGap != null && !hardEffort
+    paceGap != null && !hardEffort && comparableLength
     && paceGap >= TYPICAL_PACE_GAP_MS && paceGap <= COMPARABLE_MAX_PACE_GAP_MS
   ) {
     sentences.push(`${(paceGap / 1000).toFixed(1)} s/500m ${workoutPace < medianPace ? 'faster' : 'easier'} than your typical ${tag} session.`);
   }
   if (
-    workoutPace && medianPace && workoutHr && medianHr
+    workoutPace && medianPace && workoutHr && medianHr && comparableLength
     && Math.abs(workoutPace - medianPace) <= COMPARABLE_PACE_GAP_MS
     && Math.abs(workoutHr - medianHr) >= TYPICAL_HR_GAP_BPM
   ) {
@@ -314,10 +322,10 @@ function recommendationFor(context) {
   const evenlyPaced = pacing === 'even' || negativeSplit || context.shape.even_core;
 
   if (fastStart && faded) {
-    return 'The opening was quick and the pace faded through the back half; holding back a little at the start would let you carry it further.';
+    return 'The opening was quick and the pace faded through the back half, so holding back a little at the start would let you carry it further.';
   }
   if (faded) {
-    return 'Pace faded through the back half, so settling a touch slower after the opening would help it hold to the finish.';
+    return 'Pace faded through the back half, so settle a touch slower after the opening and it should hold to the finish.';
   }
   // On a long piece the power-to-HR decline is the durability signal worth
   // acting on, so it takes precedence over an end-of-piece kick.
@@ -325,20 +333,20 @@ function recommendationFor(context) {
   if (strongFinish) return strongFinishRecommendation({ fastStart, negativeSplit, evenlyPaced });
   if (highDrift) return driftRecommendation();
   if (rateVariable) {
-    return 'Smoothing the stroke-to-stroke rate would sharpen an otherwise well-controlled row.';
+    return 'Smoothing out the stroke-to-stroke rate would sharpen an otherwise well-controlled row.';
   }
   if (evenlyPaced) {
-    return 'Evenly controlled from start to finish; a repeatable execution to build on.';
+    return 'Evenly controlled from start to finish, and a good one to repeat.';
   }
-  return 'A controlled row; keep the opening measured and the rhythm smooth to repeat it.';
+  return 'A controlled row. Keep the opening measured and the rhythm smooth to repeat it.';
 }
 
 function driftRecommendation() {
-  return 'Heart rate climbed relative to output through the piece; easing the pressure slightly early would keep effort and pace better coupled through the back half.';
+  return 'Heart rate crept up relative to output through the piece, so easing off a little earlier would keep effort and pace better coupled through the back half.';
 }
 
 // A strong finish is a common outcome, so the line is tailored to how the
-// piece got there — otherwise the same sentence repeats down the session list.
+// piece got there. Otherwise the same sentence repeats down the session list.
 function strongFinishRecommendation({ fastStart, negativeSplit, evenlyPaced }) {
   if (negativeSplit) {
     return 'You built through the piece and still lifted the finish, so the pace could come up a little earlier next time.';
@@ -349,7 +357,7 @@ function strongFinishRecommendation({ fastStart, negativeSplit, evenlyPaced }) {
   if (evenlyPaced) {
     return 'Controlled through the middle with plenty left for the finish, so the final drive could start a little earlier.';
   }
-  return 'You finished with pace in hand, so there was room to commit to the final drive a little earlier.';
+  return 'You finished with pace in hand, so there was room to start the final drive a little earlier.';
 }
 
 function recommendationForIntervals(context) {
@@ -373,21 +381,21 @@ function recommendationForIntervals(context) {
     || context.rate?.value === 'stable_avg_variable_stroke';
 
   if (wentOutHard && fadedAcross) {
-    return 'The first rep was quick and the set faded; a more even opening rep would let the closing reps hold pace.';
+    return 'The first rep was quick and the set faded from there, so a more even opening rep would let the closing reps hold pace.';
   }
   if (fadedAcross) {
-    return 'The set faded rep to rep, so targeting a rep pace you can repeat to the end would even it out.';
+    return 'The set faded rep to rep, so aim for a rep pace you can repeat all the way to the end.';
   }
   if (finishedFastest) {
     return 'You finished on your fastest rep, so the early reps had a little more to give.';
   }
   if (built) {
     return fastestCameEarlier
-      ? 'The final rep beat the first, but the fastest work came earlier; carrying that pace through to the finish is the next step.'
-      : 'The set built rep to rep; aiming for a more even progression would balance the effort across it.';
+      ? 'The final rep beat the first, but the fastest work came earlier, so aim to carry that pace through to the finish.'
+      : 'The set built rep to rep, so aim for a more even progression across it next time.';
   }
   if (evenSet) {
-    return 'Rep pacing was tightly matched, a well-controlled set to repeat.';
+    return 'Rep pacing was tightly matched, so this is a good set to repeat.';
   }
   if (rateVariable) {
     return 'Smoothing the stroke-to-stroke rate across the reps would sharpen the set.';
