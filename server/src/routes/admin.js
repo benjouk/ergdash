@@ -4,6 +4,13 @@ import { join } from 'path';
 import { clearAuth } from '../auth.js';
 import { closeDb, getDataDir, getDb, getDbPath, reopenDb } from '../db.js';
 import { isSyncInProgress, runFullSync } from '../sync.js';
+import {
+  BACKUP_TABLES,
+  BACKUP_VERSION,
+  isValidBackup,
+  iterateProfileTable,
+  restoreProfileData,
+} from '../backup.js';
 
 const router = Router();
 const SQLITE_MAGIC = Buffer.from('SQLite format 3\0', 'binary');
@@ -128,6 +135,67 @@ router.get('/export', (req, res, next) => {
     });
 
     res.end('}}');
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Full per-profile ErgDash backup: every table that belongs to the active
+// profile, streamed as one JSON file. Restores losslessly via /restore-data
+// with no Concept2 re-sync (works offline). Scoped to req.profileId.
+router.get('/backup-data', (req, res, next) => {
+  try {
+    const db = getDb();
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="ergdash-data-backup-${todayStamp()}.json"`);
+    res.write(
+      `{"ergdash_backup_version":${BACKUP_VERSION},`
+      + `"exported_at":${JSON.stringify(new Date().toISOString())},`
+      + `"profile_id":${JSON.stringify(req.profileId)},"tables":{`,
+    );
+
+    BACKUP_TABLES.forEach((table, tableIndex) => {
+      if (tableIndex > 0) res.write(',');
+      res.write(`${JSON.stringify(table.name)}:[`);
+      let rowIndex = 0;
+      for (const row of iterateProfileTable(db, table, req.profileId)) {
+        if (rowIndex > 0) res.write(',');
+        res.write(JSON.stringify(row));
+        rowIndex += 1;
+      }
+      res.write(']');
+    });
+
+    res.end('}}');
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Restore a full ErgDash backup into the active profile, replacing its current
+// data. The upload is a raw octet-stream (like /restore) so it bypasses the
+// small global JSON body parser; we parse the JSON here.
+router.post('/restore-data', express.raw({ type: 'application/octet-stream', limit: '250mb' }), (req, res, next) => {
+  if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+    return res.status(400).json({ error: 'No backup file uploaded' });
+  }
+  if (isSyncInProgress(req.profileId)) {
+    return res.status(409).json({ error: 'Cannot restore while a sync is running' });
+  }
+
+  let backup;
+  try {
+    backup = JSON.parse(req.body.toString('utf8'));
+  } catch {
+    return res.status(400).json({ error: 'File is not valid JSON' });
+  }
+  if (!isValidBackup(backup)) {
+    return res.status(400).json({ error: 'File is not an ErgDash data backup' });
+  }
+
+  try {
+    const restored = restoreProfileData(getDb(), req.profileId, backup);
+    res.json({ ok: true, restored });
   } catch (err) {
     next(err);
   }

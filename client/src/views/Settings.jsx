@@ -536,6 +536,10 @@ export default function Settings() {
   const [restoreFile, setRestoreFile] = useState(null);
   const [restoreConfirm, setRestoreConfirm] = useState('');
   const [restoreBusy, setRestoreBusy] = useState(false);
+  const [backupFile, setBackupFile] = useState(null);
+  const [backupConfirm, setBackupConfirm] = useState('');
+  const [backupBusy, setBackupBusy] = useState(false);
+  const [downloadBusy, setDownloadBusy] = useState(false);
   const [resetConfirm, setResetConfirm] = useState('');
   const [dangerConfirm, setDangerConfirm] = useState('');
   const [wipeConfirm, setWipeConfirm] = useState('');
@@ -574,6 +578,38 @@ export default function Settings() {
     } catch (err) {
       toast.error(err.message || 'Restore failed');
       setRestoreBusy(false);
+    }
+  };
+
+  const downloadBackup = async () => {
+    setDownloadBusy(true);
+    try {
+      const { blob, filename } = await api.downloadBackup();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      toast.error(err.message || 'Backup failed');
+    } finally {
+      setDownloadBusy(false);
+    }
+  };
+
+  const restoreBackupFile = async (event) => {
+    event.preventDefault();
+    if (!backupFile || backupConfirm !== 'RESTORE') return;
+    setBackupBusy(true);
+    try {
+      const result = await api.restoreBackup(backupFile);
+      const total = Object.values(result.restored || {}).reduce((sum, n) => sum + n, 0);
+      toast.success(`Backup restored (${total.toLocaleString()} rows)`);
+      window.setTimeout(() => window.location.reload(), 800);
+    } catch (err) {
+      toast.error(err.message || 'Restore failed');
+      setBackupBusy(false);
     }
   };
 
@@ -778,15 +814,66 @@ export default function Settings() {
         </div>
       ) : (
         <div className={styles.section}>
-          <h3 className={styles.sectionTitle}>Backup & Restore</h3>
+          <h3 className={styles.sectionTitle}>ErgDash Data Backup</h3>
           <div className={styles.row}>
             <div>
-              <div className={styles.label}>Backup & Export</div>
-              <div className={styles.subtext}>Download a full SQLite snapshot or streamed JSON export</div>
+              <div className={styles.label}>Back up this profile</div>
+              <div className={styles.subtext}>
+                Download everything for the active profile - workouts, per-stroke data, intervals,
+                metrics, personal bests, goals, plans and settings - as a single file. Restore it on a
+                fresh install to return exactly where you left off, no Concept2 re-sync needed.
+              </div>
+            </div>
+            <div className={styles.inlineControls}>
+              <button type="button" className={styles.button} onClick={downloadBackup} disabled={downloadBusy}>
+                <Download size={14} /> {downloadBusy ? 'Preparing...' : 'Download backup'}
+              </button>
+            </div>
+          </div>
+          <form className={styles.restoreBox} onSubmit={restoreBackupFile}>
+            <div>
+              <div className={styles.label}>Restore from backup</div>
+              <div className={styles.warningText}>
+                Replaces this profile's current data with the backup's. Other profiles are untouched.
+                (To bring in workouts from Concept2, Garmin or a spreadsheet instead, use Import.)
+              </div>
+            </div>
+            <div className={styles.restoreControls}>
+              <input
+                className={styles.fileInput}
+                type="file"
+                accept=".json,application/json"
+                onChange={event => setBackupFile(event.target.files?.[0] || null)}
+                aria-label="Choose an ErgDash data backup file"
+              />
+              <input
+                className={styles.confirmInput}
+                value={backupConfirm}
+                onChange={event => setBackupConfirm(event.target.value)}
+                placeholder="RESTORE"
+                aria-label="Type RESTORE to confirm backup restore"
+              />
+              <button
+                type="submit"
+                className={`${styles.button} ${styles.buttonDanger}`}
+                disabled={!backupFile || backupConfirm !== 'RESTORE' || backupBusy}
+              >
+                <Upload size={14} /> {backupBusy ? 'Restoring...' : 'Restore'}
+              </button>
+            </div>
+          </form>
+
+          <div className={styles.row}>
+            <div>
+              <div className={styles.label}>Advanced: whole-database snapshot</div>
+              <div className={styles.subtext}>
+                A raw SQLite copy of the entire install (all profiles) or a streamed JSON export.
+                Use the per-profile backup above for normal restores.
+              </div>
             </div>
             <div className={styles.inlineControls}>
               <a href="/api/admin/backup" className={styles.button}>
-                <Download size={14} /> Backup
+                <Download size={14} /> SQLite
               </a>
               <a href="/api/admin/export" className={styles.button}>
                 <FileJson size={14} /> Export JSON
@@ -795,9 +882,10 @@ export default function Settings() {
           </div>
           <form className={styles.restoreBox} onSubmit={restoreDatabase}>
             <div>
-              <div className={styles.label}>Restore Database</div>
+              <div className={styles.label}>Restore SQLite database</div>
               <div className={styles.warningText}>
-                Current data will be replaced. The server keeps a safety copy named ergdash.db.pre-restore.sqlite3 before swapping files.
+                Replaces the entire database for every profile. The server keeps a safety copy named
+                ergdash.db.pre-restore.sqlite3 before swapping files.
               </div>
             </div>
             <div className={styles.restoreControls}>
