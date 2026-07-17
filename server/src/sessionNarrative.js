@@ -27,9 +27,10 @@ const LONG_PIECE_TIME_MS = 20 * 60 * 1000;
 // Beyond this, an opening-vs-middle pace gap is session structure (warmup,
 // stops, padding), not a pacing choice, so the prose stays quiet about it.
 const OPENING_STRUCTURE_CAP_PCT = 12;
-// Effort reads that put the piece well above endurance; the vs-typical
-// endurance comparison is dropped for these because they are not comparable.
-const HARD_EFFORT_VALUES = new Set(['very_hard', 'maximal']);
+// Effort reads at or above threshold: the piece was faster because it was
+// worked harder, not because of an endurance gain, so the vs-typical endurance
+// comparison is dropped for these. 'moderate' and below stay comparable.
+const HARD_EFFORT_VALUES = new Set(['hard', 'very_hard', 'maximal']);
 
 // The narrative describes what the recording shows. It no longer asks the
 // athlete to declare an intent: heart rate and pacing are the reads, and the
@@ -273,9 +274,9 @@ function describeAgainstTypical(workout, baseline, context = null) {
   const workoutHr = positiveNumber(workout?.heart_rate_avg);
   const medianHr = positiveNumber(baseline?.medianHr);
   const tag = workout?.inferred_tag === 'interval' ? 'interval' : 'endurance';
-  // A hard/maximal effort is a different kind of session from the endurance
-  // days it would be measured against, so the comparison is dropped rather
-  // than reporting an athlete is "15 s/500m faster than typical".
+  // A hard (or harder) effort is a different kind of session from the easy
+  // endurance days it would be measured against, so the comparison is dropped
+  // rather than reporting an athlete is "15 s/500m faster than typical".
   const hardEffort = HARD_EFFORT_VALUES.has(context?.intensity?.value);
   // An endurance comparison only holds for endurance-length pieces; a short row
   // is not the same kind of session as the long steady rows in the median.

@@ -142,6 +142,25 @@ describe('buildSessionNarrative', () => {
     expect(result.summary).not.toContain('faster than your typical');
   });
 
+  it('drops the endurance comparison for a hard endurance-length piece', () => {
+    const result = buildSessionNarrative({
+      workout: workout({ distance: 6000, time_ms: 1380000, pace_ms: 115000, metrics: {} }),
+      analysis: continuousAnalysis({
+        execution: {
+          pacing: { value: 'even', shape: { even_core: true } },
+          finish: { value: 'even' },
+          rate: { value: 'stable', average_spm: 28, variation_spm: 1 },
+          intensity: { value: 'hard' },
+          hr_drift: { value: 'low', drift_percent: 1 },
+        },
+      }),
+      baseline: { medianPaceMs: 120000, medianHr: 150 },
+    });
+
+    // A hard tempo row is faster because it was worked harder, not fitter.
+    expect(result.summary).not.toContain('faster than your typical');
+  });
+
   it('keeps the endurance comparison for an endurance-length piece', () => {
     const result = buildSessionNarrative({
       workout: workout({ distance: 6000, time_ms: 1440000, pace_ms: 115000, metrics: {} }),
