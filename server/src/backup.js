@@ -19,8 +19,13 @@ import { getDb } from './db.js';
 // file whose version is newer than it understands.
 export const BACKUP_VERSION = 1;
 
-// Every per-profile table, in foreign-key-safe insert order (a table never
-// appears before one it references). `scope` is how a row ties to a profile:
+// Every per-profile table, in foreign-key-safe insert order: a table never
+// appears before one it references (workouts before its child tables;
+// programs before planned_workouts, which references both). restoreProfileData
+// inserts in this order and clearProfileData deletes in the exact reverse, so
+// a new migration that adds a referencing table must be placed AFTER the table
+// it points at to keep both directions valid.
+// `scope` is how a row ties to a profile:
 //   'profile' - the table has a profile_id column
 //   'workout' - the table ties to a profile through workout_id -> workouts.id
 export const BACKUP_TABLES = [
