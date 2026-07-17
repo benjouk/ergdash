@@ -68,9 +68,40 @@ describe('buildSessionNarrative', () => {
     expect(result.summary).toContain('declined by 7.8%');
     expect(result.summary).not.toContain('typical endurance session');
     expect(result.summary.split('. ').length).toBeLessThanOrEqual(2);
-    // Strong finish → observational coaching that never references a purpose.
-    expect(result.recommendation).toContain('finished with pace in hand');
+    // A long piece (10 km) with a 7.8% power-to-HR decline is coached on the
+    // drift, not the finishing kick.
+    expect(result.recommendation).toContain('better coupled through the back half');
     expect(JSON.stringify(result)).not.toContain('—');
+  });
+
+  it('tailors the strong-finish line to the pacing shape on a short piece', () => {
+    const uShape = buildSessionNarrative({
+      workout: workout({ distance: 2000, time_ms: 470000 }),
+      analysis: continuousAnalysis({
+        execution: {
+          pacing: { value: 'even', shape: { fast_start: true, even_core: true, fast_finish: true } },
+          finish: { value: 'accelerated' },
+          rate: { value: 'stable', average_spm: 25 },
+          intensity: { value: 'moderate' },
+          hr_drift: { value: 'low', drift_percent: 1 },
+        },
+      }),
+    });
+    expect(uShape.recommendation).toContain('went out quick and still finished strong');
+
+    const built = buildSessionNarrative({
+      workout: workout({ distance: 2000, time_ms: 470000 }),
+      analysis: continuousAnalysis({
+        execution: {
+          pacing: { value: 'negative_split', shape: { fast_finish: true } },
+          finish: { value: 'accelerated' },
+          rate: { value: 'stable', average_spm: 25 },
+          intensity: { value: 'moderate' },
+          hr_drift: { value: 'low', drift_percent: 1 },
+        },
+      }),
+    });
+    expect(built.recommendation).toContain('built through the piece and still lifted the finish');
   });
 
   it('drops the vs-typical pace line for a hard effort against easy endurance', () => {
@@ -209,7 +240,7 @@ describe('buildSessionNarrative', () => {
 
   it('falls back safely when a legacy session has no stored analysis', () => {
     const result = buildSessionNarrative({
-      workout: workout({ analysis: null }),
+      workout: workout({ analysis: null, metrics: {} }),
     });
     expect(result.headline).toBe('10 km session complete');
     expect(result.summary).toContain('10 km');

@@ -107,7 +107,7 @@ describe('workout narrative routes', () => {
     expect(detail.body.narrative).not.toHaveProperty('intent');
     expect(detail.body.narrative).not.toHaveProperty('needs_intent');
     expect(detail.body.narrative).not.toHaveProperty('plan_review');
-    expect(detail.body.narrative.recommendation).toContain('finished with pace in hand');
+    expect(detail.body.narrative.recommendation).toContain('the final drive could start a little earlier');
     expect(Array.isArray(detail.body.insight)).toBe(true);
   });
 

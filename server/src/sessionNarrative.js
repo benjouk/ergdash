@@ -13,6 +13,13 @@ const TYPICAL_HR_GAP_BPM = 4;
 const PHASE_PACE_EVEN_PCT = 1;
 const HIGH_HR_DRIFT_PCT = 10;
 const NOTABLE_HR_DRIFT_PCT = 5;
+// On a long piece, a smaller power-to-HR decline than HIGH_HR_DRIFT_PCT is
+// still the durability signal worth coaching, ahead of a finishing kick.
+const LONG_PIECE_DRIFT_PCT = 6;
+// A piece is "long" (aerobic-durability territory, where drift matters) past
+// either of these; short hard efforts are expected to drift and are excluded.
+const LONG_PIECE_DISTANCE_M = 8000;
+const LONG_PIECE_TIME_MS = 20 * 60 * 1000;
 // Beyond this, an opening-vs-middle pace gap is session structure (warmup,
 // stops, padding), not a pacing choice, so the prose stays quiet about it.
 const OPENING_STRUCTURE_CAP_PCT = 12;
@@ -73,6 +80,8 @@ function analysisContext(workout, analysis) {
     phases: Array.isArray(analysis?.phases) ? analysis.phases : [],
     intervals: intervalAnalysis,
     isInterval,
+    longPiece: (positiveNumber(workout?.distance) ?? 0) >= LONG_PIECE_DISTANCE_M
+      || (positiveNumber(workout?.time_ms) ?? 0) >= LONG_PIECE_TIME_MS,
     hrDriftPct: finiteNumber(hrDrift?.drift_percent)
       ?? finiteNumber(hrDrift?.drift_pct)
       ?? finiteNumber(workout?.metrics?.hr_drift_pct),
@@ -294,12 +303,15 @@ function recommendationFor(context) {
   const pacing = context.pacing?.value;
   const finish = context.finish?.value;
   const fastStart = context.shape.fast_start;
+  const negativeSplit = pacing === 'negative_split';
   const strongFinish = context.shape.fast_finish || finish === 'accelerated';
   const faded = context.shape.late_fade || pacing === 'mild_fade' || pacing === 'significant_fade';
   const rateVariable = context.rate?.value === 'variable'
     || context.rate?.value === 'stable_avg_variable_stroke';
-  const highDrift = context.hrDriftPct != null && context.hrDriftPct > HIGH_HR_DRIFT_PCT;
-  const evenlyPaced = pacing === 'even' || pacing === 'negative_split' || context.shape.even_core;
+  const drift = context.hrDriftPct;
+  const longPieceDrift = context.longPiece && drift != null && drift >= LONG_PIECE_DRIFT_PCT;
+  const highDrift = drift != null && drift > HIGH_HR_DRIFT_PCT;
+  const evenlyPaced = pacing === 'even' || negativeSplit || context.shape.even_core;
 
   if (fastStart && faded) {
     return 'The opening was quick and the pace faded through the back half; holding back a little at the start would let you carry it further.';
@@ -307,12 +319,11 @@ function recommendationFor(context) {
   if (faded) {
     return 'Pace faded through the back half, so settling a touch slower after the opening would help it hold to the finish.';
   }
-  if (strongFinish) {
-    return 'You finished with pace in hand, so there was room to commit to the final drive a little earlier.';
-  }
-  if (highDrift) {
-    return 'Heart rate climbed relative to output through the piece; easing the pressure slightly would keep effort and pace better coupled.';
-  }
+  // On a long piece the power-to-HR decline is the durability signal worth
+  // acting on, so it takes precedence over an end-of-piece kick.
+  if (longPieceDrift) return driftRecommendation();
+  if (strongFinish) return strongFinishRecommendation({ fastStart, negativeSplit, evenlyPaced });
+  if (highDrift) return driftRecommendation();
   if (rateVariable) {
     return 'Smoothing the stroke-to-stroke rate would sharpen an otherwise well-controlled row.';
   }
@@ -320,6 +331,25 @@ function recommendationFor(context) {
     return 'Evenly controlled from start to finish; a repeatable execution to build on.';
   }
   return 'A controlled row; keep the opening measured and the rhythm smooth to repeat it.';
+}
+
+function driftRecommendation() {
+  return 'Heart rate climbed relative to output through the piece; easing the pressure slightly early would keep effort and pace better coupled through the back half.';
+}
+
+// A strong finish is a common outcome, so the line is tailored to how the
+// piece got there — otherwise the same sentence repeats down the session list.
+function strongFinishRecommendation({ fastStart, negativeSplit, evenlyPaced }) {
+  if (negativeSplit) {
+    return 'You built through the piece and still lifted the finish, so the pace could come up a little earlier next time.';
+  }
+  if (fastStart) {
+    return 'You went out quick and still finished strong, so the middle had room to carry more pace.';
+  }
+  if (evenlyPaced) {
+    return 'Controlled through the middle with plenty left for the finish, so the final drive could start a little earlier.';
+  }
+  return 'You finished with pace in hand, so there was room to commit to the final drive a little earlier.';
 }
 
 function recommendationForIntervals(context) {
