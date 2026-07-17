@@ -83,6 +83,13 @@
   color: rgba(242, 242, 239, 0.7);
 }
 
+.restoreError {
+  font-size: 0.8rem;
+  color: #FF6B6B;
+  max-width: 22rem;
+  text-align: center;
+}
+
 .actions {
   display: flex;
   flex-direction: column;

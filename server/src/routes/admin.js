@@ -7,6 +7,7 @@ import { isSyncInProgress, runFullSync } from '../sync.js';
 import {
   BACKUP_TABLES,
   BACKUP_VERSION,
+  exportProfileMeta,
   isValidBackup,
   iterateProfileTable,
   restoreProfileData,
@@ -151,7 +152,8 @@ router.get('/backup-data', (req, res, next) => {
     res.write(
       `{"ergdash_backup_version":${BACKUP_VERSION},`
       + `"exported_at":${JSON.stringify(new Date().toISOString())},`
-      + `"profile_id":${JSON.stringify(req.profileId)},"tables":{`,
+      + `"profile_id":${JSON.stringify(req.profileId)},`
+      + `"profile":${JSON.stringify(exportProfileMeta(db, req.profileId))},"tables":{`,
     );
 
     BACKUP_TABLES.forEach((table, tableIndex) => {

@@ -72,6 +72,15 @@ export function* iterateProfileTable(db, table, profileId) {
   yield* db.prepare(selectSql(table)).iterate(profileId);
 }
 
+// The profile's own identity (name + Concept2 identity), minus the encrypted
+// tokens. Carried in the backup so a first-run bootstrap restore can recreate
+// a properly-named profile before any session or Concept2 connection exists.
+// The profiles table itself is deliberately NOT in BACKUP_TABLES - restore
+// writes into an existing profile and never touches identity/tokens.
+export function exportProfileMeta(db, profileId) {
+  return db.prepare('SELECT name, c2_user_id, user_info FROM profiles WHERE id = ?').get(profileId) || null;
+}
+
 // Build the complete in-memory backup object for a profile. Used by the tests
 // and small datasets; the HTTP route streams the same shape for large ones.
 export function exportProfileData(db, profileId) {
@@ -83,6 +92,7 @@ export function exportProfileData(db, profileId) {
     ergdash_backup_version: BACKUP_VERSION,
     exported_at: new Date().toISOString(),
     profile_id: profileId,
+    profile: exportProfileMeta(db, profileId),
     tables,
   };
 }
