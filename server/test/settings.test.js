@@ -5,15 +5,16 @@ import { join } from 'path';
 import express from 'express';
 
 let dataDir;
+let db;
 let closeDb;
 let server;
 let base;
 
-async function req(body) {
-  const res = await fetch(`${base}/api/settings`, {
-    method: 'PATCH',
+async function req(body, { method = 'PATCH', path = '/api/settings' } = {}) {
+  const res = await fetch(`${base}${path}`, {
+    method,
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body: body === undefined ? undefined : JSON.stringify(body),
   });
   const json = await res.json().catch(() => ({}));
   return { status: res.status, body: json };
@@ -26,7 +27,7 @@ beforeEach(async () => {
   const dbModule = await import('../src/db.js');
   const settingsRouter = (await import('../src/routes/settings.js')).default;
   ({ closeDb } = dbModule);
-  const db = dbModule.initDb();
+  db = dbModule.initDb();
   db.prepare("INSERT INTO profiles (id, name) VALUES (1, 'Test')").run();
 
   const app = express();
@@ -68,5 +69,33 @@ describe('PATCH /api/settings validation', () => {
     });
     expect(status).toBe(400);
     expect(body.details.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it('recomputes effort confidence when max HR is set and reset', async () => {
+    db.prepare(`
+      INSERT INTO workouts (
+        id, profile_id, user_id, date, type, workout_type, inferred_tag,
+        distance, time_ms, pace_ms, stroke_rate, heart_rate_avg,
+        heart_rate_max, synced_at
+      ) VALUES (
+        1, 1, 42, '2026-07-15T07:00:00', 'rower',
+        'FixedDistanceSplits', 'endurance', 5000, 1200000, 120000,
+        24, 150, 180, datetime('now')
+      )
+    `).run();
+    const { computeMetricsForWorkout } = await import('../src/analytics.js');
+    computeMetricsForWorkout(1);
+
+    const intensity = () => JSON.parse(db.prepare(
+      'SELECT analysis_json FROM computed_metrics WHERE workout_id = 1'
+    ).get().analysis_json).execution.intensity;
+
+    expect(intensity()).toMatchObject({ estimated: true, dominant_zone: 4 });
+
+    expect((await req({ max_hr: 200 })).status).toBe(200);
+    expect(intensity()).toMatchObject({ estimated: false, dominant_zone: 3 });
+
+    expect((await req(undefined, { method: 'POST', path: '/api/settings/reset' })).status).toBe(200);
+    expect(intensity()).toMatchObject({ estimated: true, dominant_zone: 4 });
   });
 });

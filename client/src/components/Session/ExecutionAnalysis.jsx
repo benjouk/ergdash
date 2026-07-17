@@ -5,7 +5,7 @@ import styles from './ExecutionAnalysis.module.css';
 // summary from the versioned analysis. The categorical execution labels live in
 // SessionAnalysis (the derived-analysis block); this covers the tabular detail.
 // `cardStyles` is the Session CSS module (card/table chrome).
-export default function ExecutionAnalysis({ analysis, formatPace, cardStyles }) {
+export default function ExecutionAnalysis({ analysis, workout, formatPace, formatTime, cardStyles }) {
   if (!analysis?.execution) return null;
 
   const { phases, intervals } = analysis;
@@ -23,6 +23,7 @@ export default function ExecutionAnalysis({ analysis, formatPace, cardStyles }) 
               <thead>
                 <tr>
                   <th>Phase</th>
+                  <th>Range</th>
                   <th>Pace</th>
                   <th className={cardStyles.hideNarrow}>Rate</th>
                   <th className={cardStyles.hideNarrow}>Power</th>
@@ -32,7 +33,8 @@ export default function ExecutionAnalysis({ analysis, formatPace, cardStyles }) 
               <tbody>
                 {phases.map(phase => (
                   <tr key={phase.name}>
-                    <td style={{ textTransform: 'capitalize' }}>{phase.name}</td>
+                    <td>{phaseName(phase.name)}</td>
+                    <td>{phaseRange(phase, workout, formatTime)}</td>
                     <td>{phase.avg_pace_ms ? formatPace(phase.avg_pace_ms) : '--'}</td>
                     <td className={cardStyles.hideNarrow}>{phase.avg_rate ?? '--'}</td>
                     <td className={cardStyles.hideNarrow}>{phase.avg_power ? `${phase.avg_power}W` : '--'}</td>
@@ -42,7 +44,7 @@ export default function ExecutionAnalysis({ analysis, formatPace, cardStyles }) 
               </tbody>
             </table>
           </div>
-          <ChartInfo>The piece split into start, settle, middle, pressure and finish phases — average pace, rate, power and HR in each. It describes shape, not intensity.</ChartInfo>
+          <ChartInfo>The piece split into start, settle, middle, late and finish phases, with the range and average pace, rate, power and HR in each. It describes shape, not intensity.</ChartInfo>
         </div>
       )}
 
@@ -79,4 +81,48 @@ export default function ExecutionAnalysis({ analysis, formatPace, cardStyles }) 
       )}
     </>
   );
+}
+
+function phaseName(name) {
+  const normalized = name === 'pressure' ? 'late' : name;
+  if (!normalized) return '--';
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1).replaceAll('_', ' ');
+}
+
+function phaseRange(phase, workout, formatTime) {
+  // Prefer the absolute range the server sliced with (analysis v6+); the
+  // percentage fallback covers older cached analyses.
+  if (Number.isFinite(Number(phase?.start_m)) && Number.isFinite(Number(phase?.end_m))) {
+    return `${Number(phase.start_m).toLocaleString()}–${Number(phase.end_m).toLocaleString()}m`;
+  }
+  if (Number.isFinite(Number(phase?.start_s)) && Number.isFinite(Number(phase?.end_s))) {
+    return `${formatRangeTime(Number(phase.start_s) * 1000, formatTime)}–${formatRangeTime(Number(phase.end_s) * 1000, formatTime)}`;
+  }
+
+  const startPct = Number(phase?.start_pct);
+  const endPct = Number(phase?.end_pct);
+  if (!Number.isFinite(startPct) || !Number.isFinite(endPct)) return '--';
+
+  const byTime = /FixedTime/i.test(workout?.workout_type || '');
+  if (byTime && Number(workout?.time_ms) > 0) {
+    const total = Number(workout.time_ms);
+    return `${formatRangeTime((startPct / 100) * total, formatTime)}–${formatRangeTime((endPct / 100) * total, formatTime)}`;
+  }
+
+  if (Number(workout?.distance) > 0) {
+    const total = Number(workout.distance);
+    const start = Math.round((startPct / 100) * total);
+    const end = Math.round((endPct / 100) * total);
+    return `${start.toLocaleString()}–${end.toLocaleString()}m`;
+  }
+
+  return `${startPct}–${endPct}%`;
+}
+
+function formatRangeTime(value, formatTime) {
+  const milliseconds = Math.round(Number(value));
+  if (milliseconds === 0) return '0:00';
+  if (formatTime) return formatTime(milliseconds);
+  const seconds = Math.round(milliseconds / 1000);
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 }

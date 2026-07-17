@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { getDb, seedDefaultSettings } from '../db.js';
-import { recomputeAllZoneTimes } from '../analytics.js';
+import { recomputeAllMetrics, recomputeAllZoneTimes } from '../analytics.js';
 
 const router = Router();
 
@@ -136,10 +136,15 @@ router.patch('/', (req, res) => {
     }
   })();
 
-  // Zone-model edits invalidate the profile's cached zone times; the dataset
-  // is small enough to recompute synchronously.
+  // Zone-model edits invalidate both the chart rows and the stored execution
+  // analysis (effort confidence and dominant zone). Rate tolerance changes the
+  // cached discipline read too. Household datasets are small enough to refresh
+  // synchronously.
   if ('max_hr' in updates || 'hr_zones' in updates) {
     recomputeAllZoneTimes(req.profileId);
+    recomputeAllMetrics(req.profileId);
+  } else if ('rate_band_tolerance' in updates) {
+    recomputeAllMetrics(req.profileId);
   }
 
   res.json(updates);
@@ -149,6 +154,8 @@ router.post('/reset', (req, res) => {
   const db = getDb();
   db.prepare('DELETE FROM settings WHERE profile_id = ?').run(req.profileId);
   seedDefaultSettings(db, req.profileId);
+  recomputeAllZoneTimes(req.profileId);
+  recomputeAllMetrics(req.profileId);
   res.json({ ok: true });
 });
 

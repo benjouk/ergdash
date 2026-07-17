@@ -350,13 +350,22 @@ export default function Session() {
 
   const strokeData = useMemo(() => buildStrokeSeries(workout?.strokes), [workout?.strokes]);
   const splitRows = useMemo(() => buildSplitRows(workout), [workout]);
+  const phaseBoundaries = useMemo(
+    () => buildPhaseBoundaryDistances(
+      workout?.analysis?.phases,
+      workout?.distance,
+      workout?.analysis?.analysis_window,
+      workout?.strokes
+    ),
+    [workout?.analysis?.phases, workout?.distance, workout?.analysis?.analysis_window, workout?.strokes]
+  );
   const maxStrokeDistance = strokeData.length ? Math.max(...strokeData.map(p => p.distance)) : 0;
   const distanceTicks = useMemo(
     () => niceTicksFromZero(maxStrokeDistance, isMobile ? 4 : 6),
     [maxStrokeDistance, isMobile]
   );
   const distanceDomain = useMemo(() => [0, distanceTicks[distanceTicks.length - 1]], [distanceTicks]);
-  const strokeRateDomain = useMemo(() => padRoundDomain(strokeData, 'stroke_rate', 2), [strokeData]);
+  const strokeRateDomain = useMemo(() => padRoundDomain(strokeData, 'stroke_rate_smooth', 2), [strokeData]);
   const heartRateDomain = useMemo(() => padRoundDomain(strokeData, 'heart_rate', 5), [strokeData]);
 
   if (loading) return <div className={styles.statusState}>Loading...</div>;
@@ -419,6 +428,7 @@ export default function Session() {
   const savedNotes = workout.notes || '';
   const notesChanged = notesDraft !== savedNotes;
   const primaryMetric = getPrimaryMetric(units);
+  const workPerStroke = workout.analysis?.execution?.stroke_effectiveness;
 
   const summaryItems = [
     { label: 'Time', value: formatTimePrecise(workout.time_ms) },
@@ -426,17 +436,34 @@ export default function Session() {
     { label: primaryMetric.averageLabel, value: formatPace(workout.pace_ms), unit: primaryMetric.unit, accent: true },
     { label: 'Power', value: formatNumber(avgWatts), unit: 'w' },
     { label: 'Rate', value: formatRate(workout.stroke_rate), unit: 'spm' },
-    { label: 'Cal/hr', value: formatNumber(avgCalHr) },
+    {
+      label: 'Cal/hr',
+      value: formatNumber(avgCalHr),
+      hint: 'Projected rate from average pace (Concept2 formula), not measured — see Total Calories for the recorded session total.',
+    },
   ];
 
   const detailRows = [
     { label: 'Stroke Count', value: formatNumber(workout.stroke_count), icon: BarChart3 },
-    { label: 'Total Calories', value: formatNumber(workout.calories), unit: 'cal', icon: Flame },
+    {
+      label: 'Total Calories',
+      value: formatNumber(workout.calories),
+      unit: 'cal',
+      icon: Flame,
+      hint: 'Total for the whole session, as recorded — a different measure from the Cal/hr rate above, which is projected from pace.',
+    },
     { label: 'Drag Factor', value: formatNumber(workout.drag_factor), icon: Gauge },
     { label: 'Ave. Heart Rate', value: formatNumber(workout.heart_rate_avg), unit: 'bpm', icon: HeartPulse },
     { label: 'Max Heart Rate', value: formatNumber(workout.heart_rate_max), unit: 'bpm', icon: HeartPulse },
     workout.metrics?.drag_delta != null ? { label: 'Drag Delta', value: signed(workout.metrics.drag_delta), icon: Gauge } : null,
     workout.metrics?.distance_per_stroke != null ? { label: 'Distance Per Stroke', value: `${workout.metrics.distance_per_stroke.toFixed(2)}`, unit: 'm', icon: Activity } : null,
+    workPerStroke?.work_per_stroke_joules != null ? {
+      label: 'Work Per Stroke',
+      value: Math.round(workPerStroke.work_per_stroke_joules).toLocaleString(),
+      unit: 'J',
+      icon: Zap,
+      hint: workPerStroke.basis,
+    } : null,
     workout.metrics?.watts_per_beat != null ? { label: 'Watts Per Beat', value: workout.metrics.watts_per_beat.toFixed(2), icon: Zap } : null,
     workout.metrics?.hr_drift_pct != null ? { label: 'HR Drift', value: `${workout.metrics.hr_drift_pct > 0 ? '+' : ''}${workout.metrics.hr_drift_pct.toFixed(1)}%${Math.abs(workout.metrics.hr_drift_pct) < 5 ? ' · coupled' : ''}`, icon: HeartPulse } : null,
     workout.metrics?.rate_discipline != null ? { label: 'Rate Discipline', value: workout.metrics.rate_discipline.toFixed(0), icon: Activity } : null,
@@ -615,7 +642,7 @@ export default function Session() {
 
       <div className={styles.summaryStrip}>
         {summaryItems.map(item => (
-          <div className={styles.summaryCell} key={item.label}>
+          <div className={styles.summaryCell} key={item.label} title={item.hint}>
             <span className={styles.summaryCellLabel}>{item.label}</span>
             <span className={`${styles.summaryCellValue} ${item.accent ? styles.accentValue : ''}`}>
               {item.value}
@@ -626,7 +653,12 @@ export default function Session() {
         ))}
       </div>
 
-      <SessionAnalysis analysis={workout.analysis} insight={workout.insight} cardStyles={styles} />
+      <SessionAnalysis
+        analysis={workout.analysis}
+        insight={workout.insight}
+        narrative={workout.narrative}
+        cardStyles={styles}
+      />
 
       {splitRows.length > 0 && (() => {
         const isIntervalTable = isInterval && workout.intervals?.length > 0;
@@ -686,6 +718,9 @@ export default function Session() {
               </tbody>
             </table>
           </div>
+          {!isIntervalTable && (
+            <ChartInfo>Each split's time is estimated from its average pace × distance, not measured directly, so the splits may not add up exactly to the session's total time.</ChartInfo>
+          )}
         </div>
         );
       })()}
@@ -779,6 +814,15 @@ export default function Session() {
                         tickLine={false}
                       />
                       <YAxis reversed allowDecimals={false} tick={AXIS_TICK} tickFormatter={v => formatPace(v)} axisLine={false} tickLine={false} width={58} domain={['dataMin - 1500', 'dataMax + 1500']} />
+                      {phaseBoundaries.map(boundary => (
+                        <ReferenceLine
+                          key={`pace-phase-${boundary}`}
+                          x={boundary}
+                          stroke="var(--ink-3)"
+                          strokeOpacity={0.28}
+                          strokeDasharray="2 5"
+                        />
+                      ))}
                       <ReferenceLine y={workout.pace_ms} stroke="var(--ink-2)" strokeDasharray="4 4" />
                       <Tooltip content={<ChartTooltip formatPace={formatPace} />} />
                       <Area type="monotone" dataKey="pace_ms" stroke="var(--accent)" strokeWidth={2} fill="url(#paceFill)" dot={false} activeDot={{ r: 4 }} />
@@ -787,7 +831,10 @@ export default function Session() {
                 </div>
               </div>
             </div>
-            <ChartInfo>Every stroke of the session plotted over distance, in your chosen pace unit. The dashed line marks the session average; higher on the chart is faster.</ChartInfo>
+            <ChartInfo>
+              Every stroke of the session plotted over distance, in your chosen pace unit. The horizontal dashed line marks the session average; higher is faster.
+              {phaseBoundaries.length > 0 && ' Faint vertical markers show phase boundaries.'}
+            </ChartInfo>
           </div>
 
           {(hasStrokeRate || hasHeartRate) && (
@@ -795,8 +842,9 @@ export default function Session() {
               <div className={styles.chartStack}>
                 <div className={styles.chartBlock}>
                   <div className={styles.chartLabel}>
-                    Stroke Rate <span className={styles.chartUnit}>spm</span>
-                    {hasHeartRate && <> · Heart Rate <span className={styles.chartUnit}>bpm</span></>}
+                    {hasStrokeRate && <>Stroke Rate <span className={styles.chartUnit}>spm</span></>}
+                    {hasStrokeRate && hasHeartRate && <> · </>}
+                    {hasHeartRate && <>Heart Rate <span className={styles.chartUnit}>bpm</span></>}
                   </div>
                   <div className={`${styles.chartBox}`}>
                     <ResponsiveContainer width="100%" height="100%">
@@ -814,22 +862,45 @@ export default function Session() {
                         />
                         <YAxis yAxisId="rate" allowDecimals={false} tick={AXIS_TICK} axisLine={false} tickLine={false} width={38} domain={strokeRateDomain} />
                         {hasHeartRate && <YAxis yAxisId="hr" orientation="right" allowDecimals={false} tick={AXIS_TICK} axisLine={false} tickLine={false} width={38} domain={heartRateDomain} />}
+                        {phaseBoundaries.map(boundary => (
+                          <ReferenceLine
+                            key={`rate-phase-${boundary}`}
+                            x={boundary}
+                            yAxisId={hasStrokeRate ? 'rate' : 'hr'}
+                            stroke="var(--ink-3)"
+                            strokeOpacity={0.28}
+                            strokeDasharray="2 5"
+                          />
+                        ))}
                         {workout.stroke_rate && <ReferenceLine yAxisId="rate" y={workout.stroke_rate} stroke="var(--ink-2)" strokeDasharray="4 4" />}
                         <Tooltip content={<ChartTooltip formatPace={formatPace} />} />
-                        {hasStrokeRate && <Line yAxisId="rate" type="stepAfter" dataKey="stroke_rate" stroke="var(--accent-2)" strokeWidth={2} dot={false} />}
+                        {hasStrokeRate && <Line yAxisId="rate" type="monotone" dataKey="stroke_rate_smooth" stroke="var(--accent-2)" strokeWidth={2} dot={false} />}
                         {hasHeartRate && <Line yAxisId="hr" type="monotone" dataKey="heart_rate" stroke="var(--hr)" strokeWidth={1.8} dot={false} />}
                       </LineChart>
                     </ResponsiveContainer>
                   </div>
                 </div>
               </div>
-              <ChartInfo>Stroke rate (stepped line) and heart rate (smooth line) for every stroke, plotted over distance. The dashed line marks the average stroke rate.</ChartInfo>
+              <ChartInfo>
+                {hasStrokeRate
+                  ? 'Stroke rate is shown as a 5-stroke rolling median, while the tooltip keeps the raw rate.'
+                  : 'Heart rate is shown for each recorded stroke.'}
+                {hasStrokeRate && hasHeartRate && ' Heart rate is unsmoothed.'}
+                {hasStrokeRate && workout.stroke_rate && ' The horizontal dashed line marks average rate.'}
+                {phaseBoundaries.length > 0 && ' Faint vertical markers show phase boundaries.'}
+              </ChartInfo>
             </div>
           )}
         </div>
       )}
 
-      <ExecutionAnalysis analysis={workout.analysis} formatPace={formatPace} cardStyles={styles} />
+      <ExecutionAnalysis
+        analysis={workout.analysis}
+        workout={workout}
+        formatPace={formatPace}
+        formatTime={formatTime}
+        cardStyles={styles}
+      />
 
       {hasAnalysis && workout.strokes?.filter(s => s.stroke_rate > 0 && s.pace_ms > 0).length >= 20 && (
         <div className={styles.card}>
@@ -854,7 +925,7 @@ export default function Session() {
           {detailRows.map(row => {
             const Icon = row.icon;
             return (
-              <div className={styles.detailRow} key={row.label}>
+              <div className={styles.detailRow} key={row.label} title={row.hint}>
                 <div className={styles.detailLabel}>
                   {Icon && <Icon className={styles.detailIcon} size={14} />}
                   {row.label}
@@ -1035,19 +1106,22 @@ function ChartTooltip({ active, payload, label, formatPace }) {
       boxShadow: '0 12px 30px rgba(0, 0, 0, 0.18)',
     }}>
       <div style={{ color: 'var(--ink-3)', fontFamily: 'var(--font-mono)', marginBottom: 4 }}>{Math.round(label)}m</div>
-      {payload.map(item => (
-        <div key={item.dataKey} style={{ display: 'flex', gap: 10, justifyContent: 'space-between', color: item.color }}>
-          <span>{tooltipLabel(item.dataKey)}</span>
-          <strong>{tooltipValue(item.dataKey, item.value, formatPace)}</strong>
-        </div>
-      ))}
+      {payload.map(item => {
+        const rawRate = item.dataKey === 'stroke_rate_smooth' ? item.payload?.stroke_rate : item.value;
+        return (
+          <div key={item.dataKey} style={{ display: 'flex', gap: 10, justifyContent: 'space-between', color: item.color }}>
+            <span>{tooltipLabel(item.dataKey)}</span>
+            <strong>{tooltipValue(item.dataKey, rawRate, formatPace)}</strong>
+          </div>
+        );
+      })}
     </div>
   );
 }
 
 function tooltipLabel(key) {
   if (key === 'pace_ms') return 'Pace';
-  if (key === 'stroke_rate') return 'Rate';
+  if (key === 'stroke_rate' || key === 'stroke_rate_smooth') return 'Rate';
   if (key === 'heart_rate') return 'HR';
   return key;
 }
@@ -1055,7 +1129,7 @@ function tooltipLabel(key) {
 function tooltipValue(key, value, formatPace) {
   if (value == null) return '--';
   if (key === 'pace_ms') return formatPace(value);
-  if (key === 'stroke_rate') return `${Number(value).toFixed(1)} spm`;
+  if (key === 'stroke_rate' || key === 'stroke_rate_smooth') return `${Number(value).toFixed(1)} spm`;
   if (key === 'heart_rate') return `${Math.round(value)} bpm`;
   return value;
 }
@@ -1068,26 +1142,109 @@ function padRoundDomain(points, key, padding) {
   return [Math.floor(Math.min(...values) - padding), Math.ceil(Math.max(...values) + padding)];
 }
 
-function buildStrokeSeries(strokes = []) {
+export function buildStrokeSeries(strokes = []) {
   const valid = strokes.filter(s => s?.pace_ms > 0 && s?.distance_m >= 0);
-  if (valid.length <= 260) {
-    return valid.map(formatStrokePoint);
-  }
+  const formatted = valid.map((stroke, index) => formatStrokePoint(
+    stroke,
+    rollingMedianRate(valid, index, 5)
+  ));
+  if (formatted.length <= 260) return formatted;
 
-  const step = Math.max(1, Math.floor(valid.length / 260));
-  const sampled = valid.filter((_, index) => index % step === 0);
-  const last = valid[valid.length - 1];
+  const step = Math.max(1, Math.ceil(formatted.length / 260));
+  const sampled = formatted.filter((_, index) => index % step === 0);
+  const last = formatted[formatted.length - 1];
   if (sampled[sampled.length - 1] !== last) sampled.push(last);
-  return sampled.map(formatStrokePoint);
+  return sampled;
 }
 
-function formatStrokePoint(stroke) {
+function formatStrokePoint(stroke, smoothRate = null) {
   return {
     distance: Math.round(stroke.distance_m),
     pace_ms: stroke.pace_ms,
     stroke_rate: stroke.stroke_rate,
+    stroke_rate_smooth: smoothRate,
     heart_rate: stroke.heart_rate,
   };
+}
+
+function rollingMedianRate(strokes, index, windowSize) {
+  const halfWindow = Math.floor(windowSize / 2);
+  const start = Math.max(0, index - halfWindow);
+  const end = Math.min(strokes.length, index + halfWindow + 1);
+  const values = strokes
+    .slice(start, end)
+    .map(stroke => Number(stroke?.stroke_rate))
+    .filter(rate => rate > 0)
+    .sort((a, b) => a - b);
+  if (values.length === 0) return null;
+  const middle = Math.floor(values.length / 2);
+  return values.length % 2
+    ? values[middle]
+    : (values[middle - 1] + values[middle]) / 2;
+}
+
+export function buildPhaseBoundaryDistances(phases, distance, analysisWindow, strokes = []) {
+  if (!Array.isArray(phases) || phases.length === 0) return [];
+
+  // Phases describe the scored piece; the charts plot the whole recording.
+  // When the analysis windowed the stream, shift boundaries to where the
+  // piece actually sits in the recording.
+  const offset = Number(analysisWindow?.start_distance_m) > 0
+    ? Number(analysisWindow.start_distance_m)
+    : 0;
+
+  // Absolute phase ranges (analysis v6+): every interior phase start.
+  const absolute = phases
+    .map(phase => Number(phase?.start_m))
+    .filter(start => Number.isFinite(start) && start > 0);
+  if (absolute.length > 0) {
+    return [...new Set(absolute.map(start => Math.round(offset + start)))].sort((a, b) => a - b);
+  }
+
+  // Fixed-time phases are sliced on the stroke clock, so their distance
+  // markers must follow the stroke stream rather than assume that elapsed
+  // time and distance advance at the same rate. Windowed phase times are
+  // relative to the scored piece; shift them back onto the raw stream clock
+  // before finding the first stroke included in each phase.
+  const timeStarts = phases
+    .map(phase => Number(phase?.start_s))
+    .filter(start => Number.isFinite(start) && start > 0);
+  if (timeStarts.length > 0) {
+    const windowStartTime = Number(analysisWindow?.start_time_s);
+    const timeOffset = Number.isFinite(windowStartTime) ? windowStartTime : 0;
+    const timedStrokes = strokes
+      .map(stroke => ({
+        time: Number(stroke?.time_s),
+        distance: Number(stroke?.distance_m),
+      }))
+      .filter(stroke => Number.isFinite(stroke.time) && Number.isFinite(stroke.distance))
+      .sort((a, b) => a.time - b.time);
+    if (timedStrokes.length === 0) return [];
+
+    const boundaryDistances = timeStarts
+      .map(start => timedStrokes.find(stroke => stroke.time >= timeOffset + start)?.distance)
+      .filter(boundary => Number.isFinite(boundary))
+      .map(boundary => Math.round(boundary));
+    return [...new Set(boundaryDistances)].sort((a, b) => a - b);
+  }
+
+  // Percentage fallback for older cached analyses (never windowed).
+  if (!(Number(distance) > 0)) return [];
+  const percentages = new Set();
+  for (const phase of phases) {
+    for (const value of [phase?.start_pct, phase?.end_pct]) {
+      const percentage = Number(value);
+      if (Number.isFinite(percentage) && percentage > 0 && percentage < 100) {
+        percentages.add(percentage);
+      }
+    }
+  }
+  const boundaryDistances = new Set(
+    [...percentages].map(percentage => Math.round((percentage / 100) * Number(distance)))
+  );
+  return [...boundaryDistances]
+    .filter(boundary => boundary > 0 && boundary < Number(distance))
+    .sort((a, b) => a - b);
 }
 
 function buildSplitRows(workout) {
@@ -1119,7 +1276,19 @@ function buildSplitRows(workout) {
     return markBestWorst(rows);
   }
 
-  const strokes = (workout.strokes || []).filter(s => s?.pace_ms > 0 && s?.distance_m >= 0);
+  let strokes = (workout.strokes || []).filter(s => s?.pace_ms > 0 && s?.distance_m >= 0);
+
+  // When the analysis located the scored piece inside a padded recording,
+  // splits describe that piece, not the first N metres of the raw stream
+  // (which would mix warmup strokes into the opening splits).
+  const analysisWindow = workout.analysis?.analysis_window;
+  if (Number(analysisWindow?.start_distance_m) >= 0 && Number(analysisWindow?.end_distance_m) > 0) {
+    const startM = Number(analysisWindow.start_distance_m);
+    const endM = Number(analysisWindow.end_distance_m);
+    strokes = strokes
+      .filter(s => s.distance_m > startM && s.distance_m <= endM)
+      .map(s => ({ ...s, distance_m: s.distance_m - startM }));
+  }
   if (strokes.length < 2 || !workout.distance) return [];
 
   const splitSize = workout.distance <= 3000 ? 500 : 1000;

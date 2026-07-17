@@ -1,58 +1,84 @@
-import { useEffect, useId, useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import ChartInfo from '../Charts/ChartInfo.jsx';
 import { execLabel, showsExecution } from '../../utils/executionLabels.js';
 import styles from './SessionAnalysis.module.css';
 
-// Labels for each execution channel.
-const READ_LABELS = {
-  intensity: 'Observed effort',
-  pacing: 'Pacing',
-  finish: 'Finish',
-  rate: 'Rate',
-  stroke_effectiveness: 'Work per stroke',
-  hr_drift: 'HR drift',
-};
+const READ_ORDER = ['intensity', 'pacing', 'rate', 'hr_drift'];
 
-const READ_ORDER = ['intensity', 'pacing', 'finish', 'rate', 'stroke_effectiveness', 'hr_drift'];
-
-// Derived "what we think it means" for a session, styled like the Details card:
-// a compact two-column grid of label → value rows. The natural-language insight
-// leads; tapping a row reveals that read's reasoning as a single line at the
-// foot of the card (mobile-safe, no floating popover). `cardStyles` is the
-// Session CSS module (card/header chrome).
-export default function SessionAnalysis({ analysis, insight = [], cardStyles }) {
-  const [openKind, setOpenKind] = useState(null);
-  const explainId = useId();
-
-  // Close the open explanation on Escape.
-  useEffect(() => {
-    if (!openKind) return undefined;
-    const onKeyDown = e => { if (e.key === 'Escape') setOpenKind(null); };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [openKind]);
-
+// A concise interpretation layer above the measured session data. `cardStyles`
+// supplies the shared Session card/header chrome.
+export default function SessionAnalysis({
+  analysis,
+  insight = [],
+  narrative = null,
+  cardStyles,
+}) {
   const reads = analysis?.execution
     ? READ_ORDER
-      .map(kind => ({ kind, metric: analysis.execution[kind] }))
-      .filter(({ kind, metric }) => showsExecution(metric) && execLabel(kind, metric.value))
+      .map(kind => ({
+        kind,
+        metric: analysis.execution[kind],
+        parts: readLabelParts(kind, analysis.execution[kind]),
+      }))
+      .filter(({ metric, parts }) => showsExecution(metric) && parts)
     : [];
-  const insights = Array.isArray(insight) ? insight : [];
+  const hasReads = reads.length > 0;
+  const hasNarrative = narrative != null && typeof narrative === 'object';
+  const insights = !hasNarrative && Array.isArray(insight) ? insight : [];
+  const qualityNotice = dataQualityNotice(analysis);
 
-  if (reads.length === 0 && insights.length === 0) return null;
+  if (!hasReads && insights.length === 0 && !hasNarrative) return null;
 
-  const openRead = reads.find(r => r.kind === openKind && r.metric.basis);
+  const hasCoachingContent = hasNarrative && (
+    narrative.headline
+    || narrative.summary
+    || narrative.recommendation
+    || hasReads
+  );
+
+  const readsBlock = hasReads && (
+    <ul className={styles.reads} aria-label="Session reads">
+      {reads.map(({ kind, parts }) => (
+        <li key={kind} className={styles.read}>
+          {parts.label && <span className={styles.readLabel}>{parts.label}</span>}
+          <span className={styles.readValue}>{parts.value}</span>
+        </li>
+      ))}
+    </ul>
+  );
 
   return (
     <div className={cardStyles.card}>
-      <div className={cardStyles.cardHeader}>
+      <div className={`${cardStyles.cardHeader} ${styles.cardHeader}`}>
         <div className={cardStyles.cardTitle}>
           <Sparkles size={13} className={styles.titleIcon} aria-hidden="true" />
           Session analysis
         </div>
-        <ChartInfo>Automated reads of this session from pace, power, rate and heart rate — interpretations, not measured facts. Tap a row to see the reasoning.</ChartInfo>
+        <ChartInfo>Automated coaching summary from pace, power, rate and heart rate. It is an interpretation, not a measured fact.</ChartInfo>
       </div>
+
+      {hasCoachingContent && (
+        <section className={styles.narrative} aria-label="Coaching summary">
+          {narrative.headline && (
+            <div className={styles.narrativeHeading}>
+              <h2 className={styles.headline}>{narrative.headline}</h2>
+            </div>
+          )}
+          {narrative.summary && <p className={styles.summary}>{narrative.summary}</p>}
+          {readsBlock}
+          {narrative.recommendation && (
+            <p className={styles.recommendation}>
+              <span className={styles.nextTimeLabel}>Next time:</span>
+              {narrative.recommendation}
+            </p>
+          )}
+          {qualityNotice && <p className={styles.qualityNotice}>{qualityNotice}</p>}
+        </section>
+      )}
+
+      {!hasCoachingContent && qualityNotice && (
+        <p className={`${styles.qualityNotice} ${styles.qualityNoticeStandalone}`}>{qualityNotice}</p>
+      )}
 
       {insights.length > 0 && (
         <div className={styles.takeaways}>
@@ -64,31 +90,75 @@ export default function SessionAnalysis({ analysis, insight = [], cardStyles }) 
         </div>
       )}
 
-      <div className={styles.reads}>
-        {reads.map(({ kind, metric }) => {
-          const open = openKind === kind;
-          return (
-            <button
-              type="button"
-              key={kind}
-              className={`${styles.read} ${open ? styles.readOpen : ''}`}
-              aria-expanded={open}
-              aria-controls={metric.basis ? explainId : undefined}
-              onClick={() => setOpenKind(k => (k === kind ? null : kind))}
-            >
-              <span className={styles.readLabel}>{READ_LABELS[kind]}</span>
-              <span className={styles.readValue}>{execLabel(kind, metric.value)}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {openRead && (
-        <p id={explainId} role="note" aria-live="polite" className={styles.explain}>
-          <span className={styles.explainLabel}>{READ_LABELS[openRead.kind]}</span>
-          {openRead.metric.basis}
-        </p>
+      {!hasNarrative && readsBlock && (
+        <div className={styles.legacyReads}>{readsBlock}</div>
       )}
     </div>
   );
+}
+
+// One quiet line about how trustworthy the reads are. A located scored piece
+// is reassurance (the reads deliberately ignore the padding); an unresolved
+// mismatch is a caution.
+export function dataQualityNotice(analysis) {
+  const window = analysis?.analysis_window;
+  if (window) {
+    const stream = Number(window.stream_distance_m);
+    const start = Number(window.start_distance_m);
+    const end = Number(window.end_distance_m);
+    const windowNotice = Number.isFinite(stream) && Number.isFinite(start) && Number.isFinite(end)
+      ? `The recording spans ${stream.toLocaleString()}m around the scored piece; the analysis reads the ${(end - start).toLocaleString()}m stretch that matches the summary.`
+      : 'The recording extends beyond the scored piece; the analysis reads the stretch that matches the summary.';
+    if (analysis?.data_quality?.scored_piece?.reconciled === false) {
+      return `${windowNotice} The scored-piece summary and stroke data do not fully reconcile, so treat these reads with some caution.`;
+    }
+    return windowNotice;
+  }
+  const quality = analysis?.data_quality;
+  if (quality && quality.reconciled === false) {
+    return 'The session summary and stroke data do not fully reconcile, so treat these reads with some caution.';
+  }
+  return null;
+}
+
+// A single read split into its label ("Effort") and value ("likely hard") so
+// the UI can present them as distinct pills instead of one ·-joined line, where
+// the read separators and the within-value separators were indistinguishable.
+export function readLabelParts(kind, metric) {
+  if (!metric) return null;
+
+  if (kind === 'intensity') {
+    const effort = execLabel(kind, metric);
+    return effort ? { label: 'Effort', value: lowerFirst(effort) } : null;
+  }
+
+  const base = execLabel(kind, kind === 'pacing' ? metric : { value: metric.value });
+  if (!base) return null;
+  if (kind === 'pacing') {
+    const pacing = base.startsWith('Even ·') ? base.replace('Even', 'Even overall') : base;
+    return { label: 'Pacing', value: lowerFirst(pacing) };
+  }
+  if (kind === 'rate') {
+    const rate = metric.value === 'stable_avg_variable_stroke' ? 'Variable stroke-to-stroke' : base;
+    return { label: 'Rate', value: lowerFirst(rate) };
+  }
+  if (kind === 'hr_drift') {
+    const drift = metric.drift_percent == null ? NaN : Number(metric.drift_percent);
+    const value = Number.isFinite(drift)
+      ? `${lowerFirst(base)} (${drift > 0 ? '+' : ''}${drift.toFixed(1)}%)`
+      : lowerFirst(base);
+    return { label: 'HR drift', value };
+  }
+  return { label: null, value: base };
+}
+
+// Retained for callers and tests that want the flat "Label: value" string.
+export function compactReadLabel(kind, metric) {
+  const parts = readLabelParts(kind, metric);
+  if (!parts) return null;
+  return parts.label ? `${parts.label}: ${parts.value}` : parts.value;
+}
+
+function lowerFirst(value) {
+  return value.charAt(0).toLowerCase() + value.slice(1);
 }
