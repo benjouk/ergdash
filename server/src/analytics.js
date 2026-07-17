@@ -11,7 +11,7 @@ import {
 } from './strokeMetrics.js';
 import { getZoneModel, zoneForHr } from './hrZones.js';
 import { isIntervalWorkoutType, isContinuousWorkoutType, workoutSubtype } from './workoutTypes.js';
-import { buildWorkoutAnalysis, ANALYSIS_VERSION } from './workoutExecution.js';
+import { buildWorkoutAnalysis, locateScoredPiece, ANALYSIS_VERSION } from './workoutExecution.js';
 
 export { ANALYSIS_VERSION };
 
@@ -19,7 +19,13 @@ export const BEST_EFFORT_DURATIONS = [60, 240, 600, 1800, 3600];
 
 // Bump whenever computed_metrics gains columns or an algorithm changes;
 // computeAllMetrics() recomputes any row written with an older version.
-export const METRICS_VERSION = 3;
+// v4: aerobic drift excludes the final 5% finishing effort.
+// v5: drift/discipline/zone shares read the scored piece when the stroke
+// stream carries warmup/cooldown padding around it.
+// v6: piece windows tolerate paddling pauses before the piece.
+// v7: legacy stroke metrics and persisted HR-zone times read the scored piece;
+// HR-drift trimming uses elapsed time rather than stroke counts.
+export const METRICS_VERSION = 7;
 
 const MIN_DRIFT_DURATION_MS = 15 * 60 * 1000;
 
@@ -38,13 +44,25 @@ export function computeMetricsForWorkout(workoutId) {
     'SELECT * FROM strokes WHERE workout_id = ? ORDER BY stroke_number'
   ).all(workoutId);
 
+  const structure = inferWorkoutStructure(workout);
+  const isInterval = structure.value === 'interval';
+  const intervals = isInterval
+    ? db.prepare('SELECT * FROM intervals WHERE workout_id = ? ORDER BY interval_index').all(workoutId)
+    : [];
+
+  // When the stream carries warmup/cooldown padding around the scored piece,
+  // every execution read and piece-scoped persisted metric runs on the piece;
+  // only reconciliation sees the full recording.
+  const scored = isInterval ? { strokes, window: null } : locateScoredPiece(workout, strokes);
+  const analysisStrokes = scored.strokes;
+
   let fadeIndex = null;
   let consistency = null;
   let effortScore = null;
   let dragDelta = null;
 
-  if (strokes.length >= 4) {
-    const paces = strokes.map(s => s.pace_ms).filter(p => p != null && p > 0);
+  if (analysisStrokes.length >= 4) {
+    const paces = analysisStrokes.map(s => s.pace_ms).filter(p => p != null && p > 0);
     if (paces.length >= 4) {
       const q = Math.floor(paces.length / 4);
       const q1Avg = avg(paces.slice(0, q));
@@ -85,23 +103,17 @@ export function computeMetricsForWorkout(workoutId) {
     }
   }
 
-  const structure = inferWorkoutStructure(workout);
-  const isInterval = structure.value === 'interval';
-  const intervals = isInterval
-    ? db.prepare('SELECT * FROM intervals WHERE workout_id = ? ORDER BY interval_index').all(workoutId)
-    : [];
-
-  const dps = distancePerStroke(workout, strokes);
-  const wpb = wattsPerBeat(strokes);
+  const dps = distancePerStroke(workout, analysisStrokes);
+  const wpb = wattsPerBeat(analysisStrokes);
 
   const drift = !isInterval && workout.time_ms >= MIN_DRIFT_DURATION_MS
-    ? hrDrift(strokes)
+    ? hrDrift(analysisStrokes)
     : null;
 
   const tolerance = getRateBandTolerance(db, workout.profile_id);
   const rateSegments = isInterval && intervals.length > 0
     ? segmentStrokesByIntervals(strokes, intervals).workSegments
-    : [strokes];
+    : [analysisStrokes];
   const discipline = rateDiscipline(rateSegments, tolerance);
 
   const recoveries = isInterval ? hrRecoveries(strokes, intervals) : [];
@@ -119,20 +131,14 @@ export function computeMetricsForWorkout(workoutId) {
   // HR-zone distribution feeds observed effort. Prefer per-stroke time-in-zone;
   // fall back to the zone of the average HR when there's no stroke HR stream.
   const zoneModel = getZoneModel(db, workout.profile_id);
-  let zoneShares = null;
-  if (zoneModel) {
-    const zt = zoneTimes(strokes, zoneModel.bounds);
-    if (zt) {
-      zoneShares = [1, 2, 3, 4, 5].map(z => zt[z] || 0);
-    } else if (workout.heart_rate_avg > 0) {
-      zoneShares = [0, 0, 0, 0, 0];
-      zoneShares[zoneForHr(workout.heart_rate_avg, zoneModel.bounds) - 1] = 1;
-    }
-  }
+  const zoneDistribution = computeZoneDistribution(workout, analysisStrokes, zoneModel);
+  const zoneShares = zoneDistribution.times
+    ? [1, 2, 3, 4, 5].map(z => zoneDistribution.times[z] || 0)
+    : null;
 
   const analysis = buildWorkoutAnalysis({
     workout,
-    strokes,
+    strokes: analysisStrokes,
     intervals,
     structure,
     benchmarkPaceMs: benchmark?.best || null,
@@ -140,6 +146,8 @@ export function computeMetricsForWorkout(workoutId) {
     zoneShares,
     zonesEstimated: zoneModel?.estimated ?? false,
     hrDriftPct: drift,
+    fullStrokes: strokes,
+    analysisWindow: scored.window,
   });
 
   const insertRecovery = db.prepare(`
@@ -164,6 +172,8 @@ export function computeMetricsForWorkout(workoutId) {
     for (const r of recoveries) {
       insertRecovery.run(workoutId, r.rep_index, r.hr_end, r.hr_next_start, r.drop_bpm, r.rest_s);
     }
+
+    replaceZoneTimes(db, workoutId, zoneDistribution);
   })();
 }
 
@@ -187,43 +197,70 @@ export function computeAllMetrics(profileId) {
   }
 }
 
-export function computeZoneTimesForWorkout(workoutId, zoneModel) {
+// Force every workout for a profile back through the metric/analysis pipeline.
+// Used when a setting changes the meaning of cached analysis without changing
+// the formula version itself (for example max HR, HR-zone bounds or the rate
+// discipline tolerance).
+export function recomputeAllMetrics(profileId) {
   const db = getDb();
-  const workout = db.prepare(
-    'SELECT id, profile_id, time_ms, heart_rate_avg, has_stroke_data FROM workouts WHERE id = ?'
-  ).get(workoutId);
-  if (!workout) return;
+  db.prepare(`
+    UPDATE computed_metrics
+    SET analysis_version = 0
+    WHERE workout_id IN (SELECT id FROM workouts WHERE profile_id = ?)
+  `).run(profileId);
+  computeAllMetrics(profileId);
+}
 
-  const model = zoneModel ?? getZoneModel(db, workout.profile_id);
-  if (!model) return;
-
-  let times = null;
+function computeZoneDistribution(workout, strokes, zoneModel) {
+  let times = zoneModel ? zoneTimes(strokes, zoneModel.bounds) : null;
   let source = 'strokes';
 
-  if (workout.has_stroke_data) {
-    const strokes = db.prepare(
-      'SELECT time_s, heart_rate FROM strokes WHERE workout_id = ? ORDER BY stroke_number'
-    ).all(workoutId);
-    times = zoneTimes(strokes, model.bounds);
-  }
-
-  // No per-stroke HR: credit the whole session to the zone of the average HR.
-  if (!times && workout.heart_rate_avg > 0 && workout.time_ms > 0) {
+  // No per-stroke HR: credit the whole scored session to the zone of the
+  // summary average. This remains a deliberately lower-fidelity fallback.
+  if (!times && zoneModel && workout.heart_rate_avg > 0 && workout.time_ms > 0) {
     times = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
-    times[zoneForHr(workout.heart_rate_avg, model.bounds)] = workout.time_ms / 1000;
+    times[zoneForHr(workout.heart_rate_avg, zoneModel.bounds)] = workout.time_ms / 1000;
     source = 'avg_hr';
   }
+
+  return { times, source };
+}
+
+function replaceZoneTimes(db, workoutId, { times, source }) {
+  db.prepare('DELETE FROM hr_zone_time WHERE workout_id = ?').run(workoutId);
+  if (!times) return;
 
   const insert = db.prepare(
     'INSERT INTO hr_zone_time (workout_id, zone, time_s, source) VALUES (?, ?, ?, ?)'
   );
+  for (let zone = 1; zone <= 5; zone++) {
+    if (times[zone] > 0) insert.run(workoutId, zone, times[zone], source);
+  }
+}
+
+export function computeZoneTimesForWorkout(workoutId, zoneModel) {
+  const db = getDb();
+  const workout = db.prepare('SELECT * FROM workouts WHERE id = ?').get(workoutId);
+  if (!workout) return;
+
+  const model = zoneModel ?? getZoneModel(db, workout.profile_id);
+  let strokes = [];
+
+  if (model && workout.has_stroke_data) {
+    strokes = db.prepare(
+      `SELECT time_s, distance_m, pace_ms, heart_rate
+       FROM strokes WHERE workout_id = ? ORDER BY stroke_number`
+    ).all(workoutId);
+  }
+
+  const structure = inferWorkoutStructure(workout);
+  const analysisStrokes = structure.value === 'interval'
+    ? strokes
+    : locateScoredPiece(workout, strokes).strokes;
+  const distribution = computeZoneDistribution(workout, analysisStrokes, model);
 
   db.transaction(() => {
-    db.prepare('DELETE FROM hr_zone_time WHERE workout_id = ?').run(workoutId);
-    if (!times) return;
-    for (let zone = 1; zone <= 5; zone++) {
-      if (times[zone] > 0) insert.run(workoutId, zone, times[zone], source);
-    }
+    replaceZoneTimes(db, workoutId, distribution);
   })();
 }
 

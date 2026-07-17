@@ -144,7 +144,19 @@ function setWorkoutOverlay(id, patch) {
 
 function applyWorkoutOverlay(workout) {
   const overlay = getWorkoutOverlay(workout.id);
-  return Object.keys(overlay).length ? { ...workout, ...overlay } : workout;
+  return Object.keys(overlay).length === 0 ? workout : { ...workout, ...overlay };
+}
+
+// The narrative (headline, summary, recommendation) is composed on the server
+// and captured verbatim in the fixture; the demo only needs to attach the
+// current plan and drop legacy plan-review detail the card never shows.
+export function applyDemoNarrativeContext(workout, plan = workout?.plan ?? null) {
+  if (!workout?.narrative) return { ...workout, plan };
+
+  const narrative = { ...workout.narrative };
+  delete narrative.plan_review;
+
+  return { ...workout, plan, narrative };
 }
 
 // --- planned-workout overlay (visitor-side plan edits) ---
@@ -196,6 +208,9 @@ async function findPlanForWorkout(plans, workoutId) {
     type: plan.type,
     target_distance: plan.target_distance,
     target_duration_ms: plan.target_duration_ms,
+    target_pace_ms: plan.target_pace_ms ?? null,
+    target_rate: plan.target_rate ?? null,
+    notes: plan.notes ?? null,
     match_type: plan.match_type,
     program_id: plan.program_id || null,
     program_week: plan.program_week ?? null,
@@ -457,7 +472,8 @@ async function handleGet(route, params) {
     });
     const patched = applyWorkoutOverlay(detail);
     const plans = await loadDemoPlans();
-    return { ...patched, plan: await findPlanForWorkout(plans, patched.id) };
+    const plan = await findPlanForWorkout(plans, patched.id);
+    return applyDemoNarrativeContext({ ...patched, plan }, plan);
   }
 
   if (route === '/api/stats/compare') {
@@ -612,7 +628,9 @@ async function handlePatch(route, body) {
     if ('notes' in body) patch.notes = body.notes;
     const merged = setWorkoutOverlay(id, patch);
     const detail = await fetch(await fixtureUrl(`workout/${id}.json`)).then(r => r.json());
-    return applyWorkoutOverlay({ ...detail, ...merged });
+    const patched = applyWorkoutOverlay({ ...detail, ...merged });
+    const plan = await findPlanForWorkout(await loadDemoPlans(), patched.id);
+    return applyDemoNarrativeContext({ ...patched, plan }, plan);
   }
 
   throw new Error('Demo mode - this action is not available in the live demo');

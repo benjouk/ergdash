@@ -100,6 +100,30 @@ describe('hrDrift', () => {
     expect(hrDrift(strokes)).toBeLessThan(-3);
   });
 
+  it('excludes a finishing sprint from the drift calculation', () => {
+    const strokes = makeStrokes(200, {
+      pace: (i) => (i >= 190 ? 100000 : 120000),
+    });
+    expect(Math.abs(hrDrift(strokes))).toBeLessThan(0.01);
+  });
+
+  it('trims a high-rate finishing sprint by elapsed time', () => {
+    // The final 20 seconds are only 5% of elapsed time but contain 40 strokes.
+    // Sample-count trimming would leave most of that sprint in the second half.
+    const steady = makeStrokes(190, { dt: 2, pace: 120000, hr: 150 });
+    const sprint = Array.from({ length: 40 }, (_, i) => ({
+      stroke_number: steady.length + i + 1,
+      time_s: 380.5 + i * 0.5,
+      distance_m: 1900 + (i + 1) * 5,
+      pace_ms: 100000,
+      watts: null,
+      stroke_rate: 40,
+      heart_rate: 150,
+    }));
+
+    expect(Math.abs(hrDrift([...steady, ...sprint]))).toBeLessThan(0.01);
+  });
+
   it('returns null on short sessions', () => {
     expect(hrDrift(makeStrokes(30))).toBeNull();
   });
