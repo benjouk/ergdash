@@ -141,9 +141,53 @@ describe('full profile backup + restore', () => {
   });
 
   it('rejects a file that is not an ErgDash backup', () => {
+    seedProfile(db, 1, { workoutId: 7001, distance: 2000 });
+    const full = backup.exportProfileData(db, 1);
+    expect(backup.isValidBackup(full)).toBe(true);
     expect(() => backup.restoreProfileData(db, 1, { foo: 'bar' })).toThrow(/valid ErgDash backup/);
-    expect(backup.isValidBackup({ ergdash_backup_version: 1, tables: {} })).toBe(true);
+    // Missing table keys / non-array payloads / bad version are all invalid.
+    expect(backup.isValidBackup({ ergdash_backup_version: 1, tables: {} })).toBe(false);
+    expect(backup.isValidBackup({ ergdash_backup_version: 0, tables: full.tables })).toBe(false);
     expect(backup.isValidBackup({ tables: {} })).toBe(false);
+  });
+
+  it('refuses a degenerate {tables:{}} backup WITHOUT wiping existing data', () => {
+    seedProfile(db, 1, { workoutId: 7101, distance: 2000 });
+    expect(() => backup.restoreProfileData(db, 1, { ergdash_backup_version: 1, tables: {} }))
+      .toThrow(/valid ErgDash backup/);
+    // The destructive clear must not have run.
+    expect(db.prepare('SELECT COUNT(*) AS c FROM workouts WHERE profile_id = 1').get().c).toBe(1);
+    expect(db.prepare('SELECT COUNT(*) AS c FROM strokes').get().c).toBe(1);
+  });
+
+  it('rejects a malformed (non-object) row before clearing data', () => {
+    seedProfile(db, 1, { workoutId: 7201, distance: 2000 });
+    const snapshot = backup.exportProfileData(db, 1);
+    snapshot.tables.strokes.push(42); // not a row object
+    expect(() => backup.restoreProfileData(db, 1, snapshot)).toThrow(/Malformed row/);
+    expect(db.prepare('SELECT COUNT(*) AS c FROM workouts WHERE profile_id = 1').get().c).toBe(1);
+  });
+
+  it('unions columns across rows so a sparse first row does not drop data', () => {
+    seedProfile(db, 1, { workoutId: 7301, distance: 2000 });
+    const snapshot = backup.exportProfileData(db, 1);
+    // Two workouts where only the SECOND carries a comment; empty the child
+    // tables so this row set stands alone.
+    snapshot.tables.workouts = [
+      { id: 7401, profile_id: 1, user_id: 0, date: '2026-03-01T07:00:00', type: 'rower',
+        workout_type: 'JustRow', distance: 2000, time_ms: 480000, synced_at: '2026-03-01' },
+      { id: 7402, profile_id: 1, user_id: 0, date: '2026-03-02T07:00:00', type: 'rower',
+        workout_type: 'JustRow', distance: 1000, time_ms: 240000, synced_at: '2026-03-02',
+        comments: 'second only' },
+    ];
+    for (const t of backup.BACKUP_TABLES) {
+      if (t.name !== 'workouts') snapshot.tables[t.name] = [];
+    }
+
+    backup.restoreProfileData(db, 1, snapshot);
+
+    expect(db.prepare('SELECT comments FROM workouts WHERE id = 7402').get().comments).toBe('second only');
+    expect(db.prepare('SELECT comments FROM workouts WHERE id = 7401').get().comments).toBeNull();
   });
 
   it('refuses a backup from a newer format version', () => {

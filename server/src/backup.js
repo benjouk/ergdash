@@ -47,16 +47,23 @@ export const BACKUP_TABLES = [
 
 const WORKOUT_SCOPE_SQL = 'workout_id IN (SELECT id FROM workouts WHERE profile_id = ?)';
 
+// Quote a SQL identifier. Table names here all come from the hard-coded
+// BACKUP_TABLES list (never user input), but quoting makes that assumption
+// explicit and keeps the helpers safe if the list is ever generated.
+function quoteIdent(name) {
+  return `"${String(name).replaceAll('"', '""')}"`;
+}
+
 function selectSql({ name, scope }) {
   const where = scope === 'workout' ? WORKOUT_SCOPE_SQL : 'profile_id = ?';
-  return `SELECT * FROM ${name} WHERE ${where}`;
+  return `SELECT * FROM ${quoteIdent(name)} WHERE ${where}`;
 }
 
 // Live column names for a table, so restore only writes columns this install's
-// schema actually has (tolerant of a backup taken on a slightly older/newer
-// schema).
+// schema actually has (tolerant of a backup whose per-row columns differ
+// slightly from this schema).
 function tableColumns(db, name) {
-  return db.prepare(`PRAGMA table_info(${name})`).all().map(col => col.name);
+  return db.prepare(`PRAGMA table_info(${quoteIdent(name)})`).all().map(col => col.name);
 }
 
 // Stream one table's rows for a profile without buffering them all - the
@@ -80,12 +87,34 @@ export function exportProfileData(db, profileId) {
   };
 }
 
+// A restore is destructive (it clears the profile first), so the bar for
+// "valid backup" is high: it must carry every table this version knows about,
+// each as an array. A genuine export always does; this rejects empty or
+// hand-crafted `{"tables":{}}` payloads that would otherwise pass and wipe the
+// profile. (An empty profile still exports every table as an empty array, so
+// legitimately-empty backups are accepted.)
 export function isValidBackup(backup) {
   return !!backup
     && typeof backup === 'object'
     && Number.isInteger(backup.ergdash_backup_version)
+    && backup.ergdash_backup_version >= 1
     && !!backup.tables
-    && typeof backup.tables === 'object';
+    && typeof backup.tables === 'object'
+    && BACKUP_TABLES.every(table => Array.isArray(backup.tables[table.name]));
+}
+
+// Assert every row in every table is a plain object, so a malformed payload
+// (a null, string or nested array masquerading as a row) fails deterministically
+// BEFORE the destructive clear runs, rather than as an opaque SQLite error
+// mid-transaction.
+function assertRowShapes(backup) {
+  for (const table of BACKUP_TABLES) {
+    for (const row of backup.tables[table.name]) {
+      if (!row || typeof row !== 'object' || Array.isArray(row)) {
+        throw new Error(`Malformed row in "${table.name}" backup data`);
+      }
+    }
+  }
 }
 
 // Delete a profile's existing rows across every backup table, so a restore is
@@ -94,7 +123,7 @@ export function isValidBackup(backup) {
 export function clearProfileData(db, profileId) {
   for (const table of [...BACKUP_TABLES].reverse()) {
     const where = table.scope === 'workout' ? WORKOUT_SCOPE_SQL : 'profile_id = ?';
-    db.prepare(`DELETE FROM ${table.name} WHERE ${where}`).run(profileId);
+    db.prepare(`DELETE FROM ${quoteIdent(table.name)} WHERE ${where}`).run(profileId);
   }
 }
 
@@ -104,17 +133,28 @@ function insertRows(db, name, rows, profileId, scope) {
   if (liveCols.length === 0) return 0;
   const hasProfileCol = scope === 'profile' && liveCols.includes('profile_id');
 
-  // Columns to write: the live schema's columns that the backup row carries.
-  // profile_id is always forced to the target profile below.
-  const cols = liveCols.filter(col => rows[0] && Object.prototype.hasOwnProperty.call(rows[0], col));
+  // Columns to write: the live schema's columns present on ANY backup row
+  // (union across all rows, not just the first - a sparse leading row must not
+  // silently drop columns for the rest of the table). A row missing a chosen
+  // column binds NULL. profile_id is always written and forced to the target.
+  const seen = new Set();
+  for (const row of rows) for (const key of Object.keys(row)) seen.add(key);
+  const cols = liveCols.filter(col => seen.has(col));
+  if (hasProfileCol && !cols.includes('profile_id')) cols.push('profile_id');
+  if (cols.length === 0) return 0;
+
   const stmt = db.prepare(
-    `INSERT INTO ${name} (${cols.map(c => `"${c}"`).join(', ')}) `
+    `INSERT INTO ${quoteIdent(name)} (${cols.map(quoteIdent).join(', ')}) `
     + `VALUES (${cols.map(() => '?').join(', ')})`,
   );
 
   let inserted = 0;
   for (const row of rows) {
-    const values = cols.map(col => (hasProfileCol && col === 'profile_id' ? profileId : row[col]));
+    const values = cols.map(col => {
+      if (hasProfileCol && col === 'profile_id') return profileId;
+      const value = row[col];
+      return value === undefined ? null : value;
+    });
     stmt.run(...values);
     inserted += 1;
   }
@@ -135,6 +175,8 @@ export function restoreProfileData(db, profileId, backup) {
       + `(format v${backup.ergdash_backup_version}). Update ErgDash before restoring.`,
     );
   }
+  // Validate every row's shape up front - nothing is cleared if this throws.
+  assertRowShapes(backup);
 
   const counts = {};
   db.transaction(() => {
