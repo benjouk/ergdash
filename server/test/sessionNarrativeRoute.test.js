@@ -89,35 +89,9 @@ async function req(method, path, body) {
 }
 
 describe('workout narrative routes', () => {
-  it('migration 017 adds the nullable intent column', () => {
-    const intentColumn = db.prepare('PRAGMA table_info(workouts)').all()
-      .find(column => column.name === 'intent');
-    expect(intentColumn).toBeTruthy();
-    expect(intentColumn.notnull).toBe(0);
-  });
-
-  it('validates intent updates, supports clearing, and never marks them as corrections', async () => {
-    const invalid = await req('PATCH', '/api/workouts/1', { intent: 'tempo' });
-    expect(invalid.status).toBe(400);
-    expect(invalid.body.details.join(' ')).toContain('intent must be null or one of');
-
-    const updated = await req('PATCH', '/api/workouts/1', { intent: 'technique' });
-    expect(updated.status).toBe(200);
-    expect(updated.body.intent).toBe('technique');
-    expect(db.prepare('SELECT intent, edited_fields FROM workouts WHERE id = 1').get()).toEqual({
-      intent: 'technique', edited_fields: null,
-    });
-
-    const cleared = await req('PATCH', '/api/workouts/1', { intent: null });
-    expect(cleared.status).toBe(200);
-    expect(cleared.body.intent).toBeNull();
-    expect(db.prepare('SELECT intent FROM workouts WHERE id = 1').get().intent).toBeNull();
-  });
-
-  it('returns plan prescriptions and composes the detail narrative at request time', async () => {
+  it('composes the detail narrative from the recording without a declared intent', async () => {
     const detail = await req('GET', '/api/workouts/1');
     expect(detail.status).toBe(200);
-    expect(detail.body.intent).toBeNull();
     expect(detail.body.plan).toMatchObject({
       type: 'test',
       target_distance: 5000,
@@ -128,18 +102,13 @@ describe('workout narrative routes', () => {
     });
     expect(detail.body.narrative).toMatchObject({
       headline: 'Controlled middle with a strong finish',
-      intent: 'test_race',
-      intent_source: 'plan',
-      needs_intent: false,
     });
+    // The intent surface is gone: no purpose fields ride along on the narrative.
+    expect(detail.body.narrative).not.toHaveProperty('intent');
+    expect(detail.body.narrative).not.toHaveProperty('needs_intent');
     expect(detail.body.narrative).not.toHaveProperty('plan_review');
+    expect(detail.body.narrative.recommendation).toContain('the final drive could start a little earlier');
     expect(Array.isArray(detail.body.insight)).toBe(true);
-
-    await req('PATCH', '/api/workouts/1', { intent: 'recovery' });
-    const recomposed = await req('GET', '/api/workouts/1');
-    expect(recomposed.body.narrative.intent).toBe('recovery');
-    expect(recomposed.body.narrative.intent_source).toBe('workout');
-    expect(recomposed.body.narrative.recommendation).toContain('For recovery work');
   });
 
   it('adds the prescription fields to plan objects in the workout list', async () => {

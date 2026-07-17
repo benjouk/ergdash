@@ -59,7 +59,6 @@ export function execLabel(kind, metricOrValue) {
 function pacingLabel(base, shape) {
   if (!shape || typeof shape !== 'object') return base;
 
-  const lead = shape.even_core ? 'Even core' : base;
   const details = [];
 
   if (shape.fast_start && shape.fast_finish) details.push('fast start and finish');
@@ -67,16 +66,25 @@ function pacingLabel(base, shape) {
   else if (shape.fast_finish) details.push('fast finish');
 
   if (shape.late_fade) details.push('late fade');
-  if (details.length > 0) return `${lead} · ${details.join(' · ')}`;
 
-  // The booleans are canonical, but tolerate a future server-provided label
-  // when an analysis has no flags we recognise.
-  if (typeof shape.shape_label === 'string' && shape.shape_label.trim()) {
-    const fallback = shape.shape_label.trim().replaceAll('_', ' ');
-    return fallback.charAt(0).toUpperCase() + fallback.slice(1);
+  if (details.length === 0) {
+    // The booleans are canonical, but tolerate a future server-provided label
+    // when an analysis has no flags we recognise.
+    if (typeof shape.shape_label === 'string' && shape.shape_label.trim()) {
+      const fallback = shape.shape_label.trim().replaceAll('_', ' ');
+      return fallback.charAt(0).toUpperCase() + fallback.slice(1);
+    }
+    return shape.even_core ? 'Even core' : base;
   }
 
-  return lead;
+  if (shape.even_core) return `Even core · ${details.join(' · ')}`;
+  // "Even · fast start and finish" is self-contradictory (an even split can't
+  // also be quick at both ends), so let the U-shape carry the label alone.
+  if (base === 'Even' && shape.fast_start && shape.fast_finish) {
+    const joined = details.join(' · ');
+    return joined.charAt(0).toUpperCase() + joined.slice(1);
+  }
+  return `${base} · ${details.join(' · ')}`;
 }
 
 export function showsExecution(metric) {

@@ -27,41 +27,8 @@
   line-height: 1.25;
 }
 
-.purposeTag {
-  display: inline-flex;
-  align-items: center;
-  max-width: 22ch;
-  padding: 2px 7px;
-  overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--rule));
-  border-radius: 999px;
-  background: var(--accent-bg);
-  color: var(--accent);
-  font-size: 0.62rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  line-height: 1.4;
-  text-overflow: ellipsis;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
-.purposeTagButton {
-  font: inherit;
-  font-size: 0.62rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: border-color 120ms ease;
-}
-
-.purposeTagButton:hover,
-.purposeTagButton:focus-visible {
-  border-color: var(--accent);
-}
-
 .summary,
 .recommendation,
-.readLine,
 .qualityNotice {
   margin: 6px 0 0;
   line-height: 1.4;
@@ -95,63 +62,43 @@
   font-weight: 700;
 }
 
-.readLine {
-  color: color-mix(in srgb, var(--ink) 65%, var(--surface));
-  font-size: 0.74rem;
+/* The measured reads, one pill each, so the label ("Effort") and its value
+   ("likely hard") stay visually distinct from the next read. */
+.reads {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
 }
 
-.intentPrompt {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-5);
-  border-top: 1px solid var(--rule);
+.read {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 3px 9px;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
   background: var(--surface-alt);
 }
 
-.intentPrompt p {
-  margin: 0;
+.readLabel {
+  color: var(--ink-3);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.readValue {
   color: var(--ink-2);
-  font-size: 0.8rem;
+  font-size: 0.72rem;
   font-weight: 600;
-  white-space: nowrap;
 }
 
-.intentChips {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 6px;
-  /* The card's "?" info button is absolutely positioned in the bottom-right
-     corner; keep the chips clear of it when this prompt is the last row. */
-  margin-right: 26px;
-}
-
-.intentChip {
-  padding: 4px 9px;
-  border: 1px solid var(--rule);
-  border-radius: 999px;
-  background: var(--surface);
-  color: var(--ink-2);
-  font: inherit;
-  font-size: 0.7rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: border-color 120ms ease, color 120ms ease, background 120ms ease;
-}
-
-.intentChip:hover:not(:disabled),
-.intentChip:focus-visible,
-.intentChip[aria-pressed='true'] {
-  border-color: var(--accent);
-  background: var(--accent-bg);
-  color: var(--accent);
-}
-
-.intentChip:disabled {
-  opacity: 0.55;
-  cursor: wait;
+.legacyReads {
+  padding: 0 var(--space-5) var(--space-3);
 }
 
 /* Fallback for responses captured before coaching narratives existed. */
@@ -174,25 +121,3 @@
 .tone_positive { border-left-color: var(--positive); }
 .tone_watch { border-left-color: var(--warn); }
 
-.legacyReadLine {
-  margin: 0;
-  padding: 0 var(--space-5) var(--space-3);
-  color: color-mix(in srgb, var(--ink) 65%, var(--surface));
-  font-size: 0.74rem;
-  line-height: 1.4;
-}
-
-@media (max-width: 720px) {
-  .intentPrompt {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .intentPrompt p {
-    white-space: normal;
-  }
-
-  .intentChips {
-    justify-content: flex-start;
-  }
-}

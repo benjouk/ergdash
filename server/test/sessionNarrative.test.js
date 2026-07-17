@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  WORKOUT_INTENTS,
-  buildSessionNarrative,
-  isWorkoutIntent,
-  resolveWorkoutIntent,
-} from '../src/sessionNarrative.js';
+import { buildSessionNarrative } from '../src/sessionNarrative.js';
 
 function continuousAnalysis(overrides = {}) {
   return {
@@ -52,49 +47,19 @@ function workout(overrides = {}) {
   };
 }
 
-describe('workout intent resolution', () => {
-  it('accepts only the five API intent values', () => {
-    expect(WORKOUT_INTENTS).toEqual([
-      'steady', 'hard_distance', 'test_race', 'recovery', 'technique',
-    ]);
-    for (const intent of WORKOUT_INTENTS) expect(isWorkoutIntent(intent)).toBe(true);
-    expect(isWorkoutIntent('tempo')).toBe(false);
-    expect(isWorkoutIntent(null)).toBe(false);
-  });
-
-  it('prefers explicit intent, then maps only unambiguous plan types', () => {
-    expect(resolveWorkoutIntent({ intent: 'technique' }, { type: 'race' })).toEqual({
-      intent: 'technique', intent_source: 'workout',
-    });
-    expect(resolveWorkoutIntent({}, { type: 'steady' })).toEqual({
-      intent: 'steady', intent_source: 'plan',
-    });
-    expect(resolveWorkoutIntent({}, { type: 'test' })).toEqual({
-      intent: 'test_race', intent_source: 'plan',
-    });
-    expect(resolveWorkoutIntent({}, { type: 'race' })).toEqual({
-      intent: 'test_race', intent_source: 'plan',
-    });
-    expect(resolveWorkoutIntent({}, { type: 'intervals' })).toEqual({
-      intent: null, intent_source: null,
-    });
-  });
-});
-
 describe('buildSessionNarrative', () => {
-  it('composes a specific continuous summary and intent-aware recommendation', () => {
+  it('composes a specific continuous summary and observation-based recommendation', () => {
     const result = buildSessionNarrative({
-      workout: workout({ intent: 'steady' }),
+      workout: workout(),
       analysis: continuousAnalysis(),
       baseline: { medianPaceMs: 122000, medianHr: 155 },
     });
 
-    expect(result).toMatchObject({
-      headline: 'Controlled middle with a strong finish',
-      intent: 'steady',
-      intent_source: 'workout',
-      needs_intent: false,
-    });
+    expect(result.headline).toBe('Controlled middle with a strong finish');
+    // The narrative no longer carries any declared-intent fields.
+    expect(result).not.toHaveProperty('intent');
+    expect(result).not.toHaveProperty('intent_source');
+    expect(result).not.toHaveProperty('needs_intent');
     // Two sentences: the pacing story, then the single most useful supporting
     // read (notable drift wins over the vs-typical and rate reads here).
     expect(result.summary).toContain('opening was 3.0 s/500m quicker');
@@ -103,64 +68,148 @@ describe('buildSessionNarrative', () => {
     expect(result.summary).toContain('declined by 7.8%');
     expect(result.summary).not.toContain('typical endurance session');
     expect(result.summary.split('. ').length).toBeLessThanOrEqual(2);
-    expect(result.recommendation).toContain('For steady work');
-    expect(result.recommendation).toContain('opening slightly slower');
+    // A long piece (10 km) with a 7.8% power-to-HR decline is coached on the
+    // drift, not the finishing kick.
+    expect(result.recommendation).toContain('better coupled through the back half');
     expect(JSON.stringify(result)).not.toContain('—');
   });
 
-  it('does not apply an incompatible plan rate to an explicit workout intent', () => {
-    const result = buildSessionNarrative({
-      workout: workout({ intent: 'recovery' }),
+  it('tailors the strong-finish line to the pacing shape on a short piece', () => {
+    const uShape = buildSessionNarrative({
+      workout: workout({ distance: 2000, time_ms: 470000 }),
       analysis: continuousAnalysis({
         execution: {
-          rate: { value: 'stable', average_spm: 18, variation_spm: 0.8 },
-          intensity: { value: 'easy', dominant_zone: 1 },
+          pacing: { value: 'even', shape: { fast_start: true, even_core: true, fast_finish: true } },
+          finish: { value: 'accelerated' },
+          rate: { value: 'stable', average_spm: 25 },
+          intensity: { value: 'moderate' },
+          hr_drift: { value: 'low', drift_percent: 1 },
         },
       }),
-      plan: { type: 'race', target_rate: 36 },
     });
+    expect(uShape.recommendation).toContain('went out quick and still finished strong');
 
-    expect(result.recommendation).toBe(
-      'For recovery work, keep the pressure light and the stroke rhythm relaxed around 18 spm.',
-    );
-    expect(result.recommendation).not.toContain('36 spm');
+    const built = buildSessionNarrative({
+      workout: workout({ distance: 2000, time_ms: 470000 }),
+      analysis: continuousAnalysis({
+        execution: {
+          pacing: { value: 'negative_split', shape: { fast_finish: true } },
+          finish: { value: 'accelerated' },
+          rate: { value: 'stable', average_spm: 25 },
+          intensity: { value: 'moderate' },
+          hr_drift: { value: 'low', drift_percent: 1 },
+        },
+      }),
+    });
+    expect(built.recommendation).toContain('built through the piece and still lifted the finish');
   });
 
-  it('keeps a plan rate when intent is plan-derived or explicitly compatible', () => {
-    const explicitResult = buildSessionNarrative({
-      workout: workout({ intent: 'steady' }),
+  it('drops the vs-typical pace line for a hard effort against easy endurance', () => {
+    const result = buildSessionNarrative({
+      workout: workout({ pace_ms: 104000, heart_rate_avg: 178 }),
       analysis: continuousAnalysis({
         execution: {
-          rate: { value: 'stable', average_spm: 18, variation_spm: 0.8 },
+          pacing: { value: 'even', shape: { even_core: true } },
+          finish: { value: 'even' },
+          rate: { value: 'stable', average_spm: 32, variation_spm: 1 },
+          intensity: { value: 'maximal', dominant_zone: 5 },
+          hr_drift: { value: 'unknown', drift_percent: null },
         },
       }),
-      plan: { type: 'steady', target_rate: 22 },
+      baseline: { medianPaceMs: 120000, medianHr: 150 },
     });
-    const planDerivedResult = buildSessionNarrative({
+
+    // 16 s/500m faster than the endurance median is not a comparable session.
+    expect(result.summary).not.toContain('faster than your typical');
+  });
+
+  it('skips the endurance comparison for a piece too short to compare', () => {
+    const result = buildSessionNarrative({
+      workout: workout({ distance: 2000, time_ms: 420000, pace_ms: 115000, metrics: {} }),
+      analysis: continuousAnalysis({
+        execution: {
+          pacing: { value: 'even', shape: { even_core: true } },
+          finish: { value: 'even' },
+          rate: { value: 'stable', average_spm: 26, variation_spm: 1 },
+          intensity: { value: 'moderate' },
+          hr_drift: { value: 'low', drift_percent: 1 },
+        },
+      }),
+      baseline: { medianPaceMs: 120000, medianHr: 150 },
+    });
+
+    // A 2k is faster than the endurance median on distance alone, not fitness.
+    expect(result.summary).not.toContain('faster than your typical');
+  });
+
+  it('drops the endurance comparison for a hard endurance-length piece', () => {
+    const result = buildSessionNarrative({
+      workout: workout({ distance: 6000, time_ms: 1380000, pace_ms: 115000, metrics: {} }),
+      analysis: continuousAnalysis({
+        execution: {
+          pacing: { value: 'even', shape: { even_core: true } },
+          finish: { value: 'even' },
+          rate: { value: 'stable', average_spm: 28, variation_spm: 1 },
+          intensity: { value: 'hard' },
+          hr_drift: { value: 'low', drift_percent: 1 },
+        },
+      }),
+      baseline: { medianPaceMs: 120000, medianHr: 150 },
+    });
+
+    // A hard tempo row is faster because it was worked harder, not fitter.
+    expect(result.summary).not.toContain('faster than your typical');
+  });
+
+  it('keeps the endurance comparison for an endurance-length piece', () => {
+    const result = buildSessionNarrative({
+      workout: workout({ distance: 6000, time_ms: 1440000, pace_ms: 115000, metrics: {} }),
+      analysis: continuousAnalysis({
+        execution: {
+          pacing: { value: 'even', shape: { even_core: true } },
+          finish: { value: 'even' },
+          rate: { value: 'stable', average_spm: 24, variation_spm: 1 },
+          intensity: { value: 'moderate' },
+          hr_drift: { value: 'low', drift_percent: 1 },
+        },
+      }),
+      baseline: { medianPaceMs: 120000, medianHr: 150 },
+    });
+
+    expect(result.summary).toContain('faster than your typical endurance session');
+  });
+
+  it('leads with the fade only when the piece did not finish strong', () => {
+    const faded = buildSessionNarrative({
       workout: workout(),
       analysis: continuousAnalysis({
         execution: {
-          rate: { value: 'stable', average_spm: 18, variation_spm: 0.8 },
+          pacing: { value: 'mild_fade', shape: { fast_start: true, late_fade: true } },
+          finish: { value: 'faded' },
+          rate: { value: 'stable', average_spm: 24 },
+          intensity: { value: 'hard' },
+          hr_drift: { value: 'low', drift_percent: 1 },
         },
       }),
-      plan: { type: 'steady', target_rate: 22 },
     });
+    expect(faded.headline).toBe('Faded through the back half');
+    expect(faded.recommendation).toContain('holding back a little at the start');
 
-    expect(explicitResult.recommendation).toContain('around 22 spm');
-    expect(planDerivedResult.recommendation).toContain('around 22 spm');
-  });
-
-  it('returns both recommendation branches and requests intent when purpose is unknown', () => {
-    const result = buildSessionNarrative({
+    const recovered = buildSessionNarrative({
       workout: workout(),
-      analysis: continuousAnalysis(),
+      analysis: continuousAnalysis({
+        execution: {
+          pacing: { value: 'even', shape: { fast_start: true, late_fade: true, fast_finish: true } },
+          finish: { value: 'accelerated' },
+          rate: { value: 'stable', average_spm: 32 },
+          intensity: { value: 'hard' },
+          hr_drift: { value: 'low', drift_percent: 1 },
+        },
+      }),
     });
-
-    expect(result.intent).toBeNull();
-    expect(result.intent_source).toBeNull();
-    expect(result.needs_intent).toBe(true);
-    expect(result.recommendation).toContain('If this was steady work');
-    expect(result.recommendation).toContain('If it was a hard effort');
+    // A late dip that ends in a kick is not a fade.
+    expect(recovered.headline).not.toBe('Faded through the back half');
+    expect(recovered.headline).toBe('Strong finish after a steady middle');
   });
 
   it('uses the rep analysis for interval sessions', () => {
@@ -168,7 +217,6 @@ describe('buildSessionNarrative', () => {
       workout: workout({
         inferred_tag: 'interval',
         interval_summary: '5×1k / 3:00r',
-        intent: 'hard_distance',
       }),
       analysis: {
         structure: { value: 'interval' },
@@ -195,11 +243,12 @@ describe('buildSessionNarrative', () => {
     expect(result.summary).toContain('Across 5 work reps');
     expect(result.summary).toContain('rep 5 fastest at 1:45.0/500m');
     expect(result.summary).not.toContain('opening');
+    expect(result.recommendation).toContain('finished on your fastest rep');
   });
 
   it('does not call the final rep strongest when a middle rep was fastest', () => {
     const result = buildSessionNarrative({
-      workout: workout({ inferred_tag: 'interval', intent: 'hard_distance' }),
+      workout: workout({ inferred_tag: 'interval' }),
       analysis: {
         structure: { value: 'interval' },
         execution: { rate: { value: 'stable', average_spm: 30 } },
@@ -221,13 +270,13 @@ describe('buildSessionNarrative', () => {
     expect(result.headline).toBe('Final rep was quicker than the first');
     expect(result.summary).toContain('rep 2 fastest at 1:40.0/500m');
     expect(result.recommendation).toContain('fastest work came earlier');
-    expect(result.recommendation).not.toContain('finished the set strongly');
+    expect(result.recommendation).not.toContain('finished on your fastest rep');
     expect(result.headline).not.toContain('strongest');
   });
 
-  it('does not praise pacing control when an interval set faded after a fast first rep', () => {
+  it('flags a fast first rep that faded across the set', () => {
     const result = buildSessionNarrative({
-      workout: workout({ inferred_tag: 'interval', intent: 'hard_distance' }),
+      workout: workout({ inferred_tag: 'interval' }),
       analysis: {
         structure: { value: 'interval' },
         execution: { rate: { value: 'stable', average_spm: 28 } },
@@ -242,24 +291,21 @@ describe('buildSessionNarrative', () => {
     });
 
     expect(result.headline).toBe('Fast start, then a fade across the set');
-    expect(result.recommendation).toContain('hold back on the first rep');
-    expect(result.recommendation).not.toContain('Pacing control suited');
+    expect(result.recommendation).toContain('a more even opening rep');
   });
 
   it('falls back safely when a legacy session has no stored analysis', () => {
     const result = buildSessionNarrative({
-      workout: workout({ analysis: null, intent: 'hard_distance' }),
+      workout: workout({ analysis: null, metrics: {} }),
     });
     expect(result.headline).toBe('10 km session complete');
     expect(result.summary).toContain('10 km');
-    expect(result.needs_intent).toBe(false);
-    expect(result.recommendation).toContain('establish a sustainable opening pace');
-    expect(result.recommendation).not.toContain('Pacing control suited');
+    expect(result.recommendation).toContain('A controlled row');
   });
 
   it('carries pace rounding into the next minute', () => {
     const result = buildSessionNarrative({
-      workout: workout({ pace_ms: 119999, analysis: null, intent: 'hard_distance' }),
+      workout: workout({ pace_ms: 119999, analysis: null }),
     });
 
     expect(result.summary).toContain('2:00.0/500m');

@@ -79,7 +79,6 @@ export default function Session() {
   const [candidateSearch, setCandidateSearch] = useState('');
   const [candidatesLoading, setCandidatesLoading] = useState(false);
   const [pinSaving, setPinSaving] = useState(false);
-  const [intentSaving, setIntentSaving] = useState(null);
   const [notesDraft, setNotesDraft] = useState('');
   const [notesSaving, setNotesSaving] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -100,7 +99,6 @@ export default function Session() {
     setCompareOptions([]);
     setCompareMode(false);
     setCompareId(null);
-    setIntentSaving(null);
 
     async function loadSession() {
       try {
@@ -269,25 +267,6 @@ export default function Session() {
       setNotesSaving(false);
     }
   }, [notesDraft, notesSaving, toast, workout]);
-
-  const handleIntentChange = useCallback(async (intent) => {
-    if (!workout || intentSaving) return;
-
-    const workoutId = workout.id;
-    setIntentSaving(intent);
-    try {
-      await api.updateWorkout(workoutId, { intent });
-      // Narrative recommendations are composed on GET, so a PATCH response on
-      // its own cannot refresh the intent-specific coaching copy.
-      const refreshed = await api.getWorkout(workoutId);
-      setWorkout(current => (String(current?.id) === String(workoutId) ? refreshed : current));
-      toast.success('Session purpose saved');
-    } catch (err) {
-      toast.error(err.message || 'Could not save session purpose');
-    } finally {
-      setIntentSaving(null);
-    }
-  }, [intentSaving, toast, workout]);
 
   // Disarm the two-step delete if the second click never comes.
   useEffect(() => {
@@ -678,8 +657,6 @@ export default function Session() {
         analysis={workout.analysis}
         insight={workout.insight}
         narrative={workout.narrative}
-        onIntentChange={handleIntentChange}
-        intentSaving={intentSaving}
         cardStyles={styles}
       />
 

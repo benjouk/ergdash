@@ -2,11 +2,7 @@ import { Router } from 'express';
 import { getDb } from '../db.js';
 import { enrichSingleWorkout } from '../sync.js';
 import { buildWorkoutInsight } from '../insights.js';
-import {
-  WORKOUT_INTENTS,
-  isWorkoutIntent,
-  buildSessionNarrative,
-} from '../sessionNarrative.js';
+import { buildSessionNarrative } from '../sessionNarrative.js';
 import { parseEditedFields } from '../workoutFields.js';
 import { classifyComparison, rankComparisonCandidates } from '../workoutComparison.js';
 import {
@@ -181,15 +177,6 @@ router.patch('/:id', (req, res) => {
     } else {
       updates.push('notes = ?');
       params.push(body.notes);
-    }
-  }
-
-  if (Object.prototype.hasOwnProperty.call(body, 'intent')) {
-    if (body.intent !== null && !isWorkoutIntent(body.intent)) {
-      errors.push(`intent must be null or one of: ${WORKOUT_INTENTS.join(', ')}`);
-    } else {
-      updates.push('intent = ?');
-      params.push(body.intent);
     }
   }
 
@@ -456,7 +443,6 @@ function formatWorkout(row, intervalSummary = null) {
     comments: row.comments,
     pinned: !!row.pinned,
     notes: row.notes,
-    intent: row.intent ?? null,
     source: row.source || 'c2',
     edited_fields: parseEditedFields(row.edited_fields),
     pb_distances: [],

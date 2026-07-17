@@ -17,7 +17,6 @@ describe('SessionAnalysis compact view', () => {
           headline: 'Controlled opening',
           summary: 'The opening held steady. Rate rose in the final phase.',
           recommendation: 'Repeat the same start and finish a little earlier.',
-          intent: 'steady',
           plan_review: {
             planned: { target_distance: 8000, target_rate: 20, notes: 'Steady aerobic distance.' },
             actual: { pace_ms: 104500, avg_rate: 23.3, dominant_zone: 'z2' },
@@ -36,12 +35,16 @@ describe('SessionAnalysis compact view', () => {
     );
 
     expect(markup).toContain('Controlled opening');
-    expect(markup).toContain('aria-label="Purpose: Steady"');
+    // The declared-purpose surface is gone.
+    expect(markup).not.toContain('Purpose:');
     // The server owns summary length now; the client renders it verbatim.
     expect(markup).toContain('The opening held steady. Rate rose in the final phase.');
     expect(markup).toContain('Next time:');
-    expect(markup).toContain('Effort: likely hard · Pacing: variable · Rate: variable');
-    expect(markup.indexOf('Effort: likely hard')).toBeLessThan(markup.indexOf('Next time:'));
+    // Reads render as labelled pills, not a single ·-joined line.
+    expect(markup).toContain('Effort');
+    expect(markup).toContain('likely hard');
+    expect(markup).toContain('Pacing');
+    expect(markup.indexOf('likely hard')).toBeLessThan(markup.indexOf('Next time:'));
     expect(markup).not.toContain('<details');
     expect(markup).not.toContain('Distance was 6 km shorter than prescribed.');
     expect(markup).not.toContain('Steady aerobic distance.');
@@ -52,7 +55,7 @@ describe('SessionAnalysis compact view', () => {
     const markup = renderToStaticMarkup(
       <SessionAnalysis
         cardStyles={cardStyles}
-        narrative={{ headline: 'Session complete', summary: 'A row.', intent: null }}
+        narrative={{ headline: 'Session complete', summary: 'A row.' }}
         analysis={{
           data_quality: {
             reconciled: false,
@@ -72,7 +75,7 @@ describe('SessionAnalysis compact view', () => {
     const markup = renderToStaticMarkup(
       <SessionAnalysis
         cardStyles={cardStyles}
-        narrative={{ headline: 'Even from start to finish', summary: 'A row.', intent: 'steady' }}
+        narrative={{ headline: 'Even from start to finish', summary: 'A row.' }}
         analysis={{
           data_quality: { reconciled: false, issues: [{ field: 'time_ms', message: 'Durations differ.' }] },
           analysis_window: {
@@ -93,7 +96,7 @@ describe('SessionAnalysis compact view', () => {
     const markup = renderToStaticMarkup(
       <SessionAnalysis
         cardStyles={cardStyles}
-        narrative={{ headline: 'Even from start to finish', summary: 'A row.', intent: 'steady' }}
+        narrative={{ headline: 'Even from start to finish', summary: 'A row.' }}
         analysis={{
           data_quality: {
             reconciled: false,
@@ -117,20 +120,6 @@ describe('SessionAnalysis compact view', () => {
     expect(markup).toContain('scored-piece summary and stroke data do not fully reconcile');
     expect(markup).not.toContain('Piece HR differs.');
   });
-
-  it('lets the user change a resolved purpose from the tag', () => {
-    const markup = renderToStaticMarkup(
-      <SessionAnalysis
-        cardStyles={cardStyles}
-        narrative={{ headline: 'Session complete', summary: 'A row.', intent: 'steady', needs_intent: false }}
-        onIntentChange={() => {}}
-        analysis={{ data_quality: { reconciled: true, issues: [] }, execution: {} }}
-      />,
-    );
-
-    expect(markup).toContain('Change session purpose');
-    expect(markup).toContain('<button');
-  });
 });
 
 describe('dataQualityNotice', () => {
@@ -152,5 +141,14 @@ describe('compactReadLabel', () => {
     expect(compactReadLabel('hr_drift', { value: 'low', drift_percent: 2.1 }))
       .toBe('HR drift: low (+2.1%)');
     expect(compactReadLabel('hr_drift', { value: 'moderate' })).toBe('HR drift: moderate');
+  });
+
+  it('does not call a U-shaped piece "even" when both ends were quick', () => {
+    // "Even overall · fast start and finish" is self-contradictory; the shape
+    // carries the label instead.
+    expect(compactReadLabel('pacing', { value: 'even', shape: { fast_start: true, fast_finish: true } }))
+      .toBe('Pacing: fast start and finish');
+    expect(compactReadLabel('pacing', { value: 'even', shape: { fast_start: true, fast_finish: true, late_fade: true } }))
+      .toBe('Pacing: fast start and finish · late fade');
   });
 });
