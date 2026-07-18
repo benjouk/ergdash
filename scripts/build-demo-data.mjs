@@ -120,6 +120,9 @@ async function main() {
       ...process.env,
       NODE_ENV: 'development',
       ERGDASH_SEED_DEMO: '1',
+      // The capture server must not reach out to the live Concept2 rankings;
+      // demo percentiles come from the bundled model.
+      ERGDASH_RANKINGS_LIVE: '0',
       PORT: String(PORT),
       DATA_DIR: dataDir,
     },

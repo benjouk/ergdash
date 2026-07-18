@@ -94,10 +94,31 @@ export function ageFromBirthYear(birthYear, now = new Date()) {
   return age >= 5 && age <= 110 ? age : null;
 }
 
-// Percentile of a pace within one event/sex/age/weight bucket, interpolated
-// linearly between anchors and clamped to [1, 99]. Returns null when the
-// event is unranked or the athlete's sex is unknown (the distributions are
-// sex-specific, so there is no meaningful unisex percentile).
+// Percentile of a pace against an anchor curve [[percentile, paceS], ...]
+// ordered fastest first, interpolated linearly between anchors. Faster than
+// the top anchor clamps to 99; slower than the bottom anchor decays toward 1.
+export function interpolatePercentile(curve, paceS) {
+  if (!Array.isArray(curve) || curve.length < 2 || !Number.isFinite(paceS) || paceS <= 0) return null;
+
+  if (paceS <= curve[0][1]) return 99;
+  const [lastPct, lastPace] = curve[curve.length - 1];
+  if (paceS >= lastPace) return Math.max(1, Math.round(lastPct * (lastPace / paceS) ** 4));
+
+  for (let i = 0; i < curve.length - 1; i++) {
+    const [pctA, paceA] = curve[i];
+    const [pctB, paceB] = curve[i + 1];
+    if (paceS >= paceA && paceS <= paceB) {
+      const t = paceB === paceA ? 0 : (paceS - paceA) / (paceB - paceA);
+      return Math.round(pctA + (pctB - pctA) * t);
+    }
+  }
+  return null;
+}
+
+// Percentile of a pace within one event/sex/age/weight bucket of the bundled
+// model, clamped to [1, 99]. Returns null when the event is unranked or the
+// athlete's sex is unknown (the distributions are sex-specific, so there is
+// no meaningful unisex percentile).
 export function percentileForPace({ event, paceMs, sex, age = null, weightKg = null }) {
   const offset = EVENT_OFFSETS[event];
   const anchors = SEX_ANCHORS[sex];
@@ -108,26 +129,10 @@ export function percentileForPace({ event, paceMs, sex, age = null, weightKg = n
   const wclass = weightClass(sex, weightKg);
   const classFactor = wclass === 'lwt' ? LWT_FACTOR[sex] : 1.0;
 
-  const paceS = paceMs / 1000;
   // Anchor paces for this bucket, fastest (highest percentile) first.
   const curve = anchors.map(([pct, base]) => [pct, (base + offset) * bandFactor * classFactor]);
-
-  let percentile;
-  if (paceS <= curve[0][1]) {
-    percentile = 99;
-  } else if (paceS >= curve[curve.length - 1][1]) {
-    percentile = Math.max(1, Math.round(curve[curve.length - 1][0] * (curve[curve.length - 1][1] / paceS) ** 4));
-  } else {
-    for (let i = 0; i < curve.length - 1; i++) {
-      const [pctA, paceA] = curve[i];
-      const [pctB, paceB] = curve[i + 1];
-      if (paceS >= paceA && paceS <= paceB) {
-        const t = paceB === paceA ? 0 : (paceS - paceA) / (paceB - paceA);
-        percentile = Math.round(pctA + (pctB - pctA) * t);
-        break;
-      }
-    }
-  }
+  const percentile = interpolatePercentile(curve, paceMs / 1000);
+  if (percentile == null) return null;
 
   return {
     percentile,
@@ -136,6 +141,7 @@ export function percentileForPace({ event, paceMs, sex, age = null, weightKg = n
     age_band: band,
     weight_class: wclass,
     approximate: true,
+    source: 'model',
   };
 }
 

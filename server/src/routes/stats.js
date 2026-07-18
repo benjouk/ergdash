@@ -9,6 +9,7 @@ import { classifyComparison } from '../workoutComparison.js';
 import {
   athleteFromSettings, percentileForPace, eventKeyForDistance, eventKeyForDuration,
 } from '../rankings.js';
+import { liveBenchmark } from '../rankingsLive.js';
 
 const router = Router();
 
@@ -320,19 +321,24 @@ router.get('/personal-bests', (req, res) => {
     }
   }
 
-  // Estimated ranking percentiles, when the athlete has set a sex in Settings.
-  // Only the endurance (continuous) PB per event is benchmarked - the public
-  // rankings don't accept interval results.
+  // Ranking percentiles, when the athlete has set a sex in Settings: the real
+  // distribution when the bucket has been reconciled against the live Concept2
+  // rankings, the bundled estimate otherwise. Only the endurance (continuous)
+  // PB per event is benchmarked - the public rankings don't accept interval
+  // results.
   const settingsRows = db.prepare('SELECT key, value FROM settings WHERE profile_id = ?').all(req.profileId);
   const athlete = athleteFromSettings(Object.fromEntries(settingsRows.map(r => [r.key, r.value])));
   if (athlete) {
+    const benchmark = (event, paceMs) => (
+      liveBenchmark(db, { event, paceMs, athlete }) || percentileForPace({ event, paceMs, ...athlete })
+    );
     for (const pb of pbs) {
       const event = pb.tag === 'endurance' ? eventKeyForDistance(pb.distance) : null;
-      if (event) pb.benchmark = percentileForPace({ event, paceMs: pb.pace_ms, ...athlete });
+      if (event) pb.benchmark = benchmark(event, pb.pace_ms);
     }
     for (const tb of timePbs) {
       const event = eventKeyForDuration(tb.duration_s);
-      if (event) tb.benchmark = percentileForPace({ event, paceMs: tb.pace_ms, ...athlete });
+      if (event) tb.benchmark = benchmark(event, tb.pace_ms);
     }
   }
 
