@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { api } from '../../api.js';
 import { useUnits } from '../../context/UnitsContext.jsx';
 import { useTimeRange } from '../../context/TimeRangeContext.jsx';
@@ -92,10 +92,6 @@ export default function PowerCurveChart() {
               ];
             }}
           />
-          <Legend
-            wrapperStyle={{ fontSize: 11, fontFamily: 'var(--font-mono)' }}
-            formatter={v => (v === 'ghost' ? comparisonLabel : 'Selected-period best')}
-          />
           <Line
             type="monotone"
             dataKey="ghost"
@@ -123,6 +119,10 @@ export default function PowerCurveChart() {
           />
         </LineChart>
       </ResponsiveContainer>
+      <div className={styles.powerLegend} aria-hidden="true">
+        <span className={styles.powerLegendGhost}><i />{comparisonLabel}</span>
+        <span className={styles.powerLegendCurrent}><i />Selected-period best</span>
+      </div>
     
       <ChartInfo>The best average watts sustained over each duration in the selected period. The ghost line shows the immediately preceding equal-length period; All Time uses the 90-day snapshot.</ChartInfo>
     </div>
