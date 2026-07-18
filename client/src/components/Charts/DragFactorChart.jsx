@@ -18,14 +18,14 @@ function DragDot(props) {
   return <circle cx={cx} cy={cy} r={3} fill={outside ? SERIES.hr : SERIES.primary} stroke="none" />;
 }
 
-export default function DragFactorChart() {
+export default function DragFactorChart({ tag = 'endurance' }) {
   const { from, to } = useTimeRange();
   const { data = [], loading, error, retry } = useChartData(() => {
-    const params = { metric: 'drag', period: 'all' };
+    const params = { metric: 'drag', period: 'all', tag };
     if (from) params.from = from;
     if (to) params.to = to;
     return api.getTrends(params).then(d => d.drag_trend || []);
-  }, [from, to]);
+  }, [from, tag, to]);
 
   const formatted = useMemo(() => data.map(d => {
     // drag_delta is deviation from the 30-workout rolling average, so the

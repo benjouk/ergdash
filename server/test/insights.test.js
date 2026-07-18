@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildWeeklyInsights, buildWorkoutInsight } from '../src/insights.js';
+import { buildWeeklyInsights, buildWeeklyOverview, buildWorkoutInsight } from '../src/insights.js';
 
 function byId(insights) {
   return Object.fromEntries(insights.map(i => [i.id, i]));
@@ -65,6 +65,58 @@ describe('buildWeeklyInsights', () => {
     expect(out.fitness.text).toContain('+2.3');
     expect(out.streak.kind).toBe('positive');
     expect(out.streak.text).toContain('5-week');
+  });
+});
+
+describe('buildWeeklyOverview', () => {
+  it('prioritises inactivity and fatigue before positive load signals', () => {
+    expect(buildWeeklyOverview({ weeklyMeters: 0, sessionsThisWeek: 0 }).status.key).toBe('idle');
+
+    const fatigued = buildWeeklyOverview({
+      weeklyMeters: 50000,
+      prevWeeklyMeters: 30000,
+      sessionsThisWeek: 5,
+      form: -12,
+      fitnessDelta7d: 2,
+    });
+    expect(fatigued.status.key).toBe('fatigued');
+  });
+
+  it('classifies building, easing, and steady weeks deterministically', () => {
+    expect(buildWeeklyOverview({
+      weeklyMeters: 44000, prevWeeklyMeters: 40000, sessionsThisWeek: 4,
+    }).status.key).toBe('building');
+    expect(buildWeeklyOverview({
+      weeklyMeters: 20000, prevWeeklyMeters: 40000, sessionsThisWeek: 2,
+    }).status.key).toBe('easing');
+    expect(buildWeeklyOverview({
+      weeklyMeters: 41000, prevWeeklyMeters: 40000, sessionsThisWeek: 4,
+    }).status.key).toBe('steady');
+  });
+
+  it('returns raw signals and preserves missing comparisons as null', () => {
+    const overview = buildWeeklyOverview({
+      weeklyMeters: 44000,
+      prevWeeklyMeters: 40000,
+      sessionsThisWeek: 4,
+      fitness: 34.4,
+      fitnessDelta7d: 1.6,
+      form: 6,
+      recentEndurancePaceMs: 116000,
+      priorEndurancePaceMs: 118500,
+    });
+
+    expect(overview.signals.volume).toMatchObject({
+      value_meters: 44000, delta_pct: 0.1, sessions: 4, window_days: 7,
+    });
+    expect(overview.signals.fitness).toEqual({ value: 34.4, delta_7d: 1.6 });
+    expect(overview.signals.form).toEqual({ value: 6, readiness: 'fresh' });
+    expect(overview.signals.pace).toEqual({ value_ms: 116000, delta_ms: -2500, window_days: 30 });
+
+    const missing = buildWeeklyOverview({ weeklyMeters: 10000, sessionsThisWeek: 1 });
+    expect(missing.signals.volume.delta_pct).toBeNull();
+    expect(missing.signals.fitness.value).toBeNull();
+    expect(missing.signals.pace.delta_ms).toBeNull();
   });
 });
 

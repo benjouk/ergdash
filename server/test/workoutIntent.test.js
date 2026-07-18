@@ -105,6 +105,18 @@ describe('warm-up exclusions', () => {
     expect(totalMeters).toBe(2000 + 2000 + 5000 + 3000);
   });
 
+  it('filters comparable trend series by endurance or interval tag', async () => {
+    const endurance = await req('/api/stats/trends?metric=pace&period=all&tag=endurance');
+    expect(endurance.body.pace_trend.map(r => r.distance)).toEqual([2000, 5000]);
+
+    const intervals = await req('/api/stats/trends?metric=pace&period=all&tag=interval');
+    expect(intervals.body.pace_trend.map(r => r.distance)).toEqual([3000]);
+
+    // Unknown filters degrade to the unfiltered series instead of hiding data.
+    const unknown = await req('/api/stats/trends?metric=pace&period=all&tag=anything');
+    expect(unknown.body.pace_trend.map(r => r.distance)).toEqual([2000, 5000, 3000]);
+  });
+
   it('keeps warm-ups out of the session mix and steady pace, but in totals', async () => {
     const { body } = await req('/api/stats/summary');
     expect(body.total_meters).toBe(12000);

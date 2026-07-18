@@ -11,14 +11,14 @@ import styles from './Charts.module.css';
 
 // Aerobic decoupling per steady session; below the 5% line means the aerobic
 // base held up for the whole workout.
-export default function HrDriftChart() {
+export default function HrDriftChart({ tag = 'endurance' }) {
   const { from, to } = useTimeRange();
   const { data = [], loading, error, retry } = useChartData(() => {
-    const params = { metric: 'hr_drift', period: 'all' };
+    const params = { metric: 'hr_drift', period: 'all', tag };
     if (from) params.from = from;
     if (to) params.to = to;
     return api.getTrends(params).then(d => d.hr_drift_trend || []);
-  }, [from, to]);
+  }, [from, tag, to]);
 
   if (loading) return <ChartSkeleton />;
   if (error) return <ChartEmpty title="HR Drift" message="Couldn't load chart data." error onRetry={retry} />;

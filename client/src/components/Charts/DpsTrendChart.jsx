@@ -20,14 +20,14 @@ const TAG_COLORS = {
 // Per-session distance per stroke - a stroke-length proxy that surfaces
 // technique changes. Interval sessions naturally sit lower (higher rating,
 // shorter strokes), so dots are coloured by session type.
-export default function DpsTrendChart() {
+export default function DpsTrendChart({ tag = 'endurance' }) {
   const { from, to } = useTimeRange();
   const { data = [], loading, error, retry } = useChartData(() => {
-    const params = { metric: 'dps', period: 'all' };
+    const params = { metric: 'dps', period: 'all', tag };
     if (from) params.from = from;
     if (to) params.to = to;
     return api.getTrends(params).then(d => d.dps_trend || []);
-  }, [from, to]);
+  }, [from, tag, to]);
 
   const formatted = useMemo(() => data.map((d, i) => {
     const window = data.slice(Math.max(0, i - SMOOTH_WINDOW + 1), i + 1);
@@ -102,7 +102,7 @@ export default function DpsTrendChart() {
         </ComposedChart>
       </ResponsiveContainer>
 
-      <ChartInfo>Metres travelled per stroke for each session (dots, coloured by session type) with a {SMOOTH_WINDOW}-session average. Longer strokes at the same effort usually reflect improving technique; interval work naturally sits lower.</ChartInfo>
+      <ChartInfo>Metres travelled per stroke in comparable steady sessions, with a {SMOOTH_WINDOW}-session average. Longer strokes at the same effort usually reflect improving technique.</ChartInfo>
     </div>
   );
 }

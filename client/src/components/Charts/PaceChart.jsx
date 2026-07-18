@@ -25,19 +25,19 @@ function CustomDot(props) {
   return <circle cx={cx} cy={cy} r={3} fill={color} stroke="none" />;
 }
 
-export default function PaceChart() {
+export default function PaceChart({ tag = 'endurance', title = 'Steady Pace' }) {
   const { formatPace } = useUnits();
   const { from, to } = useTimeRange();
   const { data = [], loading, error, retry } = useChartData(() => {
-    const params = { metric: 'pace', period: 'all' };
+    const params = { metric: 'pace', period: 'all', tag };
     if (from) params.from = from;
     if (to) params.to = to;
     return api.getTrends(params).then(d => d.pace_trend || []);
-  }, [from, to]);
+  }, [from, tag, to]);
 
   if (loading) return <ChartSkeleton />;
-  if (error) return <ChartEmpty title="Pace Trend" message="Couldn't load chart data." error onRetry={retry} />;
-  if (data.length === 0) return <ChartEmpty title="Pace Trend" />;
+  if (error) return <ChartEmpty title={title} message="Couldn't load chart data." error onRetry={retry} />;
+  if (data.length === 0) return <ChartEmpty title={title} message="Not enough comparable steady sessions in this range yet." />;
 
   const formatted = data.map((d, i) => {
     const window = data.slice(Math.max(0, i - SMOOTH_WINDOW + 1), i + 1);
@@ -48,7 +48,7 @@ export default function PaceChart() {
     };
   });
 
-  const latest = data[data.length - 1];
+  const latest = formatted[formatted.length - 1];
   // Lower pace_ms is faster, so an improving trend reads as a downward delta.
   const paceDelta = seriesDelta(formatted, 'pace_avg');
 
@@ -56,12 +56,12 @@ export default function PaceChart() {
     <div className={styles.chartCard}>
       <div className={styles.chartHeader}>
         <div className={styles.chartTitle}>
-          Pace Trend
+          {title}
         </div>
         <div className={styles.chartMetric}>
           <div className={styles.chartValue}>
-            {formatPace(latest.pace_ms)}
-            <span className={styles.chartValueUnit}>latest</span>
+            {formatPace(latest.pace_avg)}
+            <span className={styles.chartValueUnit}>{SMOOTH_WINDOW}-session avg</span>
           </div>
           <TrendChip delta={paceDelta} betterWhenUp={false}>
             {paceDelta != null ? `${(Math.abs(paceDelta) / 1000).toFixed(1)}s` : ''}
@@ -116,7 +116,7 @@ export default function PaceChart() {
         </LineChart>
       </ResponsiveContainer>
 
-      <ChartInfo>Each session's average pace (faint, with dots coloured by endurance or interval type) plus a {SMOOTH_WINDOW}-session rolling average that cuts through the noise. The scale is flipped so higher points are faster.</ChartInfo>
+      <ChartInfo>Comparable steady sessions only: each average pace plus a {SMOOTH_WINDOW}-session rolling average that cuts through day-to-day noise. The scale is flipped so higher points are faster.</ChartInfo>
     </div>
   );
 }

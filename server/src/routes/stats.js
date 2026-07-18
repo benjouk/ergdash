@@ -14,6 +14,28 @@ import { computePredictedTimes, PREDICTED_DISTANCES } from '../predictedTimes.js
 
 const router = Router();
 
+const DAY_MS = 86400000;
+
+// Range comparisons on Progress are like-for-like: the selected window is
+// compared with the immediately preceding window of the same length. Open
+// ended presets (Last 30d, This Season) end today; All Time has no `from` and
+// deliberately keeps the legacy 90-day snapshot behaviour.
+export function precedingDateRange(from, to, now = Date.now()) {
+  if (!from) return null;
+
+  const end = to || new Date(now + DAY_MS).toISOString().slice(0, 10);
+  const startMs = Date.parse(`${from.slice(0, 10)}T00:00:00Z`);
+  const endMs = Date.parse(`${end.slice(0, 10)}T00:00:00Z`);
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) return null;
+
+  const durationMs = endMs - startMs;
+  return {
+    from: new Date(startMs - durationMs).toISOString().slice(0, 10),
+    to: from.slice(0, 10),
+    days: Math.round(durationMs / DAY_MS),
+  };
+}
+
 router.use(validateDateRange);
 router.use(validatePaginationParams);
 
@@ -125,6 +147,9 @@ router.get('/summary', (req, res) => {
 router.get('/trends', (req, res) => {
   const db = getDb();
   const { metric = 'volume', period = '12w' } = req.query;
+  const tag = req.query.tag === 'endurance' || req.query.tag === 'interval'
+    ? req.query.tag
+    : null;
   const qFrom = req.query.from;
   const qTo = req.query.to;
 
@@ -147,6 +172,16 @@ router.get('/trends', (req, res) => {
 
   const toFilter = qTo ? ' AND date < ?' : '';
   const toParam = qTo ? [qTo] : [];
+  const plainTagFilter = tag === 'interval'
+    ? " AND inferred_tag = 'interval'"
+    : tag === 'endurance'
+      ? " AND (inferred_tag IS NULL OR inferred_tag != 'interval')"
+      : '';
+  const joinedTagFilter = tag === 'interval'
+    ? " AND w.inferred_tag = 'interval'"
+    : tag === 'endurance'
+      ? " AND (w.inferred_tag IS NULL OR w.inferred_tag != 'interval')"
+      : '';
 
   // Every per-workout metric below excludes intent='warmup' rows: warm-up
   // paddling is not training signal. Volume keeps them - metres are metres.
@@ -172,7 +207,7 @@ router.get('/trends', (req, res) => {
              CASE WHEN inferred_tag = 'interval' THEN 'interval' ELSE 'endurance' END as inferred_tag
       FROM workouts
       WHERE type = 'rower' AND profile_id = ? AND pace_ms > 0 AND date >= ?${toFilter}
-        AND (intent IS NULL OR intent != 'warmup')
+        AND (intent IS NULL OR intent != 'warmup')${plainTagFilter}
       ORDER BY date
     `).all(req.profileId, from, ...toParam);
     return res.json({ pace_trend: rows });
@@ -183,7 +218,7 @@ router.get('/trends', (req, res) => {
       SELECT date, stroke_rate, distance
       FROM workouts
       WHERE type = 'rower' AND profile_id = ? AND stroke_rate > 0 AND date >= ?${toFilter}
-        AND (intent IS NULL OR intent != 'warmup')
+        AND (intent IS NULL OR intent != 'warmup')${plainTagFilter}
       ORDER BY date
     `).all(req.profileId, from, ...toParam);
     return res.json({ rate_trend: rows });
@@ -195,7 +230,7 @@ router.get('/trends', (req, res) => {
       FROM workouts w
       JOIN computed_metrics cm ON w.id = cm.workout_id
       WHERE w.type = 'rower' AND w.profile_id = ? AND cm.consistency IS NOT NULL AND w.date >= ?${toFilter}
-        AND (w.intent IS NULL OR w.intent != 'warmup')
+        AND (w.intent IS NULL OR w.intent != 'warmup')${joinedTagFilter}
       ORDER BY w.date
     `).all(req.profileId, from, ...toParam);
     return res.json({ consistency_trend: rows });
@@ -208,7 +243,7 @@ router.get('/trends', (req, res) => {
       FROM workouts w
       JOIN computed_metrics cm ON w.id = cm.workout_id
       WHERE w.type = 'rower' AND w.profile_id = ? AND cm.distance_per_stroke IS NOT NULL AND w.date >= ?${toFilter}
-        AND (w.intent IS NULL OR w.intent != 'warmup')
+        AND (w.intent IS NULL OR w.intent != 'warmup')${joinedTagFilter}
       ORDER BY w.date
     `).all(req.profileId, from, ...toParam);
     return res.json({ dps_trend: rows });
@@ -221,7 +256,7 @@ router.get('/trends', (req, res) => {
       FROM workouts w
       JOIN computed_metrics cm ON w.id = cm.workout_id
       WHERE w.type = 'rower' AND w.profile_id = ? AND cm.watts_per_beat IS NOT NULL AND w.date >= ?${toFilter}
-        AND (w.intent IS NULL OR w.intent != 'warmup')
+        AND (w.intent IS NULL OR w.intent != 'warmup')${joinedTagFilter}
       ORDER BY w.date
     `).all(req.profileId, from, ...toParam);
     return res.json({ watts_per_beat_trend: rows });
@@ -233,7 +268,7 @@ router.get('/trends', (req, res) => {
       FROM workouts w
       JOIN computed_metrics cm ON w.id = cm.workout_id
       WHERE w.type = 'rower' AND w.profile_id = ? AND cm.hr_drift_pct IS NOT NULL AND w.date >= ?${toFilter}
-        AND (w.intent IS NULL OR w.intent != 'warmup')
+        AND (w.intent IS NULL OR w.intent != 'warmup')${joinedTagFilter}
       ORDER BY w.date
     `).all(req.profileId, from, ...toParam);
     return res.json({ hr_drift_trend: rows });
@@ -246,7 +281,7 @@ router.get('/trends', (req, res) => {
       FROM workouts w
       JOIN computed_metrics cm ON w.id = cm.workout_id
       WHERE w.type = 'rower' AND w.profile_id = ? AND cm.rate_discipline IS NOT NULL AND w.date >= ?${toFilter}
-        AND (w.intent IS NULL OR w.intent != 'warmup')
+        AND (w.intent IS NULL OR w.intent != 'warmup')${joinedTagFilter}
       ORDER BY w.date
     `).all(req.profileId, from, ...toParam);
     return res.json({ rate_discipline_trend: rows });
@@ -258,7 +293,7 @@ router.get('/trends', (req, res) => {
       FROM workouts w
       LEFT JOIN computed_metrics cm ON w.id = cm.workout_id
       WHERE w.type = 'rower' AND w.profile_id = ? AND w.drag_factor > 0 AND w.date >= ?${toFilter}
-        AND (w.intent IS NULL OR w.intent != 'warmup')
+        AND (w.intent IS NULL OR w.intent != 'warmup')${joinedTagFilter}
       ORDER BY w.date
     `).all(req.profileId, from, ...toParam);
     return res.json({ drag_trend: rows });
@@ -271,7 +306,7 @@ router.get('/trends', (req, res) => {
       FROM workouts w
       JOIN computed_metrics cm ON w.id = cm.workout_id
       WHERE w.type = 'rower' AND w.profile_id = ? AND cm.effort_score IS NOT NULL AND w.date >= ?${toFilter}
-        AND (w.intent IS NULL OR w.intent != 'warmup')
+        AND (w.intent IS NULL OR w.intent != 'warmup')${joinedTagFilter}
       ORDER BY w.date
     `).all(req.profileId, from, ...toParam);
     return res.json({ effort_trend: rows });
@@ -704,12 +739,19 @@ router.get('/power-curve', (req, res) => {
     return curve;
   };
 
-  const ghostCutoff = new Date(Date.now() - ghostDays * 86400000).toISOString().slice(0, 10);
+  const previous = precedingDateRange(from, to);
+  const ghostCutoff = new Date(Date.now() - ghostDays * DAY_MS).toISOString().slice(0, 10);
+  const ghost = previous
+    ? buildCurve(previous.to, previous.from)
+    : buildCurve(ghostCutoff, null);
 
   res.json({
     curve: buildCurve(to || null, from || null),
-    ghost: buildCurve(ghostCutoff, from || null),
-    ghost_days: ghostDays,
+    ghost,
+    ghost_days: previous?.days || ghostDays,
+    comparison: previous
+      ? { from: previous.from, to: previous.to, kind: 'preceding_range' }
+      : { to: ghostCutoff, kind: 'snapshot' },
   });
 });
 

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { api } from '../../api.js';
 import { useUnits } from '../../context/UnitsContext.jsx';
+import { useTimeRange } from '../../context/TimeRangeContext.jsx';
 import { AXIS_TICK, AXIS_LINE, SERIES, TOOLTIP_PROPS } from '../../styles/chartTheme.js';
 import { ChartSkeleton } from '../Skeleton/Skeleton.jsx';
 import ChartEmpty from './ChartEmpty.jsx';
@@ -16,8 +17,14 @@ const DURATION_LABELS = { 60: '1′', 240: '4′', 600: '10′', 1800: '30′', 
 // line showing where those bests stood 90 days ago.
 export default function PowerCurveChart() {
   const { formatPace } = useUnits();
+  const { from, to } = useTimeRange();
   const navigate = useNavigate();
-  const { data, loading, error, retry } = useChartData(() => api.getPowerCurve(), []);
+  const { data, loading, error, retry } = useChartData(() => {
+    const params = {};
+    if (from) params.from = from;
+    if (to) params.to = to;
+    return api.getPowerCurve(params);
+  }, [from, to]);
 
   const merged = useMemo(() => {
     if (!data) return [];
@@ -36,6 +43,10 @@ export default function PowerCurveChart() {
   if (loading) return <ChartSkeleton />;
   if (error) return <ChartEmpty title="Power Curve" message="Couldn't load chart data." error onRetry={retry} />;
   if (merged.length < 2) return <ChartEmpty title="Power Curve" />;
+
+  const comparisonLabel = data.comparison?.kind === 'preceding_range'
+    ? 'Previous period'
+    : `${data.ghost_days} days ago`;
 
   return (
     <div className={styles.chartCard}>
@@ -74,7 +85,7 @@ export default function PowerCurveChart() {
             formatter={(value, name, item) => {
               const paceMs = item?.payload?.avg_pace_ms;
               const watts = `${Math.round(value)}w`;
-              const label = name === 'ghost' ? `${data.ghost_days}d ago` : 'Current';
+              const label = name === 'ghost' ? comparisonLabel : 'Selected period';
               return [
                 name === 'current' && paceMs ? `${watts} (${formatPace(paceMs)})` : watts,
                 label,
@@ -83,7 +94,7 @@ export default function PowerCurveChart() {
           />
           <Legend
             wrapperStyle={{ fontSize: 11, fontFamily: 'var(--font-mono)' }}
-            formatter={v => (v === 'ghost' ? `${data.ghost_days} days ago` : 'Current best')}
+            formatter={v => (v === 'ghost' ? comparisonLabel : 'Selected-period best')}
           />
           <Line
             type="monotone"
@@ -113,7 +124,7 @@ export default function PowerCurveChart() {
         </LineChart>
       </ResponsiveContainer>
     
-      <ChartInfo>The best average watts you have sustained over each duration, from 1 to 60 minutes. The ghost line shows the same bests 90 days ago, so gaps highlight recent gains.</ChartInfo>
+      <ChartInfo>The best average watts sustained over each duration in the selected period. The ghost line shows the immediately preceding equal-length period; All Time uses the 90-day snapshot.</ChartInfo>
     </div>
   );
 }

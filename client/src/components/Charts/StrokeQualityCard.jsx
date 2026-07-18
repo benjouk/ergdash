@@ -11,10 +11,10 @@ const RECENT_SESSIONS = 20;
 
 // Compact stat card pairing the two 0-100 stroke-quality scores: how tightly
 // stroke rate held its band, and how steady the pace was stroke to stroke.
-export default function StrokeQualityCard() {
+export default function StrokeQualityCard({ tag = 'endurance' }) {
   const { from, to } = useTimeRange();
   const { data, loading, error, retry } = useChartData(async () => {
-    const params = { period: 'all' };
+    const params = { period: 'all', tag };
     if (from) params.from = from;
     if (to) params.to = to;
 
@@ -27,7 +27,7 @@ export default function StrokeQualityCard() {
       discipline: discipline.map(d => d.rate_discipline),
       consistency: consistency.map(d => d.consistency),
     };
-  }, [from, to]);
+  }, [from, tag, to]);
 
   if (loading) return <ChartSkeleton />;
   if (error) return <ChartEmpty title="Stroke Quality" message="Couldn't load chart data." error onRetry={retry} />;

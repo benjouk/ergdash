@@ -131,6 +131,105 @@ export function buildWeeklyInsights(input = {}) {
   return out;
 }
 
+// Structured companion to the prose insights. The Progress overview needs
+// numbers it can format in the athlete's preferred units, plus one decisive
+// status whose priority is stable and testable. Fixed windows are intentional:
+// current training load is a 7-day signal while endurance pace moves slowly
+// enough to compare in 30-day blocks.
+export function buildWeeklyOverview(input = {}) {
+  const {
+    weeklyMeters = 0,
+    prevWeeklyMeters = 0,
+    sessionsThisWeek = 0,
+    fitness = null,
+    form = null,
+    fitnessDelta7d = null,
+    recentEndurancePaceMs = null,
+    priorEndurancePaceMs = null,
+  } = input;
+
+  const insights = buildWeeklyInsights(input);
+  const byId = Object.fromEntries(insights.map(item => [item.id, item]));
+
+  let status;
+  if (weeklyMeters <= 0 && sessionsThisWeek <= 0) {
+    status = {
+      key: 'idle',
+      label: 'No recent training',
+      tone: 'watch',
+      summary: 'No rows have been logged in the last 7 days.',
+    };
+  } else if (form != null && form <= FORM_TIRED) {
+    status = {
+      key: 'fatigued',
+      label: 'Fatigued',
+      tone: 'watch',
+      summary: 'Fatigue is elevated. Favour easy sessions for a few days.',
+    };
+  } else if (byId.volume?.kind === 'positive' || byId.fitness?.kind === 'positive') {
+    status = {
+      key: 'building',
+      label: 'Building',
+      tone: 'positive',
+      summary: 'Training load or fitness is moving in the right direction.',
+    };
+  } else if (byId.volume?.kind === 'watch' || byId.fitness?.kind === 'watch') {
+    status = {
+      key: 'easing',
+      label: 'Easing',
+      tone: 'watch',
+      summary: 'Training load has eased compared with your recent baseline.',
+    };
+  } else {
+    status = {
+      key: 'steady',
+      label: 'Steady',
+      tone: 'neutral',
+      summary: 'Training is landing consistently without a strong swing.',
+    };
+  }
+
+  const volumeDeltaPct = prevWeeklyMeters > 0
+    ? (weeklyMeters - prevWeeklyMeters) / prevWeeklyMeters
+    : null;
+  const paceDeltaMs = recentEndurancePaceMs != null && priorEndurancePaceMs != null
+    ? recentEndurancePaceMs - priorEndurancePaceMs
+    : null;
+  const readiness = form == null
+    ? null
+    : form >= FORM_FRESH
+      ? 'fresh'
+      : form <= FORM_TIRED
+        ? 'fatigued'
+        : 'balanced';
+
+  return {
+    status,
+    signals: {
+      volume: {
+        value_meters: weeklyMeters,
+        delta_pct: volumeDeltaPct,
+        sessions: sessionsThisWeek,
+        window_days: 7,
+      },
+      fitness: {
+        value: fitness,
+        delta_7d: fitnessDelta7d,
+      },
+      form: {
+        value: form,
+        readiness,
+      },
+      pace: {
+        value_ms: recentEndurancePaceMs,
+        delta_ms: paceDeltaMs,
+        window_days: 30,
+      },
+    },
+    insights,
+  };
+}
+
 // -----------------------------------------------------------------------------
 // Per-workout insight, shown on the session detail page.
 // `workout` is the formatted workout (pace_ms, heart_rate_avg, inferred_tag,

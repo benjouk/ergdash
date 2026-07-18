@@ -58,7 +58,9 @@ router.get('/adherence', (req, res) => {
   const db = getDb();
   const weeks = Math.min(104, Math.max(1, Number(req.query.weeks) || 12));
   const todayStr = today();
-  const from = new Date(Date.now() - weeks * 7 * 86400000).toISOString().slice(0, 10);
+  const from = req.query.from?.slice(0, 10)
+    || new Date(Date.now() - weeks * 7 * 86400000).toISOString().slice(0, 10);
+  const to = req.query.to?.slice(0, 10) || todayStr;
 
   const rows = db.prepare(`
     SELECT strftime('%Y-W%W', p.date) as week,
@@ -74,9 +76,9 @@ router.get('/adherence', (req, res) => {
     WHERE p.profile_id = ? AND p.date >= ? AND p.date < ?
     GROUP BY week
     ORDER BY week_start
-  `).all(req.profileId, from, todayStr);
+  `).all(req.profileId, from, to);
 
-  res.json({ weeks: rows });
+  res.json({ weeks: rows, range: { from, to } });
 });
 
 router.get('/', (req, res) => {

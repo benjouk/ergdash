@@ -2,6 +2,7 @@ import {
   ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
 import { api } from '../../api.js';
+import { useTimeRange } from '../../context/TimeRangeContext.jsx';
 import { AXIS_TICK, AXIS_LINE, SERIES, TOOLTIP_PROPS } from '../../styles/chartTheme.js';
 import { ChartSkeleton } from '../Skeleton/Skeleton.jsx';
 import ChartEmpty from './ChartEmpty.jsx';
@@ -10,9 +11,18 @@ import { useChartData } from './useChartData.js';
 import styles from './Charts.module.css';
 
 export default function PlanAdherenceChart() {
+  const { from, to, rangeKey } = useTimeRange();
   const { data = [], loading, error, retry } = useChartData(
-    () => api.getPlanAdherence({ weeks: 12 }).then(d => d.weeks || []),
-    []
+    () => {
+      const params = {};
+      // Supplying an explicit floor makes All Time genuinely all-time while
+      // preserving the endpoint's 12-week default for other callers.
+      if (rangeKey === 'all') params.from = '1900-01-01';
+      else if (from) params.from = from;
+      if (to) params.to = to;
+      return api.getPlanAdherence(params).then(d => d.weeks || []);
+    },
+    [from, rangeKey, to]
   );
 
   if (loading) return <ChartSkeleton />;
