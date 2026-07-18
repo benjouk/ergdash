@@ -9,6 +9,7 @@ import { FeedItemSkeleton } from '../Skeleton/Skeleton.jsx';
 import PBBadges from '../PBBadge.jsx';
 import Sparkline from './Sparkline.jsx';
 import { structureLabel, structureTooltip } from '../../utils/workoutStructure.js';
+import { groupByDay } from '../../utils/dateGroups.js';
 import styles from './Feed.module.css';
 
 function formatDateShort(dateStr, dateFormat) {
@@ -121,8 +122,8 @@ export default function FeedPanel({ layout = 'column' }) {
         <div className={styles.error}>{error}</div>
       ) : workouts.length === 0 ? (
         <div className={styles.empty}>No workouts yet</div>
-      ) : (
-        <div className={`${styles.itemList} ${isRow ? styles.itemListRow : ''}`}>
+      ) : isRow ? (
+        <div className={`${styles.itemList} ${styles.itemListRow}`}>
           {workouts.map(w => (
             <FeedItem
               key={w.id}
@@ -136,34 +137,60 @@ export default function FeedPanel({ layout = 'column' }) {
             />
           ))}
         </div>
+      ) : (
+        groupByDay(workouts, dateFormat).map(group => (
+          <div key={group.key}>
+            <div className={styles.dayHeader}>{group.label}</div>
+            <div className={styles.itemList}>
+              {group.items.map(w => (
+                <FeedItem
+                  key={w.id}
+                  workout={w}
+                  active={activeId === String(w.id)}
+                  showDate={false}
+                  units={units}
+                  formatPace={formatPace}
+                  formatDistance={formatDistance}
+                  formatTime={formatTime}
+                  dateFormat={dateFormat}
+                />
+              ))}
+            </div>
+          </div>
+        ))
       )}
     </div>
   );
 }
 
-function FeedItem({ workout, active, pinned = false, units, formatPace, formatDistance, formatTime, dateFormat }) {
+function FeedItem({ workout, active, pinned = false, showDate = true, units, formatPace, formatDistance, formatTime, dateFormat }) {
+  const hasBadges = workout.pb_distances?.length > 0 || workout.inferred_tag;
   return (
     <Link
       to={`/session/${workout.id}`}
       className={`${styles.item} ${active ? styles.itemActive : ''}`}
     >
-      <div className={styles.itemTop}>
-        <span className={styles.itemDate}>
-          {pinned && <Pin size={12} className={styles.pinnedGlyph} fill="currentColor" />}
-          {formatRelativeDate(workout.date, dateFormat)}
-        </span>
-        <span className={styles.itemBadges}>
-          <PBBadges distances={workout.pb_distances} compact />
-          {workout.inferred_tag && (
-            <span
-              className={`${styles.itemTag} ${TAG_CLASS[workout.inferred_tag] || ''}`}
-              title={structureTooltip(workout.inferred_tag)}
-            >
-              {structureLabel(workout.inferred_tag)}
+      {(showDate || hasBadges) && (
+        <div className={styles.itemTop}>
+          {showDate && (
+            <span className={styles.itemDate}>
+              {pinned && <Pin size={12} className={styles.pinnedGlyph} fill="currentColor" />}
+              {formatRelativeDate(workout.date, dateFormat)}
             </span>
           )}
-        </span>
-      </div>
+          <span className={styles.itemBadges}>
+            <PBBadges distances={workout.pb_distances} compact />
+            {workout.inferred_tag && (
+              <span
+                className={`${styles.itemTag} ${TAG_CLASS[workout.inferred_tag] || ''}`}
+                title={structureTooltip(workout.inferred_tag)}
+              >
+                {structureLabel(workout.inferred_tag)}
+              </span>
+            )}
+          </span>
+        </div>
+      )}
       <div className={styles.itemMetrics}>
         <span className={styles.itemPace}>{formatPace(workout.pace_ms)}</span>
         {units === 'pace' && <span className={styles.paceUnit}>/500 m</span>}
