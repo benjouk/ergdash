@@ -6,6 +6,9 @@ import { getZoneModel, getObservedMaxHr } from '../hrZones.js';
 import { wattsFromPace, paceFromWatts } from '../strokeMetrics.js';
 import { STANDARD_PB_DISTANCES } from '../pbDetection.js';
 import { classifyComparison } from '../workoutComparison.js';
+import {
+  athleteFromSettings, percentileForPace, eventKeyForDistance, eventKeyForDuration,
+} from '../rankings.js';
 
 const router = Router();
 
@@ -314,6 +317,22 @@ router.get('/personal-bests', (req, res) => {
         workout_id: best.workout_id,
         date: best.date,
       });
+    }
+  }
+
+  // Estimated ranking percentiles, when the athlete has set a sex in Settings.
+  // Only the endurance (continuous) PB per event is benchmarked - the public
+  // rankings don't accept interval results.
+  const settingsRows = db.prepare('SELECT key, value FROM settings WHERE profile_id = ?').all(req.profileId);
+  const athlete = athleteFromSettings(Object.fromEntries(settingsRows.map(r => [r.key, r.value])));
+  if (athlete) {
+    for (const pb of pbs) {
+      const event = pb.tag === 'endurance' ? eventKeyForDistance(pb.distance) : null;
+      if (event) pb.benchmark = percentileForPace({ event, paceMs: pb.pace_ms, ...athlete });
+    }
+    for (const tb of timePbs) {
+      const event = eventKeyForDuration(tb.duration_s);
+      if (event) tb.benchmark = percentileForPace({ event, paceMs: tb.pace_ms, ...athlete });
     }
   }
 

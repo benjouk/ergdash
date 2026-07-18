@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { getDb } from '../db.js';
 import { STANDARD_PB_DISTANCES } from '../pbDetection.js';
 import { GOAL_PERIODS, periodWindow, volumeProgress, performanceGap } from '../goalProgress.js';
+import { buildRacePlan } from '../racePlan.js';
 import { isStrictDate } from '../middleware/validate.js';
 
 const router = Router();
@@ -66,6 +67,43 @@ router.get('/', (req, res) => {
     'SELECT * FROM goals WHERE profile_id = ? ORDER BY active DESC, kind, period, distance, id'
   ).all(req.profileId);
   res.json({ goals: rows.map(g => decorateGoal(db, g, weekStart)) });
+});
+
+// Phases, milestones, and a race-day trajectory projection for a performance
+// goal with a race date. 404s (rather than an empty body) when the goal has no
+// race date so the client can treat "no race plan" and "no goal" the same way.
+router.get('/:id/race-plan', (req, res) => {
+  const db = getDb();
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) {
+    return res.status(400).json({ error: 'Invalid goal id' });
+  }
+
+  const goal = db.prepare('SELECT * FROM goals WHERE id = ?').get(id);
+  if (!goal || goal.profile_id !== req.profileId || goal.kind !== 'performance') {
+    return res.status(404).json({ error: 'Goal not found' });
+  }
+  if (!goal.race_date) {
+    return res.status(404).json({ error: 'Goal has no race date' });
+  }
+
+  // Continuous pieces only: an interval session can share the goal distance
+  // (4x500m totals 2000m) but its work pace is not a race-distance result and
+  // would skew the trend.
+  const results = db.prepare(`
+    SELECT date, time_ms, pace_ms FROM workouts
+    WHERE type = 'rower' AND profile_id = ? AND distance = ? AND pace_ms > 0
+      AND (inferred_tag IS NULL OR inferred_tag != 'interval')
+    ORDER BY date ASC
+  `).all(req.profileId, goal.distance);
+
+  const pb = db.prepare(`
+    SELECT time_ms FROM workouts
+    WHERE type = 'rower' AND profile_id = ? AND distance = ? AND pace_ms > 0
+    ORDER BY pace_ms ASC LIMIT 1
+  `).get(req.profileId, goal.distance);
+
+  res.json(buildRacePlan({ goal, results, pb: pb || null }));
 });
 
 function validateGoalBody(body, kind, { partial = false } = {}) {

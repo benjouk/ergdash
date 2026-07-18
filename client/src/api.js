@@ -118,6 +118,7 @@ export const api = {
   getPredictions: () => request('/api/stats/predictions'),
 
   getGoals: () => request('/api/goals'),
+  getRacePlan: (id) => request(`/api/goals/${id}/race-plan`),
   createGoal: (data) => request('/api/goals', {
     method: 'POST',
     body: JSON.stringify(data),

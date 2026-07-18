@@ -530,9 +530,23 @@ function seedPlannedWorkouts(db, profileId) {
 // switcher with genuinely separate data. idBase keeps their workout ids
 // disjoint; paceScale makes one a clearly slower/more recreational rower.
 const DEMO_ATHLETES = [
-  { name: 'Alex', idBase: 100000, paceScale: 1.0 },
-  { name: 'Sam', idBase: 300000, paceScale: 1.06 },
+  { name: 'Alex', idBase: 100000, paceScale: 1.0, sex: 'M', birthYear: 1992, weightKg: 84 },
+  { name: 'Sam', idBase: 300000, paceScale: 1.06, sex: 'F', birthYear: 1989, weightKg: 63 },
 ];
+
+// Athlete demographics so the demo shows ranking percentiles on PB cards.
+// INSERT OR IGNORE keeps any values already edited through Settings.
+function seedAthleteSettings(db, profileId, athlete) {
+  if (!athlete.sex) return;
+  const insert = db.prepare(
+    'INSERT OR IGNORE INTO settings (profile_id, key, value) VALUES (?, ?, ?)'
+  );
+  db.transaction(() => {
+    insert.run(profileId, 'sex', athlete.sex);
+    insert.run(profileId, 'birth_year', String(athlete.birthYear));
+    insert.run(profileId, 'weight_kg', String(athlete.weightKg));
+  })();
+}
 
 function ensureDemoProfile(db, name) {
   const existing = db.prepare('SELECT id FROM profiles WHERE name = ?').get(name);
@@ -546,6 +560,7 @@ function seedProfile(db, profileId, athlete) {
   const count = db.prepare('SELECT COUNT(*) as c FROM workouts WHERE profile_id = ?').get(profileId).c;
   if (count > 0) {
     console.log(`Profile ${profileId} (${athlete.name}) already has ${count} workouts, skipping seed`);
+    seedAthleteSettings(db, profileId, athlete);
     seedGoals(db, profileId);
     seedProgram(db, profileId);
     seedPlannedWorkouts(db, profileId);
@@ -625,6 +640,7 @@ function seedProfile(db, profileId, athlete) {
     if (w.strokes) computeMetricsForWorkout(w.id);
   }
 
+  seedAthleteSettings(db, profileId, athlete);
   seedGoals(db, profileId);
   seedProgram(db, profileId);
   seedPlannedWorkouts(db, profileId);

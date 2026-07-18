@@ -23,6 +23,17 @@ const TIME_LABELS = {
   3600: '60 min',
 };
 
+// "~top 18% · M 30-39 Hwt" - estimated standing in the ranked erg population
+// for the athlete's class (see server/src/rankings.js; approximate by design).
+function benchmarkLabel(benchmark) {
+  const cls = [
+    benchmark.sex,
+    benchmark.age_band,
+    benchmark.weight_class === 'lwt' ? 'Lwt' : 'Hwt',
+  ].filter(Boolean).join(' ');
+  return `~top ${benchmark.top_percent}% · ${cls}`;
+}
+
 export default function PBStrip() {
   const [pbs, setPbs] = useState([]);
   const [timeBests, setTimeBests] = useState([]);
@@ -64,6 +75,11 @@ export default function PBStrip() {
           {weightKg && (
             <span className={styles.pbAdjusted}>wt adj {formatTime(Math.round(weightAdjusted(pb.time_ms, weightKg)))}</span>
           )}
+          {pb.benchmark && (
+            <span className={styles.pbRank} title="Estimated percentile among ranked ergs for your class">
+              {benchmarkLabel(pb.benchmark)}
+            </span>
+          )}
           <span className={styles.pbDate}>{new Date(pb.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' })}</span>
         </button>
       ))}
@@ -81,6 +97,11 @@ export default function PBStrip() {
           <span className={styles.pbPace}>{formatPace(tb.pace_ms)}</span>
           {weightKg && (
             <span className={styles.pbAdjusted}>wt adj {formatDistance(Math.round(weightAdjustedDistance(tb.distance, weightKg)))}</span>
+          )}
+          {tb.benchmark && (
+            <span className={styles.pbRank} title="Estimated percentile among ranked ergs for your class">
+              {benchmarkLabel(tb.benchmark)}
+            </span>
           )}
           <span className={styles.pbDate}>{new Date(tb.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' })}</span>
         </button>

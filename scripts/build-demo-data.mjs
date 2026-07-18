@@ -177,7 +177,12 @@ async function captureProfile(profileId) {
   await capture('/api/stats/power-curve');
   await capture('/api/stats/pb-history');
   await capture('/api/stats/predictions');
-  await capture('/api/goals');
+  const goals = await capture('/api/goals');
+  for (const goal of goals.goals || []) {
+    if (goal.kind === 'performance' && goal.race_date) {
+      await capture(`/api/goals/${goal.id}/race-plan`);
+    }
+  }
   await capture('/api/plans');
   await capture('/api/plans/adherence', { weeks: 12 });
   await capture('/api/programs/presets');
