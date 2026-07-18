@@ -5,6 +5,33 @@ import styles from './RaceReplay.module.css';
 
 const SPEEDS = [5, 10, 15, 30, 60, 120, 240];
 
+// "Nice" distance-marker steps, coarsest last. We pick the smallest step that
+// keeps the marker count under the target so labels never crowd into each
+// other - a long endurance row (20k+) lands on 5k marks instead of stacking
+// twenty overlapping "1000m" labels.
+const TICK_STEPS = [100, 200, 250, 500, 1000, 2000, 2500, 5000, 10000];
+
+function niceTickStep(distance, maxTicks) {
+  return TICK_STEPS.find(step => distance / step <= maxTicks) || TICK_STEPS[TICK_STEPS.length - 1];
+}
+
+// Track the mobile breakpoint so the race course can thin its distance markers
+// on narrow screens, where even a handful of labels overlap. Mirrors the
+// max-width: 768px break in the stylesheet.
+function useIsNarrow() {
+  const [narrow, setNarrow] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches,
+  );
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const mq = window.matchMedia('(max-width: 768px)');
+    const handler = event => setNarrow(event.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+  return narrow;
+}
+
 // Aim to replay a piece in roughly this many seconds when picking the default
 // speed. ~60s keeps a 2k around 10x (a 7-8 min row plays in ~45-50s) rather
 // than the too-brisk 15x, while long pieces still auto-pick a faster speed.
@@ -83,7 +110,9 @@ export default function RaceReplay({ playback, laneOne, laneTwo, formatPace, res
   };
   const cycleSpeed = () => setSpeed(prev => SPEEDS[(SPEEDS.indexOf(prev) + 1) % SPEEDS.length]);
 
-  const tickStep = playback.distance > 3000 ? 1000 : 500;
+  // Fewer markers on mobile, where the course is narrow and labels crowd.
+  const narrow = useIsNarrow();
+  const tickStep = niceTickStep(playback.distance, narrow ? 6 : 12);
   const ticks = [];
   for (let mark = tickStep; mark < playback.distance; mark += tickStep) ticks.push(mark);
 
