@@ -59,3 +59,36 @@
   font-size: 0.85rem;
   text-align: center;
 }
+
+@media (max-width: 480px) {
+  .headingMeta {
+    font-size: 0.6rem;
+  }
+
+  .table {
+    table-layout: fixed;
+    font-size: 0.74rem;
+  }
+
+  .table th,
+  .table td {
+    padding: var(--space-2) 4px;
+  }
+
+  /* The headline prediction and PB gap matter most on a phone. Pace remains
+     available on wider screens. */
+  .table th:nth-child(3),
+  .table td:nth-child(3) {
+    display: none;
+  }
+
+  .table th {
+    font-size: 0.58rem;
+    letter-spacing: 0.04em;
+  }
+
+  .note {
+    padding-top: var(--space-2);
+    font-size: 0.66rem;
+  }
+}

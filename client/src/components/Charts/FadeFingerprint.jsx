@@ -54,7 +54,7 @@ export default function FadeFingerprint() {
           latest vs typical
         </div>
       </div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-5)' }}>
+      <div className={styles.fadeGrid}>
         {panels.map(panel => {
           const values = [
             ...Object.values(panel.historical),
@@ -67,24 +67,15 @@ export default function FadeFingerprint() {
             : 0;
 
           return (
-            <div key={panel.distance}>
-              <div style={{
-                fontSize: '0.72rem',
-                fontFamily: 'var(--font-mono)',
-                color: 'var(--ink-2)',
-                marginBottom: 2,
-                display: 'flex',
-                justifyContent: 'space-between',
-                width: W,
-              }}>
+            <div key={panel.distance} className={styles.fadePanel}>
+              <div className={styles.fadeMeta}>
                 <span>{formatDistance(panel.distance)}</span>
                 <span style={{ color: fadePct > 2 ? 'var(--negative)' : 'var(--positive)' }}>
                   {fadePct > 0 ? '+' : ''}{fadePct.toFixed(1)}%
                 </span>
               </div>
               <svg
-                width={W}
-                height={H}
+                className={styles.fadeSvg}
                 viewBox={`0 0 ${W} ${H}`}
                 role="img"
                 aria-label={`Pace decay for ${panel.distance}m: quartiles ${['q1', 'q2', 'q3', 'q4'].map(q => formatPace(panel.current[q])).join(', ')}`}
@@ -105,14 +96,7 @@ export default function FadeFingerprint() {
                   strokeLinejoin="round"
                 />
               </svg>
-              <div style={{
-                fontSize: '0.65rem',
-                fontFamily: 'var(--font-mono)',
-                color: 'var(--ink-3)',
-                display: 'flex',
-                justifyContent: 'space-between',
-                width: W,
-              }}>
+              <div className={styles.fadeAxis}>
                 <span>Q1</span><span>Q2</span><span>Q3</span><span>Q4</span>
               </div>
             </div>

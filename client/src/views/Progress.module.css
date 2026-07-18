@@ -549,9 +549,35 @@
 @media (max-width: 900px) {
   .verdictCard,
   .detailGrid,
-  .benchmarkColumns,
   .techniqueLayout {
     grid-template-columns: 1fr;
+  }
+
+  /* Keep the useful mobile reading order (prediction, power, PB, fade)
+     while retaining independent masonry-like columns on desktop. */
+  .benchmarkColumns {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .benchmarkColumn {
+    display: contents;
+  }
+
+  .benchmarkColumn:first-child > :first-child {
+    order: 1;
+  }
+
+  .benchmarkColumn:nth-child(2) > :first-child {
+    order: 2;
+  }
+
+  .benchmarkColumn:first-child > :nth-child(2) {
+    order: 3;
+  }
+
+  .benchmarkColumn:nth-child(2) > :nth-child(2) {
+    order: 4;
   }
 
   .verdictIntro {
@@ -576,21 +602,35 @@
     gap: var(--space-4);
   }
 
+  .overview,
+  .detailSections {
+    gap: var(--space-5);
+  }
+
   .subtitle {
     font-size: 0.78rem;
   }
 
   .tabs {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 2px;
     width: 100%;
+    padding: 3px;
+    overflow: hidden;
   }
 
   .tab {
-    flex: 1 0 auto;
+    min-width: 0;
+    padding: var(--space-2) 2px;
+    overflow: hidden;
+    font-size: clamp(0.62rem, 2.5vw, 0.72rem);
     text-align: center;
+    text-overflow: clip;
+    white-space: nowrap;
   }
 
-  .signalGrid,
-  .targetMetrics {
+  .signalGrid {
     grid-template-columns: 1fr;
   }
 
@@ -609,13 +649,56 @@
     flex-direction: column;
   }
 
+  .targetLead,
   .targetMetrics {
+    flex: 0 0 auto;
     width: 100%;
+  }
+
+  .targetMetrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2);
+  }
+
+  .techniqueRow {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-2);
+    padding: var(--space-3);
+  }
+
+  .techniqueRow > span:first-child {
+    min-width: 0;
+  }
+
+  .techniqueReading {
+    max-width: 150px;
+  }
+
+  .techniqueReading strong {
+    font-size: 0.76rem;
   }
 
   .primaryAction,
   .secondaryAction {
     width: 100%;
     margin-left: 0;
+  }
+}
+
+@media (max-width: 360px) {
+  .targetMetrics {
+    grid-template-columns: 1fr;
+  }
+
+  .techniqueRow {
+    align-items: start;
+    grid-template-columns: 1fr;
+  }
+
+  .techniqueReading {
+    align-items: flex-start;
+    max-width: none;
+    text-align: left;
   }
 }

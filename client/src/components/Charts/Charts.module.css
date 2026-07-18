@@ -182,3 +182,46 @@
   border-color: var(--accent);
   color: var(--accent);
 }
+
+.fadeGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-5);
+}
+
+.fadePanel {
+  min-width: 0;
+}
+
+.fadeMeta,
+.fadeAxis {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  font-family: var(--font-mono);
+}
+
+.fadeMeta {
+  margin-bottom: 2px;
+  color: var(--ink-2);
+  font-size: 0.72rem;
+}
+
+.fadeSvg {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 160 / 72;
+}
+
+.fadeAxis {
+  color: var(--ink-3);
+  font-size: 0.65rem;
+}
+
+@media (max-width: 360px) {
+  .fadeGrid {
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+  }
+}
