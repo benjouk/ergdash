@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildRacePlan, racePlanPhases, racePlanMilestones, raceTrajectory, planProfile,
+  projectPerformance,
 } from '../src/racePlan.js';
 
 const GOAL = { id: 7, distance: 2000, target_time_ms: 383800, race_date: '2026-08-29' };
@@ -155,6 +156,44 @@ describe('raceTrajectory', () => {
     const t = raceTrajectory({ goal: GOAL, results, pb: { time_ms: 419500 }, today: '2026-07-18' });
     expect(t.verdict).toBe('at_risk');
     expect(t.projected_delta_ms).toBeGreaterThan(GOAL.target_time_ms * 0.01);
+  });
+});
+
+describe('projectPerformance', () => {
+  const results = [
+    result('2026-06-20', 414000),
+    result('2026-07-04', 411000),
+    result('2026-07-15', 408000),
+  ];
+
+  it('matches the race trajectory when projected to the same race date', () => {
+    const t = raceTrajectory({ goal: GOAL, results, pb: { time_ms: 408000 }, today: '2026-07-18' });
+    const p = projectPerformance({
+      distance: GOAL.distance, results, toDate: GOAL.race_date, today: '2026-07-18',
+    });
+    expect(p.projected_time_ms).toBe(t.projected_time_ms);
+    expect(p.confidence).toBe(t.confidence);
+    expect(p.sample_size).toBe(t.sample_size);
+  });
+
+  it('projects to today for a goal without a race date', () => {
+    const p = projectPerformance({
+      distance: GOAL.distance, results, toDate: '2026-07-18', today: '2026-07-18',
+    });
+    const raceDay = projectPerformance({
+      distance: GOAL.distance, results, toDate: GOAL.race_date, today: '2026-07-18',
+    });
+    // An improving trend projects further improvement by race day.
+    expect(p.projected_time_ms).toBeGreaterThanOrEqual(raceDay.projected_time_ms);
+    expect(p.projected_time_ms).toBeLessThanOrEqual(414000);
+  });
+
+  it('returns nulls below the sample threshold', () => {
+    const p = projectPerformance({
+      distance: GOAL.distance, results: results.slice(0, 2), toDate: '2026-07-18', today: '2026-07-18',
+    });
+    expect(p.projected_time_ms).toBeNull();
+    expect(p.sample_size).toBe(2);
   });
 });
 

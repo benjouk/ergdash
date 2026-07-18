@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildRows, mergeLayout, toggleHidden } from './progressLayout.js';
+import { buildRows, buildSections, mergeLayout, toggleHidden } from './progressLayout.js';
 
 const registry = [
   { id: 'fitness', width: 'full' },
@@ -124,6 +124,54 @@ describe('buildRows', () => {
       ['pace', 'volume'],
       ['power'],
     ]);
+  });
+});
+
+describe('buildSections', () => {
+  const grouped = [
+    { id: 'fitness', width: 'full', group: 'load' },
+    { id: 'pace', width: 'half', group: 'speed' },
+    { id: 'volume', width: 'half', group: 'load' },
+    { id: 'power', width: 'half', group: 'speed' },
+    { id: 'zones', width: 'half', group: 'load' },
+    { id: 'fade', width: 'full', group: 'speed' },
+  ];
+  const groups = [
+    { id: 'load', label: 'Training Load' },
+    { id: 'speed', label: 'Speed & Racing' },
+  ];
+
+  it('renders groups in fixed order, charts in layout order within them', () => {
+    const layout = mergeLayout(JSON.stringify({
+      charts: [
+        { id: 'fade', hidden: false },
+        { id: 'zones', hidden: false },
+        { id: 'volume', hidden: false },
+      ],
+    }), grouped);
+
+    const sections = buildSections(layout, grouped, groups);
+    expect(sections.map(section => section.id)).toEqual(['load', 'speed']);
+    // User put zones before volume; fitness (unseen) merged in after.
+    expect(rowIds(sections[0].rows)).toEqual([['zones', 'volume'], ['fitness']]);
+    expect(rowIds(sections[1].rows)).toEqual([['fade'], ['pace', 'power']]);
+  });
+
+  it('omits groups with nothing visible', () => {
+    const layout = {
+      version: 1,
+      charts: grouped.map(({ id }) => ({ id, hidden: id !== 'pace' })),
+    };
+    const sections = buildSections(layout, grouped, groups);
+    expect(sections.map(section => section.id)).toEqual(['speed']);
+  });
+
+  it('collects charts with unknown groups into a trailing Other section', () => {
+    const registryWithStray = [...grouped, { id: 'stray', width: 'half', group: 'mystery' }];
+    const layout = mergeLayout(null, registryWithStray);
+    const sections = buildSections(layout, registryWithStray, groups);
+    expect(sections[sections.length - 1].id).toBe('other');
+    expect(rowIds(sections[sections.length - 1].rows)).toEqual([['stray']]);
   });
 });
 

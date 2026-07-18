@@ -10,7 +10,7 @@ import {
   runPostSyncAnalytics,
 } from './sync.js';
 import { reconcilePbDistances } from './pbDetection.js';
-import { tagAllWorkouts, computeFitnessLog, computePredictions } from './analytics.js';
+import { tagAllWorkouts, computeFitnessLog } from './analytics.js';
 import { WORKOUT_TYPES } from './workoutTypes.js';
 import {
   parseEditedFields,
@@ -269,7 +269,6 @@ export function applyWorkoutCorrection(db, workout, fields) {
     tagAllWorkouts(workout.profile_id);
     reconcilePbDistances(workout.profile_id, [workout.distance, effDistance]);
     computeFitnessLog(workout.profile_id);
-    computePredictions(workout.profile_id);
   }
 
   return { workoutId: workout.id, changedFields, perfChanged };
@@ -320,7 +319,6 @@ export function revertWorkoutToC2(db, workout, fieldNames = null) {
     tagAllWorkouts(workout.profile_id);
     reconcilePbDistances(workout.profile_id, [workout.distance, effDistance]);
     computeFitnessLog(workout.profile_id);
-    computePredictions(workout.profile_id);
   }
 
   return { workoutId: workout.id, revertedFields: targets };
@@ -348,7 +346,6 @@ export function deleteUserWorkout(db, workout) {
 
   reconcilePbDistances(workout.profile_id, [workout.distance]);
   computeFitnessLog(workout.profile_id);
-  computePredictions(workout.profile_id);
 
   return { ok: true };
 }

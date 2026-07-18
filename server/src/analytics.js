@@ -327,69 +327,6 @@ export function computeAllBestEfforts(profileId) {
   }
 }
 
-export function computePredictions(profileId) {
-  const db = getDb();
-  const standardDistances = [2000, 5000, 6000, 10000, 21097];
-  const upsert = db.prepare(`
-    INSERT OR REPLACE INTO predictions (
-      profile_id, distance, predicted_time, confidence, window_start, window_end, computed_at
-    ) VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
-  `);
-  const clear = db.prepare('DELETE FROM predictions WHERE profile_id = ? AND distance = ?');
-
-  db.transaction(() => {
-    for (const distance of standardDistances) {
-      const rows = db.prepare(`
-        SELECT date, time_ms, pace_ms
-        FROM workouts
-        WHERE type = 'rower' AND distance = ? AND pace_ms > 0 AND profile_id = ?
-        ORDER BY date ASC
-      `).all(distance, profileId);
-
-      if (rows.length < 5) {
-        clear.run(profileId, distance);
-        continue;
-      }
-
-      const points = rows.map((row, index) => ({
-        x: (new Date(row.date) - new Date(rows[0].date)) / 86400000,
-        y: row.pace_ms,
-        weight: 1 + index / rows.length,
-      }));
-
-      const regression = weightedLinearRegression(points);
-      const best = rows.reduce((currentBest, row) => (
-        row.pace_ms < currentBest.pace_ms ? row : currentBest
-      ), rows[0]);
-
-      const targetPace = Math.max(1, best.pace_ms - 1000);
-      let windowStart = null;
-      let windowEnd = null;
-      let predictedPace = best.pace_ms;
-
-      if (regression.slope < 0) {
-        const daysToTarget = (targetPace - regression.intercept) / regression.slope;
-        const projectedDate = new Date(new Date(rows[0].date).getTime() + daysToTarget * 86400000);
-        if (Number.isFinite(projectedDate.getTime()) && projectedDate > new Date()) {
-          const uncertaintyDays = Math.max(7, Math.round(28 * (1 - regression.confidence)));
-          windowStart = new Date(projectedDate.getTime() - uncertaintyDays * 86400000).toISOString().slice(0, 10);
-          windowEnd = new Date(projectedDate.getTime() + uncertaintyDays * 86400000).toISOString().slice(0, 10);
-          predictedPace = targetPace;
-        }
-      }
-
-      upsert.run(
-        profileId,
-        distance,
-        Math.round((distance / 500) * predictedPace),
-        regression.confidence,
-        windowStart,
-        windowEnd
-      );
-    }
-  })();
-}
-
 export function computeFitnessLog(profileId) {
   const db = getDb();
   const workouts = db.prepare(`
@@ -544,35 +481,3 @@ function avg(arr) {
   return arr.reduce((s, v) => s + v, 0) / arr.length;
 }
 
-function weightedLinearRegression(points) {
-  const weightSum = points.reduce((sum, point) => sum + point.weight, 0);
-  const meanX = points.reduce((sum, point) => sum + point.x * point.weight, 0) / weightSum;
-  const meanY = points.reduce((sum, point) => sum + point.y * point.weight, 0) / weightSum;
-
-  let numerator = 0;
-  let denominator = 0;
-  let residual = 0;
-  let total = 0;
-
-  for (const point of points) {
-    numerator += point.weight * (point.x - meanX) * (point.y - meanY);
-    denominator += point.weight * Math.pow(point.x - meanX, 2);
-  }
-
-  const slope = denominator === 0 ? 0 : numerator / denominator;
-  const intercept = meanY - slope * meanX;
-
-  for (const point of points) {
-    const predicted = intercept + slope * point.x;
-    residual += point.weight * Math.pow(point.y - predicted, 2);
-    total += point.weight * Math.pow(point.y - meanY, 2);
-  }
-
-  const fit = total === 0 ? 1 : Math.max(0, 1 - residual / total);
-  const density = Math.min(1, points.length / 10);
-  return {
-    slope,
-    intercept,
-    confidence: Math.round(fit * density * 100) / 100,
-  };
-}

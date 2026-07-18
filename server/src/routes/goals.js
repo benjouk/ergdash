@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { getDb } from '../db.js';
 import { STANDARD_PB_DISTANCES } from '../pbDetection.js';
 import { GOAL_PERIODS, periodWindow, volumeProgress, performanceGap } from '../goalProgress.js';
-import { buildRacePlan } from '../racePlan.js';
+import { buildRacePlan, projectPerformance } from '../racePlan.js';
 import { isStrictDate } from '../middleware/validate.js';
 
 const router = Router();
@@ -12,6 +12,20 @@ const MAX_LABEL_LENGTH = 100;
 function getWeekStart(db, profileId) {
   const row = db.prepare("SELECT value FROM settings WHERE profile_id = ? AND key = 'week_start'").get(profileId);
   return row?.value === 'sunday' ? 'sunday' : 'monday';
+}
+
+// Continuous pieces only: an interval session can share the goal distance
+// (4x500m totals 2000m) but its work pace is not a race-distance result and
+// would skew the trend. Feeds both the Targets prediction and the race plan
+// trajectory so the two always agree.
+function goalDistanceResults(db, profileId, distance) {
+  return db.prepare(`
+    SELECT date, time_ms, pace_ms FROM workouts
+    WHERE type = 'rower' AND profile_id = ? AND distance = ? AND pace_ms > 0
+      AND (inferred_tag IS NULL OR inferred_tag != 'interval')
+      AND (intent IS NULL OR intent != 'warmup')
+    ORDER BY date ASC
+  `).all(profileId, distance);
 }
 
 function decorateGoal(db, goal, weekStart, now = new Date()) {
@@ -33,12 +47,29 @@ function decorateGoal(db, goal, weekStart, now = new Date()) {
   const pb = db.prepare(`
     SELECT id as workout_id, date, time_ms, pace_ms FROM workouts
     WHERE type = 'rower' AND profile_id = ? AND distance = ? AND pace_ms > 0
+      AND (intent IS NULL OR intent != 'warmup')
     ORDER BY pace_ms ASC LIMIT 1
   `).get(goal.profile_id, goal.distance);
 
-  const prediction = db.prepare(
-    'SELECT distance, predicted_time, confidence, window_start, window_end FROM predictions WHERE profile_id = ? AND distance = ?'
-  ).get(goal.profile_id, goal.distance);
+  // Same projection engine as the race plan trajectory. Project to race day
+  // when one is ahead of us, otherwise to today ("current form").
+  const today = now.toISOString().slice(0, 10);
+  const projectTo = goal.race_date && goal.race_date >= today ? goal.race_date : today;
+  const projection = projectPerformance({
+    distance: goal.distance,
+    results: goalDistanceResults(db, goal.profile_id, goal.distance),
+    toDate: projectTo,
+    today,
+  });
+  const prediction = projection.projected_time_ms != null
+    ? {
+      distance: goal.distance,
+      predicted_time: projection.projected_time_ms,
+      confidence: projection.confidence,
+      sample_size: projection.sample_size,
+      projected_to: projectTo,
+    }
+    : null;
 
   const gap = performanceGap(goal, pb || null, prediction || null, now);
 
@@ -87,19 +118,12 @@ router.get('/:id/race-plan', (req, res) => {
     return res.status(404).json({ error: 'Goal has no race date' });
   }
 
-  // Continuous pieces only: an interval session can share the goal distance
-  // (4x500m totals 2000m) but its work pace is not a race-distance result and
-  // would skew the trend.
-  const results = db.prepare(`
-    SELECT date, time_ms, pace_ms FROM workouts
-    WHERE type = 'rower' AND profile_id = ? AND distance = ? AND pace_ms > 0
-      AND (inferred_tag IS NULL OR inferred_tag != 'interval')
-    ORDER BY date ASC
-  `).all(req.profileId, goal.distance);
+  const results = goalDistanceResults(db, req.profileId, goal.distance);
 
   const pb = db.prepare(`
     SELECT time_ms FROM workouts
     WHERE type = 'rower' AND profile_id = ? AND distance = ? AND pace_ms > 0
+      AND (intent IS NULL OR intent != 'warmup')
     ORDER BY pace_ms ASC LIMIT 1
   `).get(req.profileId, goal.distance);
 

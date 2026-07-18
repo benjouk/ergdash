@@ -24,6 +24,7 @@ function endurancePaceBetween(db, profileId, startMs, endMs) {
     SELECT AVG(pace_ms) as pace FROM workouts
     WHERE type = 'rower' AND profile_id = ? AND pace_ms > 0 AND date >= ? AND date < ?
       AND (inferred_tag IS NULL OR inferred_tag != 'interval')
+      AND (intent IS NULL OR intent != 'warmup')
   `).get(profileId, start, end);
   return row?.pace ? Math.round(row.pace) : null;
 }

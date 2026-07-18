@@ -8,6 +8,7 @@ import { useTimeRange } from '../context/TimeRangeContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { usePrefs } from '../context/PrefsContext.jsx';
 import { structureLabel, structureTooltip } from '../utils/workoutStructure.js';
+import { intentLabel } from '../utils/workoutIntent.js';
 import Sparkline from '../components/Feed/Sparkline.jsx';
 import { RowSkeleton } from '../components/Skeleton/Skeleton.jsx';
 import PBBadges from '../components/PBBadge.jsx';
@@ -406,6 +407,7 @@ export default function Workouts() {
                 <td>
                   <span className={styles.badgeStack}>
                     {w.inferred_tag && <TagBadge tag={w.inferred_tag} />}
+                    <IntentBadge intent={w.intent} />
                     {w.plan && <PlanBadge />}
                     <SourceBadge source={w.source} />
                     <PBBadges distances={w.pb_distances} compact />
@@ -471,6 +473,7 @@ export default function Workouts() {
               <span className={styles.cardTopActions}>
                 <PBBadges distances={w.pb_distances} compact />
                 {w.inferred_tag && <TagBadge tag={w.inferred_tag} />}
+                <IntentBadge intent={w.intent} />
                 {w.plan && <PlanBadge />}
                 <SourceBadge source={w.source} />
                 {!compareMode && <PinButton pinned={w.pinned} onClick={event => handleTogglePinned(event, w)} />}
@@ -531,6 +534,13 @@ function Th({ children, onClick }) {
 function TagBadge({ tag }) {
   const tagClass = styles[TAG_CLASS[tag]] || styles.tagOther;
   return <span className={`${styles.tag} ${tagClass}`} title={structureTooltip(tag)}>{structureLabel(tag)}</span>;
+}
+
+// User-declared session purpose, set on the session page.
+function IntentBadge({ intent }) {
+  const label = intentLabel(intent);
+  if (!label) return null;
+  return <span className={`${styles.tag} ${styles.tagOther}`} title="Session purpose">{label}</span>;
 }
 
 function PlanBadge() {

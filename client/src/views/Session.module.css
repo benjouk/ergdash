@@ -134,6 +134,48 @@
   }
 }
 
+.intentRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.intentButton {
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 2px 8px;
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 150ms ease, border-color 150ms ease, background 150ms ease;
+}
+
+@media (hover: hover) {
+  .intentButton:hover:not(:disabled) {
+    color: var(--ink);
+    border-color: var(--ink-3);
+  }
+}
+
+.intentButton:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.intentButtonActive,
+.intentButtonActive:disabled {
+  background: var(--accent-bg);
+  border-color: var(--accent);
+  color: var(--accent);
+  opacity: 1;
+}
+
 .tag {
   align-self: flex-start;
   border-radius: 3px;

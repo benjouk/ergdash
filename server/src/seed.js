@@ -1,5 +1,5 @@
 import { initDb, getDb, seedDefaultSettings } from './db.js';
-import { computeMetricsForWorkout, computeFitnessLog, tagAllWorkouts, computePredictions } from './analytics.js';
+import { computeMetricsForWorkout, computeFitnessLog, tagAllWorkouts } from './analytics.js';
 import { generateProgramSessions, resolveDurationWeeks, weekOfDate } from './programGenerator.js';
 import { getPreset } from './programPresets.js';
 import { deriveIntervalTotals } from './routes/plans.js';
@@ -142,6 +142,7 @@ function generateOdometerTest(id, date, factor, paceScale = 1) {
     hrAvg, hrMax: hrAvg + randInt(5, 12), dragFactor: randInt(120, 130),
     calories: caloriesFor(timeMs, paceMs),
     type: 'test', workoutType: 'FixedDistanceSplits',
+    intent: 'test',
     strokes,
   };
 }
@@ -169,6 +170,9 @@ function generateEndurance(id, date, factor, isDouble = false, paceScale = 1) {
     hrAvg, hrMax: hrAvg + randInt(10, 20), dragFactor: randInt(115, 130),
     calories: caloriesFor(timeMs, paceMs),
     type: 'endurance', workoutType: 'FixedDistanceSplits',
+    // Short easy double pieces play the role of separately-logged warm-ups,
+    // exercising the intent tag (and its trend/PB exclusions) in dev/demo data.
+    intent: isDouble ? 'warmup' : null,
     strokes,
   };
 }
@@ -591,8 +595,8 @@ function seedProfile(db, profileId, athlete) {
       distance, time_ms, pace_ms, stroke_rate, stroke_count,
       calories, heart_rate_avg, heart_rate_max, drag_factor,
       rest_time_ms, rest_distance,
-      has_stroke_data, synced_at
-    ) VALUES (?, ?, 1, ?, 'UTC', 'rower', ?, ?, 'concept2', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      has_stroke_data, intent, synced_at
+    ) VALUES (?, ?, 1, ?, 'UTC', 'rower', ?, ?, 'concept2', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
   `);
 
   const insertInterval = db.prepare(`
@@ -617,7 +621,7 @@ function seedProfile(db, profileId, athlete) {
         w.distance, w.timeMs, w.paceMs, w.strokeRate, w.strokeCount,
         w.calories, w.hrAvg, w.hrMax, w.dragFactor,
         w.restTimeMs || null, w.restDistance || null,
-        w.strokes ? 1 : 0
+        w.strokes ? 1 : 0, w.intent || null
       );
 
       if (w.intervals) {
@@ -646,7 +650,6 @@ function seedProfile(db, profileId, athlete) {
 
   tagAllWorkouts(profileId);
   computeFitnessLog(profileId);
-  computePredictions(profileId);
   for (const w of workouts) {
     if (w.strokes) computeMetricsForWorkout(w.id);
   }

@@ -13,23 +13,32 @@ import FadeFingerprint from '../components/Charts/FadeFingerprint.jsx';
 import PbTimelineChart from '../components/Charts/PbTimelineChart.jsx';
 import PlanAdherenceChart from '../components/Charts/PlanAdherenceChart.jsx';
 
+// Display sections for the Progress page, in render order. Every chart
+// belongs to one group; user reordering applies within a group.
+export const CHART_GROUPS = [
+  { id: 'load', label: 'Training Load' },
+  { id: 'speed', label: 'Speed & Racing' },
+  { id: 'technique', label: 'Technique & Efficiency' },
+  { id: 'plan', label: 'Plan' },
+];
+
 export const CHART_REGISTRY = [
-  { id: 'fitness', title: 'Fitness / Fatigue / Form', component: FitnessChart, width: 'full' },
-  { id: 'pace', title: 'Pace Trend', component: PaceChart, width: 'half' },
+  { id: 'fitness', title: 'Fitness / Fatigue / Form', component: FitnessChart, width: 'full', group: 'load' },
+  { id: 'pace', title: 'Pace Trend', component: PaceChart, width: 'half', group: 'speed' },
   // Volume lives on the Dashboard; hidden here by default to avoid showing
   // the same chart on both pages, but available via Edit layout.
-  { id: 'volume', title: 'Weekly Volume', component: VolumeChart, width: 'half', defaultHidden: true },
-  { id: 'power-curve', title: 'Power Curve', component: PowerCurveChart, width: 'half' },
-  { id: 'zones', title: 'Zone Stack', component: ZoneStackChart, width: 'half' },
-  { id: 'cumulative-meters', title: 'Cumulative Metres', component: CumulativeMetersChart, width: 'half' },
-  { id: 'drag-factor', title: 'Drag Factor', component: DragFactorChart, width: 'half' },
-  { id: 'efficiency', title: 'Efficiency', component: EfficiencyChart, width: 'half' },
-  { id: 'dps-trend', title: 'Distance Per Stroke', component: DpsTrendChart, width: 'half' },
-  { id: 'hr-drift', title: 'HR Drift', component: HrDriftChart, width: 'half' },
-  { id: 'stroke-quality', title: 'Stroke Quality', component: StrokeQualityCard, width: 'half' },
-  { id: 'pb_timeline', title: 'PB Progression', component: PbTimelineChart, width: 'half' },
-  { id: 'plan_adherence', title: 'Plan Adherence', component: PlanAdherenceChart, width: 'half' },
-  { id: 'fade', title: 'Fade Fingerprint', component: FadeFingerprint, width: 'full' },
+  { id: 'volume', title: 'Weekly Volume', component: VolumeChart, width: 'half', defaultHidden: true, group: 'load' },
+  { id: 'power-curve', title: 'Power Curve', component: PowerCurveChart, width: 'half', group: 'speed' },
+  { id: 'zones', title: 'Zone Stack', component: ZoneStackChart, width: 'half', group: 'load' },
+  { id: 'cumulative-meters', title: 'Cumulative Metres', component: CumulativeMetersChart, width: 'half', group: 'load' },
+  { id: 'drag-factor', title: 'Drag Factor', component: DragFactorChart, width: 'half', group: 'technique' },
+  { id: 'efficiency', title: 'Efficiency', component: EfficiencyChart, width: 'half', group: 'technique' },
+  { id: 'dps-trend', title: 'Distance Per Stroke', component: DpsTrendChart, width: 'half', group: 'technique' },
+  { id: 'hr-drift', title: 'HR Drift', component: HrDriftChart, width: 'half', group: 'technique' },
+  { id: 'stroke-quality', title: 'Stroke Quality', component: StrokeQualityCard, width: 'half', group: 'technique' },
+  { id: 'pb_timeline', title: 'PB Progression', component: PbTimelineChart, width: 'half', group: 'speed' },
+  { id: 'plan_adherence', title: 'Plan Adherence', component: PlanAdherenceChart, width: 'half', group: 'plan' },
+  { id: 'fade', title: 'Fade Fingerprint', component: FadeFingerprint, width: 'full', group: 'speed' },
 ];
 
 export const DEFAULT_LAYOUT = {
