@@ -684,3 +684,26 @@
   font-size: 0.65rem;
   color: var(--accent-deep);
 }
+
+.raceGoalButton {
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--ink-2);
+  background: var(--surface-alt);
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  padding: 1px var(--space-2);
+  cursor: pointer;
+}
+
+.raceGoalButton:hover {
+  border-color: var(--accent-3);
+}
+
+.raceGoalButtonActive {
+  color: var(--accent-deep);
+  background: var(--accent-bg);
+  border-color: var(--accent);
+  font-weight: 700;
+}

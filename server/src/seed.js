@@ -401,6 +401,17 @@ function seedGoals(db, profileId) {
     insertGoal.run(profileId, 'performance', null, null, 2000, best2k - 15000, raceDate, 'Race day 2k');
   }
 
+  // A second, later race at another distance so the Race Plan card's
+  // goal switcher shows up in dev and demo.
+  const bestHm = db.prepare(`
+    SELECT MIN(time_ms) as t FROM workouts
+    WHERE type = 'rower' AND profile_id = ? AND distance = 21097 AND pace_ms > 0
+  `).get(profileId).t;
+  if (bestHm) {
+    const raceDate = new Date(Date.now() + 84 * 86400000).toISOString().slice(0, 10);
+    insertGoal.run(profileId, 'performance', null, null, 21097, bestHm - 60000, raceDate, 'Autumn HM');
+  }
+
   console.log('Seeded sample goals');
 }
 

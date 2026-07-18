@@ -6,12 +6,66 @@
 
 const DAY_MS = 86400000;
 
-// Phase boundaries in days before race day. The taper is deliberately short
-// for erg racing (a week of reduced volume is plenty for a 6-8 minute event)
-// and the sharpen block covers the last month of race-pace work.
-export const TAPER_DAYS = 7;
-export const SHARPEN_DAYS = 28;
-export const BASE_HORIZON_DAYS = 84;
+// Countdown timing depends on the race format: a 500m sprint needs almost no
+// taper and can test late, while a marathon needs a two-week taper and its
+// last long test three weeks out (a full-distance time trial that close would
+// cost more than it tells). Days are all relative to race day.
+//   taper       days of reduced volume before the race
+//   sharpen     days of race-pace focus before the race
+//   horizon     how far back the plan timeline reaches
+//   test        when the last hard test falls, and whether it is a full
+//               time trial or a long row with race-pace blocks
+//   rehearsal   short goal-pace touches in race week
+const PLAN_PROFILES = [
+  {
+    key: 'sprint',
+    maxDistance: 1000,
+    taper: 5,
+    sharpen: 21,
+    horizon: 70,
+    test: 8,
+    rehearsal: 2,
+    testLabel: 'Last all-out test',
+    testDescription: 'Full-distance time trial while there is still time to adjust pacing and the goal.',
+  },
+  {
+    key: 'middle',
+    maxDistance: 6000,
+    taper: 7,
+    sharpen: 28,
+    horizon: 84,
+    test: 12,
+    rehearsal: 3,
+    testLabel: 'Last all-out test',
+    testDescription: 'Full-distance time trial while there is still time to adjust pacing and the goal.',
+  },
+  {
+    key: 'long',
+    maxDistance: 10000,
+    taper: 7,
+    sharpen: 28,
+    horizon: 84,
+    test: 14,
+    rehearsal: 3,
+    testLabel: 'Last all-out test',
+    testDescription: 'Full-distance time trial while there is still time to adjust pacing and the goal.',
+  },
+  {
+    key: 'ultra',
+    maxDistance: Infinity,
+    taper: 14,
+    sharpen: 35,
+    horizon: 112,
+    test: 21,
+    rehearsal: 4,
+    testLabel: 'Last long test',
+    testDescription: 'Longest row of the build with extended blocks at race pace - not a full-distance time trial.',
+  },
+];
+
+export function planProfile(distance) {
+  return PLAN_PROFILES.find(p => (distance || 2000) <= p.maxDistance);
+}
 
 // Results inside this window feed the race-day trajectory projection.
 const TRAJECTORY_WINDOW_DAYS = 120;
@@ -38,30 +92,31 @@ function dayMs(isoDate) {
   return Date.parse(`${isoDate}T00:00:00Z`);
 }
 
-export function racePlanPhases(raceDate, today) {
+export function racePlanPhases(raceDate, today, distance = 2000) {
+  const profile = planProfile(distance);
   const raceMs = dayMs(raceDate);
   const todayMs = dayMs(today);
-  const timelineStartMs = Math.min(todayMs, raceMs - BASE_HORIZON_DAYS * DAY_MS);
+  const timelineStartMs = Math.min(todayMs, raceMs - profile.horizon * DAY_MS);
 
   const defs = [
     {
       key: 'base',
       label: 'Base',
       from: timelineStartMs,
-      to: raceMs - (SHARPEN_DAYS + 1) * DAY_MS,
+      to: raceMs - (profile.sharpen + 1) * DAY_MS,
       description: 'Aerobic volume: long steady rows and threshold work. Build the engine.',
     },
     {
       key: 'sharpen',
       label: 'Sharpen',
-      from: raceMs - SHARPEN_DAYS * DAY_MS,
-      to: raceMs - (TAPER_DAYS + 1) * DAY_MS,
-      description: 'Race-pace intervals and a final all-out test. Convert fitness to speed.',
+      from: raceMs - profile.sharpen * DAY_MS,
+      to: raceMs - (profile.taper + 1) * DAY_MS,
+      description: 'Race-pace work and the final hard test. Convert fitness to speed.',
     },
     {
       key: 'taper',
       label: 'Taper',
-      from: raceMs - TAPER_DAYS * DAY_MS,
+      from: raceMs - profile.taper * DAY_MS,
       to: raceMs - DAY_MS,
       description: 'Volume drops 40-50%; short race-pace touches keep the edge. Arrive fresh.',
     },
@@ -87,26 +142,27 @@ export function racePlanPhases(raceDate, today) {
   return { phases, current_phase: currentPhase, timeline_start: isoDay(timelineStartMs) };
 }
 
-export function racePlanMilestones(raceDate, today) {
+export function racePlanMilestones(raceDate, today, distance = 2000) {
+  const profile = planProfile(distance);
   const raceMs = dayMs(raceDate);
   const todayIso = isoDay(dayMs(today));
 
   const defs = [
     {
       key: 'last_test',
-      offset: 12,
-      label: 'Last all-out test',
-      description: 'Full-distance time trial while there is still time to adjust pacing and the goal.',
+      offset: profile.test,
+      label: profile.testLabel,
+      description: profile.testDescription,
     },
     {
       key: 'taper_start',
-      offset: TAPER_DAYS,
+      offset: profile.taper,
       label: 'Taper begins',
       description: 'Cut volume, keep intensity. No more fitness can be built from here - only freshness.',
     },
     {
       key: 'rehearsal',
-      offset: 3,
+      offset: profile.rehearsal,
       label: 'Race-pace rehearsal',
       description: 'Short bursts at goal pace to groove the rhythm and settle the start sequence.',
     },
@@ -250,18 +306,19 @@ export function buildRacePlan({ goal, results, pb, now = new Date() }) {
 
   const today = isoDay(now.getTime());
   const daysToRace = Math.round((dayMs(goal.race_date) - dayMs(today)) / DAY_MS);
-  const { phases, current_phase, timeline_start } = racePlanPhases(goal.race_date, today);
+  const { phases, current_phase, timeline_start } = racePlanPhases(goal.race_date, today, goal.distance);
 
   return {
     goal_id: goal.id ?? null,
     distance: goal.distance,
+    plan_profile: planProfile(goal.distance).key,
     target_time_ms: goal.target_time_ms,
     race_date: goal.race_date,
     days_to_race: daysToRace,
     timeline_start,
     phases,
     current_phase,
-    milestones: racePlanMilestones(goal.race_date, today),
+    milestones: racePlanMilestones(goal.race_date, today, goal.distance),
     trajectory: raceTrajectory({ goal, results, pb, today }),
   };
 }

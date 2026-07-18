@@ -28,16 +28,20 @@ function shortDate(iso) {
   });
 }
 
-// Works backwards from the race date of the first active performance target:
+// Works backwards from the race date of an active performance target:
 // training phases, countdown milestones, and whether the current result trend
-// actually lands on the goal time.
+// actually lands on the goal time. Defaults to the nearest upcoming race;
+// with several race-dated targets a chip row switches between them.
 export default function RacePlanCard({ goals }) {
   const { formatTime } = useUnits();
   const [plan, setPlan] = useState(null);
+  const [selectedId, setSelectedId] = useState(null);
 
-  const goal = (goals || []).find(g => (
-    g.kind === 'performance' && g.active && g.race_date && (g.progress?.days_to_race ?? -1) >= 0
-  ));
+  const raceGoals = (goals || [])
+    .filter(g => g.kind === 'performance' && g.active && g.race_date && (g.progress?.days_to_race ?? -1) >= 0)
+    .sort((a, b) => a.progress.days_to_race - b.progress.days_to_race);
+
+  const goal = raceGoals.find(g => g.id === selectedId) || raceGoals[0] || null;
   const goalId = goal?.id ?? null;
 
   useEffect(() => {
@@ -52,7 +56,7 @@ export default function RacePlanCard({ goals }) {
     return () => { mounted = false; };
   }, [goalId]);
 
-  if (!goal || !plan || plan.days_to_race < 0) return null;
+  if (!goal || !plan || plan.goal_id !== goalId || plan.days_to_race < 0) return null;
 
   const verdict = VERDICT_META[plan.trajectory.verdict] || VERDICT_META.insufficient_data;
   const startMs = Date.parse(`${plan.timeline_start}T00:00:00Z`);
@@ -66,7 +70,20 @@ export default function RacePlanCard({ goals }) {
       <div className={chartStyles.chartHeader}>
         <div className={chartStyles.chartTitle}>Race Plan</div>
         <div className={styles.racePlanMeta}>
-          <span className={styles.targetDistance}>{distanceLabel(plan.distance)}</span>
+          {raceGoals.length > 1 ? (
+            raceGoals.map(g => (
+              <button
+                key={g.id}
+                type="button"
+                className={`${styles.raceGoalButton} ${g.id === goalId ? styles.raceGoalButtonActive : ''}`}
+                onClick={() => setSelectedId(g.id)}
+              >
+                {distanceLabel(g.distance)} · {g.progress.days_to_race}d
+              </button>
+            ))
+          ) : (
+            <span className={styles.targetDistance}>{distanceLabel(plan.distance)}</span>
+          )}
           <span className={`${styles.targetChip} ${styles.targetChipAccent}`}>
             {plan.days_to_race === 0 ? 'race today' : `${plan.days_to_race} days to race`}
           </span>
