@@ -9,6 +9,7 @@ import { FeedItemSkeleton } from '../Skeleton/Skeleton.jsx';
 import PBBadges from '../PBBadge.jsx';
 import Sparkline from './Sparkline.jsx';
 import { structureLabel, structureTooltip } from '../../utils/workoutStructure.js';
+import { groupByRecency } from '../../utils/dateGroups.js';
 import styles from './Feed.module.css';
 
 function formatDateShort(dateStr, dateFormat) {
@@ -121,8 +122,8 @@ export default function FeedPanel({ layout = 'column' }) {
         <div className={styles.error}>{error}</div>
       ) : workouts.length === 0 ? (
         <div className={styles.empty}>No workouts yet</div>
-      ) : (
-        <div className={`${styles.itemList} ${isRow ? styles.itemListRow : ''}`}>
+      ) : isRow ? (
+        <div className={`${styles.itemList} ${styles.itemListRow}`}>
           {workouts.map(w => (
             <FeedItem
               key={w.id}
@@ -136,6 +137,26 @@ export default function FeedPanel({ layout = 'column' }) {
             />
           ))}
         </div>
+      ) : (
+        groupByRecency(workouts).map(group => (
+          <div key={group.label}>
+            <div className={styles.feedHeader}>{group.label}</div>
+            <div className={styles.itemList}>
+              {group.items.map(w => (
+                <FeedItem
+                  key={w.id}
+                  workout={w}
+                  active={activeId === String(w.id)}
+                  units={units}
+                  formatPace={formatPace}
+                  formatDistance={formatDistance}
+                  formatTime={formatTime}
+                  dateFormat={dateFormat}
+                />
+              ))}
+            </div>
+          </div>
+        ))
       )}
     </div>
   );
