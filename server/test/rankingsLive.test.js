@@ -43,8 +43,10 @@ function formatTime(totalSeconds) {
 }
 
 // A representative rankings page: header row, then one row per rank with the
-// result in the final column, plus the "1 - 50 of N" summary.
-function rankingsPage({ page, perPage = 50, total, valueForRank }) {
+// result in the final column. `summary` renders the "1 - 50 of N" text;
+// without it the page carries only numbered pagination links, like a page
+// whose summary wording the parser doesn't recognise.
+function rankingsPage({ page, perPage = 50, total, valueForRank, summary = true }) {
   const first = (page - 1) * perPage + 1;
   const last = Math.min(total, page * perPage);
   let rows = '';
@@ -52,18 +54,27 @@ function rankingsPage({ page, perPage = 50, total, valueForRank }) {
     rows += `<tr><td>${rank.toLocaleString('en-US')}</td><td><a href="/profile/1">Rower ${rank}</a></td>` +
       `<td>34</td><td>Somewhere</td><td>USA</td><td>${valueForRank(rank)}</td></tr>\n`;
   }
+  const maxPage = Math.max(1, Math.ceil(total / perPage));
+  const pagination = maxPage > 1
+    ? `<ul class="pagination">
+        <li><a href="?gender=M&amp;page=2">2</a></li>
+        <li><a href="?gender=M&amp;page=${maxPage}">${maxPage}</a></li>
+        <li><a href="?gender=M&amp;page=${Math.min(page + 1, maxPage)}">Next</a></li>
+      </ul>`
+    : '';
   return `<html><body>
     <table class="table">
       <thead><tr><th>Pos.</th><th>Name</th><th>Age</th><th>Location</th><th>Country</th><th>Time</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
-    <div class="summary">${first.toLocaleString('en-US')} - ${last.toLocaleString('en-US')} of ${total.toLocaleString('en-US')}</div>
+    ${summary ? `<div class="summary">${first.toLocaleString('en-US')} - ${last.toLocaleString('en-US')} of ${total.toLocaleString('en-US')}</div>` : ''}
+    ${pagination}
   </body></html>`;
 }
 
 // Mock fetch serving generated pages for any &page=N, slower times at higher
 // ranks: rank 1 rows 6:00.0 and every rank adds 0.05s.
-function mockRankingsFetch({ total = 2000, event = 'd2000' } = {}) {
+function mockRankingsFetch({ total = 2000, event = 'd2000', summary = true } = {}) {
   const valueForRank = event.startsWith('t')
     ? rank => Math.round(9000 - rank).toLocaleString('en-US')
     : rank => formatTime(360 + rank * 0.05);
@@ -72,7 +83,7 @@ function mockRankingsFetch({ total = 2000, event = 'd2000' } = {}) {
     const page = Number(new URL(url).searchParams.get('page') || '1');
     return {
       ok: true,
-      text: async () => rankingsPage({ page, total, valueForRank }),
+      text: async () => rankingsPage({ page, total, valueForRank, summary }),
     };
   });
 }
@@ -158,6 +169,31 @@ describe('fetchBucketAnchors', () => {
     }
     // Distinct pages only: page 1 plus the pages the anchor ranks land on.
     expect(fetchFn.mock.calls.length).toBeLessThanOrEqual(9);
+  });
+
+  it('derives the total from the last pagination link when the summary is unrecognised', async () => {
+    const fetchFn = mockRankingsFetch({ total: 1980, summary: false });
+    const bucket = live.bucketFor('d2000', { sex: 'M', age: 37, weightKg: 90 }, 2026);
+    const { total, anchors } = await live.fetchBucketAnchors(bucket, { fetchFn, delayMs: 0 });
+
+    // 1980 = 39 full pages of 50 + 30 rows on page 40, counted, not guessed.
+    expect(total).toBe(1980);
+    expect(anchors).toHaveLength(live.ANCHOR_PERCENTILES.length);
+    const fetchedPages = fetchFn.mock.calls.map(([url]) => new URL(url).searchParams.get('page') || '1');
+    expect(fetchedPages).toContain('40');
+  });
+
+  it('treats a single page without pagination links as the whole bucket', async () => {
+    const fetchFn = mockRankingsFetch({ total: 37, summary: false });
+    const bucket = live.bucketFor('d2000', { sex: 'M', age: 37, weightKg: 90 }, 2026);
+    const { total } = await live.fetchBucketAnchors(bucket, { fetchFn, delayMs: 0 });
+    expect(total).toBe(37);
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+
+  it('finds the highest pagination link', () => {
+    expect(live.parseMaxPage('<a href="?gender=M&amp;page=2">2</a> <a href="?gender=M&amp;page=112">112</a>')).toBe(112);
+    expect(live.parseMaxPage('<html>no pagination</html>')).toBeNull();
   });
 
   it('rejects pages it cannot parse', async () => {

@@ -1,7 +1,10 @@
+/* Session .card provides no body padding of its own (the header pads itself),
+   so this block, like the tables, must bring its own. */
 .intervalSummary {
   display: flex;
   flex-wrap: wrap;
-  gap: 16px;
+  gap: var(--space-4) var(--space-6);
+  padding: var(--space-4) var(--space-5);
 }
 
 .stat {
@@ -19,6 +22,14 @@
 }
 
 .statValue {
-  font-weight: 600;
+  font-family: var(--font-mono);
+  font-size: 1.05rem;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
+}
+
+.statRep {
+  font-size: 0.7rem;
+  font-weight: 400;
+  color: var(--ink-3);
 }

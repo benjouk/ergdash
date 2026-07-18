@@ -106,6 +106,19 @@ export function parseTotalEntries(html) {
   return null;
 }
 
+// Highest page number referenced by the pagination links. Fallback for pages
+// whose "total entries" summary parseTotalEntries doesn't recognise: fetching
+// that last page and counting its rows gives an exact total without depending
+// on any wording.
+export function parseMaxPage(html) {
+  let max = null;
+  for (const m of html.matchAll(/[?&;]page=(\d+)/g)) {
+    const n = Number(m[1]);
+    if (Number.isInteger(n) && n > 0 && (max == null || n > max)) max = n;
+  }
+  return max;
+}
+
 const TIME_RE = /^(?:(\d{1,2}):)?(\d{1,2}):(\d{2})\.(\d)$/;
 
 function timeToSeconds(text) {
@@ -177,15 +190,34 @@ async function fetchPage(url, fetchFn) {
 // and the time found at that rank becomes the anchor pace.
 export async function fetchBucketAnchors(bucket, { fetchFn = fetch, delayMs = FETCH_DELAY_MS } = {}) {
   const firstHtml = await fetchPage(bucket.url, fetchFn);
-  const total = parseTotalEntries(firstHtml);
   const firstRows = parseRankingRows(firstHtml, bucket.event);
 
-  if (!total || firstRows.length === 0) {
-    throw new Error(`Unparseable rankings page for ${bucket.key} (total=${total}, rows=${firstRows.length})`);
+  if (firstRows.length === 0) {
+    throw new Error(`Unparseable rankings page for ${bucket.key} (no result rows)`);
   }
 
   const perPage = firstRows.length;
   const pages = new Map([[1, firstRows]]);
+
+  // Prefer the summary text; when its wording isn't recognised, derive the
+  // exact total from the last pagination link instead: rows on the final page
+  // plus the full pages before it.
+  let total = parseTotalEntries(firstHtml);
+  if (!total) {
+    const maxPage = parseMaxPage(firstHtml);
+    if (maxPage == null) {
+      total = firstRows.length;
+    } else {
+      await delay(delayMs);
+      const lastHtml = await fetchPage(`${bucket.url}&page=${maxPage}`, fetchFn);
+      const lastRows = parseRankingRows(lastHtml, bucket.event);
+      if (lastRows.length === 0) {
+        throw new Error(`Unparseable last rankings page ${maxPage} for ${bucket.key}`);
+      }
+      total = (maxPage - 1) * perPage + lastRows.length;
+      pages.set(maxPage, lastRows);
+    }
+  }
 
   const targets = ANCHOR_PERCENTILES.map(pct => ({
     pct,

@@ -29,6 +29,7 @@ import {
   Search,
   Share2,
   Timer,
+  Trophy,
   Zap,
   GitCompare,
   Pencil,
@@ -468,6 +469,19 @@ export default function Session() {
     workout.metrics?.hr_drift_pct != null ? { label: 'HR Drift', value: `${workout.metrics.hr_drift_pct > 0 ? '+' : ''}${workout.metrics.hr_drift_pct.toFixed(1)}%${Math.abs(workout.metrics.hr_drift_pct) < 5 ? ' · coupled' : ''}`, icon: HeartPulse } : null,
     workout.metrics?.rate_discipline != null ? { label: 'Rate Discipline', value: workout.metrics.rate_discipline.toFixed(0), icon: Activity } : null,
     workout.metrics?.hr_recovery_avg != null ? { label: 'Avg HR Recovery', value: signed(workout.metrics.hr_recovery_avg), unit: 'bpm', icon: HeartPulse } : null,
+    workout.benchmark ? {
+      label: 'Ranked Standing',
+      value: `${workout.benchmark.source === 'live' ? 'top' : '~top'} ${workout.benchmark.top_percent}%`,
+      unit: [
+        workout.benchmark.sex,
+        workout.benchmark.age_band,
+        workout.benchmark.weight_class === 'lwt' ? 'Lwt' : 'Hwt',
+      ].filter(Boolean).join(' '),
+      icon: Trophy,
+      hint: workout.benchmark.source === 'live'
+        ? `Pace percentile among the ${typeof workout.benchmark.n === 'number' ? workout.benchmark.n.toLocaleString() : workout.benchmark.n} entrants in your class in the Concept2 ${workout.benchmark.season} season rankings. Shown only on near-maximal continuous sessions.`
+        : 'Estimated pace percentile among ranked ergs in your class. Shown only on near-maximal continuous sessions.',
+    } : null,
     workout.metrics?.fade_index != null ? { label: 'Fade Index', value: `${workout.metrics.fade_index.toFixed(1)}%`, icon: Activity } : null,
     workout.metrics?.consistency != null ? { label: 'Consistency', value: workout.metrics.consistency.toFixed(0), icon: Activity } : null,
     workout.metrics?.effort_score != null ? { label: 'Effort Score', value: workout.metrics.effort_score.toFixed(0), icon: Gauge } : null,
