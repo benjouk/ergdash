@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { formatSignal } from './ProgressOverview.jsx';
-import { formatTechniqueValue } from './ProgressTechnique.jsx';
+import { formatTechniqueDelta, formatTechniqueValue } from './ProgressTechnique.jsx';
 
 const formatPace = value => `${(value / 1000).toFixed(1)}s`;
 
@@ -30,5 +30,16 @@ describe('Technique scorecard formatting', () => {
       available: true, value: 96.2, secondaryValue: 91.4,
     })).toBe('96 / 91');
     expect(formatTechniqueValue('dps', { available: false })).toBe('Need more data');
+  });
+
+  it('uses metric-specific tolerance before labelling a change', () => {
+    expect(formatTechniqueDelta(
+      { id: 'stroke_quality', betterWhenUp: true, stableWithin: 2 },
+      { available: true, delta: -1.2, count: 15 },
+    )).toBe('Stable · 15 rows');
+    expect(formatTechniqueDelta(
+      { id: 'stroke_quality', betterWhenUp: true, stableWithin: 2 },
+      { available: true, delta: -3, count: 15 },
+    )).toBe('Slightly down · 15 rows');
   });
 });

@@ -13,10 +13,10 @@ import { buildTechniqueSummaries } from './progressModel.js';
 import styles from './Progress.module.css';
 
 const METRICS = [
-  { id: 'efficiency', label: 'Efficiency', description: 'Power produced per heartbeat', Component: EfficiencyChart, betterWhenUp: true },
-  { id: 'hr_drift', label: 'HR drift', description: 'Aerobic control through the row', Component: HrDriftChart, betterWhenUp: false },
-  { id: 'dps', label: 'Distance per stroke', description: 'Length produced by each stroke', Component: DpsTrendChart, betterWhenUp: true },
-  { id: 'stroke_quality', label: 'Stroke quality', description: 'Rate discipline and consistency', Component: StrokeQualityCard, betterWhenUp: true },
+  { id: 'efficiency', label: 'Efficiency', description: 'Power produced per heartbeat', Component: EfficiencyChart, betterWhenUp: true, stableWithin: 0.02 },
+  { id: 'hr_drift', label: 'HR drift', description: 'Aerobic control through the row', Component: HrDriftChart, betterWhenUp: false, stableWithin: 0.5 },
+  { id: 'dps', label: 'Distance per stroke', description: 'Length produced by each stroke', Component: DpsTrendChart, betterWhenUp: true, stableWithin: 0.08 },
+  { id: 'stroke_quality', label: 'Stroke quality', description: 'Rate discipline and consistency', Component: StrokeQualityCard, betterWhenUp: true, stableWithin: 2 },
   { id: 'drag', label: 'Drag factor', description: 'Setup consistency between rows', Component: DragFactorChart, betterWhenUp: null },
 ];
 
@@ -105,7 +105,7 @@ export function formatTechniqueValue(id, summary) {
   return summary.value.toFixed(0);
 }
 
-function formatTechniqueDelta(metric, summary) {
+export function formatTechniqueDelta(metric, summary) {
   if (!summary.available) {
     return metric.id === 'efficiency' || metric.id === 'hr_drift'
       ? 'Heart-rate data required'
@@ -113,6 +113,6 @@ function formatTechniqueDelta(metric, summary) {
   }
   if (metric.betterWhenUp == null || summary.delta == null) return `${summary.count} rows in range`;
   const improving = metric.betterWhenUp ? summary.delta > 0 : summary.delta < 0;
-  const flat = Math.abs(summary.delta) < 0.005;
-  return flat ? 'Flat across range' : `${improving ? 'Improving' : 'Needs attention'} · ${summary.count} rows`;
+  const stable = Math.abs(summary.delta) < (metric.stableWithin ?? 0.005);
+  return stable ? `Stable · ${summary.count} rows` : `${improving ? 'Improving' : 'Slightly down'} · ${summary.count} rows`;
 }

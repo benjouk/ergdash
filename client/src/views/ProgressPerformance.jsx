@@ -42,11 +42,15 @@ export default function ProgressPerformance() {
           <div><span className={styles.eyebrow}>Benchmarks</span><h3 id="benchmarks-heading">Speed across the range</h3></div>
           <span>Selected-period bests sit alongside current projections and PB history.</span>
         </div>
-        <div className={styles.detailGrid}>
-          <PredictedTimesCard />
-          <PowerCurveChart />
-          <PbTimelineChart />
-          <FadeFingerprint />
+        <div className={styles.benchmarkColumns}>
+          <div className={styles.benchmarkColumn}>
+            <PredictedTimesCard />
+            <PbTimelineChart />
+          </div>
+          <div className={styles.benchmarkColumn}>
+            <PowerCurveChart />
+            <FadeFingerprint />
+          </div>
         </div>
       </section>
     </div>

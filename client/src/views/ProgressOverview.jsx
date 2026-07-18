@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { ArrowRight, Gauge, Route, TrendingUp, Waves } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { api } from '../api.js';
 import { useUnits } from '../context/UnitsContext.jsx';
 import { distanceLabel } from '../components/PBBadge.jsx';
@@ -9,10 +9,10 @@ import { selectPrimaryTarget } from './progressModel.js';
 import styles from './Progress.module.css';
 
 const SIGNAL_META = {
-  volume: { label: 'Weekly volume', detail: 'Last 7 days', Icon: Waves },
-  fitness: { label: 'Fitness', detail: '7-day change', Icon: TrendingUp },
-  form: { label: 'Form', detail: 'Current readiness', Icon: Gauge },
-  pace: { label: 'Steady pace', detail: '30d vs prior 30d', Icon: Route },
+  volume: { label: 'Weekly volume', detail: 'Last 7 days' },
+  fitness: { label: 'Fitness', detail: '7-day change' },
+  form: { label: 'Form', detail: 'Current readiness' },
+  pace: { label: 'Steady pace', detail: '30d vs prior 30d' },
 };
 
 export default function ProgressOverview() {
@@ -34,7 +34,6 @@ export default function ProgressOverview() {
           {overview?.status ? (
             <>
               <div className={styles.verdictHeading}>
-                <span className={styles.statusDot} aria-hidden="true" />
                 <h3>{overview.status.label}</h3>
               </div>
               <p>{overview.status.summary}</p>
@@ -82,12 +81,10 @@ export default function ProgressOverview() {
 function SignalCard({ signalKey, signal }) {
   const { formatPace } = useUnits();
   const meta = SIGNAL_META[signalKey];
-  const { Icon } = meta;
   const formatted = formatSignal(signalKey, signal, formatPace);
 
   return (
     <Link to="/progress?view=training" className={styles.signalCard} aria-label={`${meta.label}: ${formatted.value}. View training detail`}>
-      <span className={styles.signalIcon}><Icon size={17} aria-hidden="true" /></span>
       <span className={styles.signalLabel}>{meta.label}</span>
       <strong className={styles.signalValue}>{formatted.value}</strong>
       <span className={`${styles.signalDelta} ${styles[`signal_${formatted.tone}`] || ''}`}>
