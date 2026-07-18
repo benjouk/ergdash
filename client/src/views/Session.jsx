@@ -48,6 +48,7 @@ import IntervalRepChart from '../components/Session/IntervalRepChart.jsx';
 import ExecutionAnalysis from '../components/Session/ExecutionAnalysis.jsx';
 import SessionAnalysis from '../components/Session/SessionAnalysis.jsx';
 import { structureLabel, structureTooltip } from '../utils/workoutStructure.js';
+import { INTENT_OPTIONS } from '../utils/workoutIntent.js';
 import PaceProfileChart from '../components/Session/PaceProfileChart.jsx';
 import ChartInfo from '../components/Charts/ChartInfo.jsx';
 import RateVsPaceScatter from '../components/Charts/RateVsPaceScatter.jsx';
@@ -80,6 +81,7 @@ export default function Session() {
   const [candidateSearch, setCandidateSearch] = useState('');
   const [candidatesLoading, setCandidatesLoading] = useState(false);
   const [pinSaving, setPinSaving] = useState(false);
+  const [intentSaving, setIntentSaving] = useState(false);
   const [notesDraft, setNotesDraft] = useState('');
   const [notesSaving, setNotesSaving] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -209,6 +211,30 @@ export default function Session() {
       setPinSaving(false);
     }
   }, [pinSaving, toast, workout]);
+
+  // One-tap session purpose; tapping the active chip clears it. Warm-up
+  // transitions change PB history server-side, so trust the response's
+  // pb_distances rather than the optimistic state.
+  const handleSetIntent = useCallback(async (value) => {
+    if (!workout || intentSaving) return;
+
+    const previous = workout.intent ?? null;
+    const next = previous === value ? null : value;
+    setIntentSaving(true);
+    setWorkout(current => current ? { ...current, intent: next } : current);
+
+    try {
+      const updated = await api.updateWorkout(workout.id, { intent: next });
+      setWorkout(current => current
+        ? { ...current, intent: updated.intent ?? null, pb_distances: updated.pb_distances ?? current.pb_distances }
+        : current);
+    } catch (err) {
+      setWorkout(current => current ? { ...current, intent: previous } : current);
+      toast.error(err.message || 'Could not update session tag');
+    } finally {
+      setIntentSaving(false);
+    }
+  }, [intentSaving, toast, workout]);
 
   // Full refetch after edit/revert so derived metrics/PBs reflect the change.
   const reloadWorkout = useCallback(async () => {
@@ -618,6 +644,25 @@ export default function Session() {
                 </span>
               </Link>
             )}
+            <div
+              className={styles.intentRow}
+              role="group"
+              aria-label="Session purpose"
+              title="Tag what this session was for. Warm-ups stay in your volume but drop out of trends, PBs, and race projections."
+            >
+              {INTENT_OPTIONS.map(option => (
+                <button
+                  key={option.value}
+                  type="button"
+                  disabled={intentSaving}
+                  onClick={() => handleSetIntent(option.value)}
+                  className={`${styles.intentButton} ${workout.intent === option.value ? styles.intentButtonActive : ''}`}
+                  aria-pressed={workout.intent === option.value}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className={styles.heroBadges}>

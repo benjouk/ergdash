@@ -45,9 +45,14 @@ router.get('/summary', (req, res) => {
     FROM workouts WHERE type = 'rower' AND profile_id = ? AND date >= ?
   `).get(req.profileId, seasonStart);
 
-  const avgPaceRow = db.prepare(`
-    SELECT AVG(pace_ms) as avg_pace FROM workouts
-    WHERE type = 'rower' AND profile_id = ? AND pace_ms > 0${dateFilter}
+  // Steady pace: continuous, non-warm-up sessions only. An all-in average
+  // would mix UT2, intervals, and race pieces into a number that reads
+  // slower as (healthy) easy volume grows - low signal as a headline.
+  const steadyPaceRow = db.prepare(`
+    SELECT AVG(pace_ms) as pace FROM workouts
+    WHERE type = 'rower' AND profile_id = ? AND pace_ms > 0
+      AND (inferred_tag IS NULL OR inferred_tag != 'interval')
+      AND (intent IS NULL OR intent != 'warmup')${dateFilter}
   `).get(req.profileId, ...dateParams);
 
   const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
@@ -85,11 +90,14 @@ router.get('/summary', (req, res) => {
     GROUP BY week ORDER BY week
   `).all(req.profileId, new Date(nowMs - 8 * 7 * DAY).toISOString()).map(r => r.distance);
 
+  // Session mix describes training composition, so warm-up pieces stay out
+  // (their metres still count in every volume figure above).
   const split = db.prepare(`
     SELECT
       COALESCE(SUM(CASE WHEN inferred_tag = 'interval' THEN distance ELSE 0 END), 0) as interval_m,
       COALESCE(SUM(CASE WHEN inferred_tag = 'interval' THEN 0 ELSE distance END), 0) as steady_m
-    FROM workouts WHERE type = 'rower' AND profile_id = ?${dateFilter}
+    FROM workouts WHERE type = 'rower' AND profile_id = ?
+      AND (intent IS NULL OR intent != 'warmup')${dateFilter}
   `).get(req.profileId, ...dateParams);
 
   res.json({
@@ -98,7 +106,7 @@ router.get('/summary', (req, res) => {
     total_time_ms: totals.total_time_ms,
     season_meters: season.season_meters,
     season_workouts: season.season_workouts,
-    avg_pace: avgPaceRow?.avg_pace ? Math.round(avgPaceRow.avg_pace) : null,
+    steady_pace: steadyPaceRow?.pace ? Math.round(steadyPaceRow.pace) : null,
     sessions_this_week: thisWeek.count,
     current_streak_weeks: streak,
     last_workout_date: lastWorkout?.date || null,
@@ -139,6 +147,8 @@ router.get('/trends', (req, res) => {
   const toFilter = qTo ? ' AND date < ?' : '';
   const toParam = qTo ? [qTo] : [];
 
+  // Every per-workout metric below excludes intent='warmup' rows: warm-up
+  // paddling is not training signal. Volume keeps them - metres are metres.
   if (metric === 'volume') {
     const rows = db.prepare(`
       SELECT strftime('%Y-W%W', date) as week,
@@ -161,6 +171,7 @@ router.get('/trends', (req, res) => {
              CASE WHEN inferred_tag = 'interval' THEN 'interval' ELSE 'endurance' END as inferred_tag
       FROM workouts
       WHERE type = 'rower' AND profile_id = ? AND pace_ms > 0 AND date >= ?${toFilter}
+        AND (intent IS NULL OR intent != 'warmup')
       ORDER BY date
     `).all(req.profileId, from, ...toParam);
     return res.json({ pace_trend: rows });
@@ -171,6 +182,7 @@ router.get('/trends', (req, res) => {
       SELECT date, stroke_rate, distance
       FROM workouts
       WHERE type = 'rower' AND profile_id = ? AND stroke_rate > 0 AND date >= ?${toFilter}
+        AND (intent IS NULL OR intent != 'warmup')
       ORDER BY date
     `).all(req.profileId, from, ...toParam);
     return res.json({ rate_trend: rows });
@@ -182,6 +194,7 @@ router.get('/trends', (req, res) => {
       FROM workouts w
       JOIN computed_metrics cm ON w.id = cm.workout_id
       WHERE w.type = 'rower' AND w.profile_id = ? AND cm.consistency IS NOT NULL AND w.date >= ?${toFilter}
+        AND (w.intent IS NULL OR w.intent != 'warmup')
       ORDER BY w.date
     `).all(req.profileId, from, ...toParam);
     return res.json({ consistency_trend: rows });
@@ -194,6 +207,7 @@ router.get('/trends', (req, res) => {
       FROM workouts w
       JOIN computed_metrics cm ON w.id = cm.workout_id
       WHERE w.type = 'rower' AND w.profile_id = ? AND cm.distance_per_stroke IS NOT NULL AND w.date >= ?${toFilter}
+        AND (w.intent IS NULL OR w.intent != 'warmup')
       ORDER BY w.date
     `).all(req.profileId, from, ...toParam);
     return res.json({ dps_trend: rows });
@@ -206,6 +220,7 @@ router.get('/trends', (req, res) => {
       FROM workouts w
       JOIN computed_metrics cm ON w.id = cm.workout_id
       WHERE w.type = 'rower' AND w.profile_id = ? AND cm.watts_per_beat IS NOT NULL AND w.date >= ?${toFilter}
+        AND (w.intent IS NULL OR w.intent != 'warmup')
       ORDER BY w.date
     `).all(req.profileId, from, ...toParam);
     return res.json({ watts_per_beat_trend: rows });
@@ -217,6 +232,7 @@ router.get('/trends', (req, res) => {
       FROM workouts w
       JOIN computed_metrics cm ON w.id = cm.workout_id
       WHERE w.type = 'rower' AND w.profile_id = ? AND cm.hr_drift_pct IS NOT NULL AND w.date >= ?${toFilter}
+        AND (w.intent IS NULL OR w.intent != 'warmup')
       ORDER BY w.date
     `).all(req.profileId, from, ...toParam);
     return res.json({ hr_drift_trend: rows });
@@ -229,6 +245,7 @@ router.get('/trends', (req, res) => {
       FROM workouts w
       JOIN computed_metrics cm ON w.id = cm.workout_id
       WHERE w.type = 'rower' AND w.profile_id = ? AND cm.rate_discipline IS NOT NULL AND w.date >= ?${toFilter}
+        AND (w.intent IS NULL OR w.intent != 'warmup')
       ORDER BY w.date
     `).all(req.profileId, from, ...toParam);
     return res.json({ rate_discipline_trend: rows });
@@ -240,6 +257,7 @@ router.get('/trends', (req, res) => {
       FROM workouts w
       LEFT JOIN computed_metrics cm ON w.id = cm.workout_id
       WHERE w.type = 'rower' AND w.profile_id = ? AND w.drag_factor > 0 AND w.date >= ?${toFilter}
+        AND (w.intent IS NULL OR w.intent != 'warmup')
       ORDER BY w.date
     `).all(req.profileId, from, ...toParam);
     return res.json({ drag_trend: rows });
@@ -252,6 +270,7 @@ router.get('/trends', (req, res) => {
       FROM workouts w
       JOIN computed_metrics cm ON w.id = cm.workout_id
       WHERE w.type = 'rower' AND w.profile_id = ? AND cm.effort_score IS NOT NULL AND w.date >= ?${toFilter}
+        AND (w.intent IS NULL OR w.intent != 'warmup')
       ORDER BY w.date
     `).all(req.profileId, from, ...toParam);
     return res.json({ effort_trend: rows });
@@ -279,6 +298,7 @@ router.get('/personal-bests', (req, res) => {
         SELECT w.id, w.date, w.time_ms, w.pace_ms, w.distance
         FROM workouts w
         WHERE w.type = 'rower' AND w.profile_id = ? AND w.distance = ? AND w.pace_ms > 0
+          AND (w.intent IS NULL OR w.intent != 'warmup')
           AND ${tagCondition}${dateFilter}
         ORDER BY w.pace_ms ASC LIMIT 1
       `).get(req.profileId, dist, ...dateParams);
@@ -305,7 +325,8 @@ router.get('/personal-bests', (req, res) => {
       SELECT be.avg_pace_ms, be.workout_id, w.date
       FROM best_efforts be
       JOIN workouts w ON w.id = be.workout_id
-      WHERE be.duration_s = ? AND w.profile_id = ? AND be.avg_pace_ms > 0${dateFilter}
+      WHERE be.duration_s = ? AND w.profile_id = ? AND be.avg_pace_ms > 0
+        AND (w.intent IS NULL OR w.intent != 'warmup')${dateFilter}
       ORDER BY be.avg_watts DESC LIMIT 1
     `).get(duration, req.profileId, ...dateParams);
 
@@ -343,17 +364,6 @@ router.get('/personal-bests', (req, res) => {
   }
 
   res.json({ personal_bests: pbs, time_bests: timePbs });
-});
-
-router.get('/predictions', (req, res) => {
-  const db = getDb();
-  const rows = db.prepare(`
-    SELECT distance, predicted_time, confidence, window_start, window_end, computed_at
-    FROM predictions
-    WHERE profile_id = ? AND predicted_time IS NOT NULL
-    ORDER BY distance
-  `).all(req.profileId);
-  res.json({ predictions: rows });
 });
 
 router.get('/pb-history', (req, res) => {

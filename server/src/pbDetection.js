@@ -1,5 +1,9 @@
 import { getDb } from './db.js';
 
+// Workouts tagged intent='warmup' never enter PB history; every query below
+// filters them out, and reconcilePbDistances() rebuilds a distance when a
+// tag change adds or removes a candidate.
+
 export const STANDARD_PB_DISTANCES = [500, 1000, 2000, 5000, 6000, 10000, 21097, 42195];
 
 const STANDARD_DISTANCE_SET = new Set(STANDARD_PB_DISTANCES);
@@ -44,6 +48,7 @@ export function backfillPbHistory(profileId) {
     SELECT id, date, distance, pace_ms, time_ms, inferred_tag
     FROM workouts
     WHERE type = 'rower' AND profile_id = ?
+      AND (intent IS NULL OR intent != 'warmup')
     ORDER BY date ASC, id ASC
   `).all(profileId);
 
@@ -81,6 +86,7 @@ export function detectNewPbs(profileId, workoutIds) {
       AND id IN (${placeholders})
       AND distance IN (${STANDARD_PB_DISTANCES.map(() => '?').join(',')})
       AND pace_ms > 0
+      AND (intent IS NULL OR intent != 'warmup')
     ORDER BY date ASC, id ASC
   `).all(profileId, ...ids, ...STANDARD_PB_DISTANCES);
 
@@ -96,6 +102,7 @@ export function detectNewPbs(profileId, workoutIds) {
       AND distance IN (${distancePlaceholders})
       AND id NOT IN (${placeholders})
       AND pace_ms > 0
+      AND (intent IS NULL OR intent != 'warmup')
   `).all(profileId, ...distances, ...ids);
 
   // Notifications compare against the best result that existed before this
@@ -142,6 +149,7 @@ export function reconcilePbDistances(profileId, distances) {
     SELECT id, date, distance, pace_ms, time_ms, inferred_tag
     FROM workouts
     WHERE type = 'rower' AND profile_id = ? AND distance IN (${placeholders}) AND pace_ms > 0
+      AND (intent IS NULL OR intent != 'warmup')
     ORDER BY date ASC, id ASC
   `).all(profileId, ...targets);
 

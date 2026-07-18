@@ -9,6 +9,8 @@ import {
   athleteFromSettings, percentileForPace, eventKeyForDistance, eventKeyForDuration,
 } from '../rankings.js';
 import { liveBenchmark } from '../rankingsLive.js';
+import { WORKOUT_INTENTS } from '../workoutTypes.js';
+import { reconcilePbDistances } from '../pbDetection.js';
 import {
   createManualWorkout,
   validateWorkoutFields,
@@ -184,6 +186,15 @@ router.patch('/:id', (req, res) => {
     }
   }
 
+  if (Object.prototype.hasOwnProperty.call(body, 'intent')) {
+    if (body.intent !== null && !WORKOUT_INTENTS.includes(body.intent)) {
+      errors.push(`intent must be null or one of: ${WORKOUT_INTENTS.join(', ')}`);
+    } else {
+      updates.push('intent = ?');
+      params.push(body.intent);
+    }
+  }
+
   const { fields, errors: fieldErrors } = validateWorkoutFields(body);
   errors.push(...fieldErrors);
 
@@ -202,6 +213,12 @@ router.patch('/:id', (req, res) => {
 
   if (updates.length > 0) {
     db.prepare(`UPDATE workouts SET ${updates.join(', ')} WHERE id = ?`).run(...params, id);
+    // Tagging a piece as a warm-up removes it from PB history (and untagging
+    // restores it), so the affected distance needs a rebuild.
+    if (Object.prototype.hasOwnProperty.call(body, 'intent')
+        && (existing.intent === 'warmup') !== (body.intent === 'warmup')) {
+      reconcilePbDistances(existing.profile_id, [existing.distance]);
+    }
   }
   if (Object.keys(fields).length > 0) {
     // Corrections: tracked in edited_fields on c2 rows (so sync preserves
@@ -445,14 +462,17 @@ function getTagBaseline(db, workout) {
     ? "inferred_tag = 'interval'"
     : "(inferred_tag IS NULL OR inferred_tag != 'interval')";
 
+  // Warm-ups would drag the medians toward paddling pace.
   const paces = db.prepare(`
     SELECT pace_ms FROM workouts
     WHERE type = 'rower' AND pace_ms > 0 AND id != ? AND profile_id = ? AND ${tagCondition}
+      AND (intent IS NULL OR intent != 'warmup')
   `).all(workout.id, workout.profile_id).map(r => r.pace_ms);
 
   const hrs = db.prepare(`
     SELECT heart_rate_avg FROM workouts
     WHERE type = 'rower' AND heart_rate_avg > 0 AND id != ? AND profile_id = ? AND ${tagCondition}
+      AND (intent IS NULL OR intent != 'warmup')
   `).all(workout.id, workout.profile_id).map(r => r.heart_rate_avg);
 
   return { medianPaceMs: median(paces), medianHr: median(hrs) };
@@ -490,6 +510,7 @@ function formatWorkout(row, intervalSummary = null) {
     comments: row.comments,
     pinned: !!row.pinned,
     notes: row.notes,
+    intent: row.intent ?? null,
     source: row.source || 'c2',
     edited_fields: parseEditedFields(row.edited_fields),
     pb_distances: [],

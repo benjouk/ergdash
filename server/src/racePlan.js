@@ -214,32 +214,22 @@ function paceRegression(points) {
   return { slope, intercept, confidence: Math.round(fit * density * 100) / 100 };
 }
 
+// The single projection engine for performance goals: near-maximal efforts at
+// the distance, weighted regression of pace over time, evaluated at toDate.
+// Both the race-plan trajectory and the Targets card prediction go through
+// here, so the dashboard can never show two different numbers for one goal.
 // results: [{ date, time_ms, pace_ms }] at the goal distance, any order.
-// pb: fastest { time_ms } ever at the distance (not restricted to the window).
-export function raceTrajectory({ goal, results, pb, today }) {
-  const splits = goal.distance / 500;
+export function projectPerformance({ distance, results, toDate, today }) {
   const todayMs = dayMs(isoDay(dayMs(today)));
-  const raceMs = dayMs(goal.race_date);
-  const daysToRace = Math.round((raceMs - todayMs) / DAY_MS);
-  const achieved = pb != null && pb.time_ms <= goal.target_time_ms;
-
   const windowStart = todayMs - TRAJECTORY_WINDOW_DAYS * DAY_MS;
   const recent = (results || [])
     .filter(r => r.pace_ms > 0 && dayMs(String(r.date).slice(0, 10)) >= windowStart)
     .sort((a, b) => String(a.date).localeCompare(String(b.date)));
 
   const efforts = selectEfforts(recent, windowStart);
-
-  const base = {
-    verdict: achieved ? 'achieved' : 'insufficient_data',
-    projected_time_ms: null,
-    projected_delta_ms: null,
-    required_per_week_ms: requiredPerWeek(goal, pb, daysToRace),
-    sample_size: efforts.length,
-    confidence: null,
-  };
-
-  if (efforts.length < MIN_TRAJECTORY_RESULTS || daysToRace < 0) return base;
+  if (efforts.length < MIN_TRAJECTORY_RESULTS) {
+    return { projected_time_ms: null, confidence: null, sample_size: efforts.length };
+  }
 
   const firstMs = dayMs(String(efforts[0].date).slice(0, 10));
   const points = efforts.map((r, i) => ({
@@ -249,15 +239,47 @@ export function raceTrajectory({ goal, results, pb, today }) {
   }));
 
   const regression = paceRegression(points);
-  const raceX = (raceMs - firstMs) / DAY_MS;
+  const targetX = (dayMs(toDate) - firstMs) / DAY_MS;
   const bestRecentPace = Math.min(...efforts.map(r => r.pace_ms));
   const worstRecentPace = Math.max(...efforts.map(r => r.pace_ms));
 
-  let projectedPace = regression.intercept + regression.slope * raceX;
+  let projectedPace = regression.intercept + regression.slope * targetX;
   projectedPace = Math.max(projectedPace, bestRecentPace * MAX_PROJECTED_GAIN);
   projectedPace = Math.min(projectedPace, worstRecentPace);
 
-  const projectedTime = Math.round(projectedPace * splits);
+  return {
+    projected_time_ms: Math.round(projectedPace * (distance / 500)),
+    confidence: regression.confidence,
+    sample_size: efforts.length,
+  };
+}
+
+// pb: fastest { time_ms } ever at the distance (not restricted to the window).
+export function raceTrajectory({ goal, results, pb, today }) {
+  const todayMs = dayMs(isoDay(dayMs(today)));
+  const raceMs = dayMs(goal.race_date);
+  const daysToRace = Math.round((raceMs - todayMs) / DAY_MS);
+  const achieved = pb != null && pb.time_ms <= goal.target_time_ms;
+
+  const projection = projectPerformance({
+    distance: goal.distance,
+    results,
+    toDate: goal.race_date,
+    today,
+  });
+
+  const base = {
+    verdict: achieved ? 'achieved' : 'insufficient_data',
+    projected_time_ms: null,
+    projected_delta_ms: null,
+    required_per_week_ms: requiredPerWeek(goal, pb, daysToRace),
+    sample_size: projection.sample_size,
+    confidence: null,
+  };
+
+  if (projection.projected_time_ms == null || daysToRace < 0) return base;
+
+  const projectedTime = projection.projected_time_ms;
   const delta = projectedTime - goal.target_time_ms;
 
   let verdict;
@@ -271,7 +293,7 @@ export function raceTrajectory({ goal, results, pb, today }) {
     verdict,
     projected_time_ms: projectedTime,
     projected_delta_ms: delta,
-    confidence: regression.confidence,
+    confidence: projection.confidence,
   };
 }
 

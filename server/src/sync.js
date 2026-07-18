@@ -5,7 +5,6 @@ import {
   tagAllWorkouts,
   computeAllMetrics,
   computeFitnessLog,
-  computePredictions,
   computeAllZoneTimes,
   computeAllBestEfforts,
   computeMetricsForWorkout,
@@ -492,7 +491,6 @@ export function runPostSyncAnalytics(profileId, insertedWorkoutIds = [], updated
     const retaggedPbDistances = tagAllWorkouts(profileId);
     computeAllMetrics(profileId);
     computeFitnessLog(profileId);
-    computePredictions(profileId);
     computeAllZoneTimes(profileId);
     computeAllBestEfforts(profileId);
     // computeAllX() above are cache-gated on existing rows, so changed

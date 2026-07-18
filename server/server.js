@@ -17,7 +17,6 @@ import {
   tagAllWorkouts,
   computeAllMetrics,
   computeFitnessLog,
-  computePredictions,
   computeAllZoneTimes,
   computeAllBestEfforts,
 } from './src/analytics.js';
@@ -133,7 +132,6 @@ for (const { id } of getDb().prepare('SELECT id FROM profiles').all()) {
   tagAllWorkouts(id);
   computeAllMetrics(id);
   computeFitnessLog(id);
-  computePredictions(id);
   computeAllZoneTimes(id);
   computeAllBestEfforts(id);
 }

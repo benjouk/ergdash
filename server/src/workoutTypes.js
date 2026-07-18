@@ -38,6 +38,12 @@ const SUBTYPE_BY_TYPE = {
   VariableIntervalUndefinedRest: 'variable',
 };
 
+// User-declared purpose of a completed workout (workouts.intent). Null means
+// untagged. 'warmup' covers warm-ups and cool-downs logged as their own
+// pieces; those rows keep counting toward volume and fitness load but drop
+// out of pace/technique trends, the session mix, PBs, and race projections.
+export const WORKOUT_INTENTS = ['warmup', 'steady', 'test', 'race'];
+
 export function isIntervalWorkoutType(workoutType) {
   return INTERVAL_WORKOUT_TYPES.has(workoutType);
 }

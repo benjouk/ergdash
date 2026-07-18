@@ -102,9 +102,9 @@ export default function Ticker() {
           </span>
         </div>
         <div className={styles.stat}>
-          <span className={styles.statLabel}>Avg Pace</span>
+          <span className={styles.statLabel}>Steady Pace</span>
           <span className={styles.statValue}>
-            {summary ? formatPace(summary.avg_pace) : '—'}
+            {summary ? formatPace(summary.steady_pace) : '—'}
           </span>
         </div>
         <div className={styles.stat}>

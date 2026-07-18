@@ -60,7 +60,7 @@ export default function TargetsCard({ goals }) {
                   onClick={p.pb ? () => navigate(`/session/${p.pb.workout_id}`) : null}
                 />
                 <TargetStat
-                  label="Predicted"
+                  label={p.prediction?.projected_to === goal.race_date ? 'Race day projection' : 'Predicted'}
                   value={p.prediction?.predicted_time != null ? formatTime(p.prediction.predicted_time) : '--'}
                   sub={p.prediction?.predicted_time != null ? deltaText(p.prediction_delta_ms) : 'not enough data'}
                   subTone={p.prediction?.predicted_time != null ? (p.prediction_delta_ms <= 0 ? 'positive' : 'negative') : null}
@@ -71,8 +71,9 @@ export default function TargetsCard({ goals }) {
         })}
       </div>
       <ChartInfo>
-        Each row compares a goal time against your current personal best and the trend-based
-        race prediction for that distance. Deltas show how far off the target each mark is.
+        Each row compares a goal time against your current personal best and a projection of
+        your recent hard results at that distance - extended to race day when one is set, the
+        same trend the Race Plan card uses. Deltas show how far off the target each mark is.
       </ChartInfo>
     </div>
   );

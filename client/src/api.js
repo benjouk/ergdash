@@ -115,7 +115,6 @@ export const api = {
   getZones: (params = {}) => request(`/api/stats/zones?${new URLSearchParams(params)}`),
   getPolarization: (params = {}) => request(`/api/stats/polarization?${new URLSearchParams(params)}`),
 
-  getPredictions: () => request('/api/stats/predictions'),
 
   getGoals: () => request('/api/goals'),
   getRacePlan: (id) => request(`/api/goals/${id}/race-plan`),

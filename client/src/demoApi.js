@@ -626,6 +626,7 @@ async function handlePatch(route, body) {
     const patch = {};
     if ('pinned' in body) patch.pinned = !!body.pinned;
     if ('notes' in body) patch.notes = body.notes;
+    if ('intent' in body) patch.intent = body.intent;
     const merged = setWorkoutOverlay(id, patch);
     const detail = await fetch(await fixtureUrl(`workout/${id}.json`)).then(r => r.json());
     const patched = applyWorkoutOverlay({ ...detail, ...merged });

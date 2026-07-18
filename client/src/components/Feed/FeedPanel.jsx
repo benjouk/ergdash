@@ -9,6 +9,7 @@ import { FeedItemSkeleton } from '../Skeleton/Skeleton.jsx';
 import PBBadges from '../PBBadge.jsx';
 import Sparkline from './Sparkline.jsx';
 import { structureLabel, structureTooltip } from '../../utils/workoutStructure.js';
+import { intentLabel } from '../../utils/workoutIntent.js';
 import { groupByDay } from '../../utils/dateGroups.js';
 import styles from './Feed.module.css';
 
@@ -164,7 +165,7 @@ export default function FeedPanel({ layout = 'column' }) {
 }
 
 function FeedItem({ workout, active, pinned = false, showDate = true, units, formatPace, formatDistance, formatTime, dateFormat }) {
-  const hasBadges = workout.pb_distances?.length > 0 || workout.inferred_tag;
+  const hasBadges = workout.pb_distances?.length > 0 || workout.inferred_tag || workout.intent;
   return (
     <Link
       to={`/session/${workout.id}`}
@@ -180,6 +181,11 @@ function FeedItem({ workout, active, pinned = false, showDate = true, units, for
           )}
           <span className={styles.itemBadges}>
             <PBBadges distances={workout.pb_distances} compact />
+            {intentLabel(workout.intent) && (
+              <span className={styles.itemTag} title="Session purpose">
+                {intentLabel(workout.intent)}
+              </span>
+            )}
             {workout.inferred_tag && (
               <span
                 className={`${styles.itemTag} ${TAG_CLASS[workout.inferred_tag] || ''}`}

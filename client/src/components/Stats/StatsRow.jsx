@@ -93,8 +93,8 @@ export default function StatsRow({ summary: summaryProp, goals, showMeters = tru
         viz={<SparkViz data={spark} />}
       />
       <StatCell
-        label="Avg Pace"
-        value={formatPace(summary.avg_pace)}
+        label="Steady Pace"
+        value={formatPace(summary.steady_pace)}
         sub={`${totalHours}h on the erg`}
         viz={<SparkViz data={spark} />}
       />
