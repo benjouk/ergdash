@@ -19,8 +19,8 @@ import { CSS } from '@dnd-kit/utilities';
 import { Eye, EyeOff, GripVertical, SlidersHorizontal } from 'lucide-react';
 import { api } from '../api.js';
 import { useToast } from '../context/ToastContext.jsx';
-import { CHART_REGISTRY, DEFAULT_LAYOUT } from './progressChartRegistry.js';
-import { buildRows, mergeLayout, toggleHidden } from './progressLayout.js';
+import { CHART_GROUPS, CHART_REGISTRY, DEFAULT_LAYOUT } from './progressChartRegistry.js';
+import { buildSections, mergeLayout, toggleHidden } from './progressLayout.js';
 import styles from './Progress.module.css';
 
 const REGISTRY_BY_ID = new Map(CHART_REGISTRY.map(chart => [chart.id, chart]));
@@ -74,8 +74,8 @@ export default function Progress() {
     return () => window.clearTimeout(timer);
   }, [layout, toast]);
 
-  const rows = useMemo(() => (
-    layout && !isEditing ? buildRows(layout, CHART_REGISTRY) : []
+  const sections = useMemo(() => (
+    layout && !isEditing ? buildSections(layout, CHART_REGISTRY, CHART_GROUPS) : []
   ), [layout, isEditing]);
 
   const editCharts = useMemo(() => {
@@ -165,7 +165,7 @@ export default function Progress() {
       {isEditing ? (
         <>
           <p className={styles.editHint}>
-            Drag cards to reorder. Use the eye to show or hide a chart.
+            Drag cards to reorder within their section. Use the eye to show or hide a chart.
           </p>
           <DndContext
             sensors={sensors}
@@ -191,7 +191,12 @@ export default function Progress() {
           </DndContext>
         </>
       ) : (
-        rows.map(renderRow)
+        sections.map(section => (
+          <section key={section.id} className={styles.chartSection} aria-label={section.label}>
+            <h3 className={styles.sectionTitle}>{section.label}</h3>
+            {section.rows.map(renderRow)}
+          </section>
+        ))
       )}
     </div>
   );
@@ -237,6 +242,7 @@ function SortableChartCard({ chart, onToggleHidden }) {
           <GripVertical size={16} aria-hidden="true" />
         </button>
         <span className={styles.editCardTitle}>{chart.title}</span>
+        <span className={styles.widthBadge}>{groupLabel(chart.group)}</span>
         {chart.width === 'full' && <span className={styles.widthBadge}>Full width</span>}
         <button
           type="button"
@@ -253,6 +259,10 @@ function SortableChartCard({ chart, onToggleHidden }) {
   );
 }
 
+function groupLabel(groupId) {
+  return CHART_GROUPS.find(group => group.id === groupId)?.label || 'Other';
+}
+
 function ChartCardGhost({ chart }) {
   return (
     <div className={`${styles.editCard} ${styles.editCardGhost}`}>
@@ -261,6 +271,7 @@ function ChartCardGhost({ chart }) {
           <GripVertical size={16} aria-hidden="true" />
         </span>
         <span className={styles.editCardTitle}>{chart.title}</span>
+        <span className={styles.widthBadge}>{groupLabel(chart.group)}</span>
         {chart.width === 'full' && <span className={styles.widthBadge}>Full width</span>}
       </div>
     </div>

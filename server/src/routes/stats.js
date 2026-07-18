@@ -10,6 +10,7 @@ import {
   athleteFromSettings, percentileForPace, eventKeyForDistance, eventKeyForDuration,
 } from '../rankings.js';
 import { liveBenchmark } from '../rankingsLive.js';
+import { computePredictedTimes, PREDICTED_DISTANCES } from '../predictedTimes.js';
 
 const router = Router();
 
@@ -364,6 +365,38 @@ router.get('/personal-bests', (req, res) => {
   }
 
   res.json({ personal_bests: pbs, time_bests: timePbs });
+});
+
+// Current predicted time at every benchmark distance: trend projections
+// where the athlete has recent results, pace-per-doubling estimates from the
+// nearest projected distance where they don't. Continuous, non-warm-up
+// pieces only - the same result set every other projection uses.
+router.get('/predicted-times', (req, res) => {
+  const db = getDb();
+  const placeholders = PREDICTED_DISTANCES.map(() => '?').join(',');
+
+  const rows = db.prepare(`
+    SELECT date, distance, time_ms, pace_ms FROM workouts
+    WHERE type = 'rower' AND profile_id = ? AND distance IN (${placeholders}) AND pace_ms > 0
+      AND (inferred_tag IS NULL OR inferred_tag != 'interval')
+      AND (intent IS NULL OR intent != 'warmup')
+    ORDER BY date ASC
+  `).all(req.profileId, ...PREDICTED_DISTANCES);
+
+  const resultsByDistance = new Map();
+  const pbByDistance = new Map();
+  for (const row of rows) {
+    if (!resultsByDistance.has(row.distance)) resultsByDistance.set(row.distance, []);
+    resultsByDistance.get(row.distance).push({ date: row.date, time_ms: row.time_ms, pace_ms: row.pace_ms });
+    const best = pbByDistance.get(row.distance);
+    if (best == null || row.time_ms < best) pbByDistance.set(row.distance, row.time_ms);
+  }
+
+  res.json(computePredictedTimes({
+    resultsByDistance,
+    pbByDistance,
+    today: new Date().toISOString().slice(0, 10),
+  }));
 });
 
 router.get('/pb-history', (req, res) => {

@@ -258,6 +258,14 @@
   font-size: 0.85rem;
 }
 
+.cardNote {
+  margin: 0;
+  padding: var(--space-3) var(--space-5) var(--space-5);
+  color: var(--ink-3);
+  font-size: 0.7rem;
+  line-height: 1.5;
+}
+
 @media (max-width: 900px) {
   .grid {
     grid-template-columns: 1fr;

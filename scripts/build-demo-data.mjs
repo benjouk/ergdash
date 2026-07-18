@@ -179,6 +179,7 @@ async function captureProfile(profileId) {
   await capture('/api/stats/cumulative');
   await capture('/api/stats/power-curve');
   await capture('/api/stats/pb-history');
+  await capture('/api/stats/predicted-times');
   const goals = await capture('/api/goals');
   for (const goal of goals.goals || []) {
     if (goal.kind === 'performance' && goal.race_date) {
