@@ -69,6 +69,24 @@ export default function ExecutionAnalysis({ analysis, workout, formatPace, forma
               <span className={styles.statLabel}>Consistency</span>
               <span className={styles.statValue}>{intervals.consistency}</span>
             </div>
+            {intervals.fastest_pace_ms > 0 && (
+              <div className={styles.stat}>
+                <span className={styles.statLabel}>Fastest</span>
+                <span className={styles.statValue}>
+                  {formatPace(intervals.fastest_pace_ms)}
+                  <span className={styles.statRep}> R{intervals.fastest_rep_index + 1}</span>
+                </span>
+              </div>
+            )}
+            {intervals.slowest_pace_ms > 0 && (
+              <div className={styles.stat}>
+                <span className={styles.statLabel}>Slowest</span>
+                <span className={styles.statValue}>
+                  {formatPace(intervals.slowest_pace_ms)}
+                  <span className={styles.statRep}> R{intervals.slowest_rep_index + 1}</span>
+                </span>
+              </div>
+            )}
             {intervals.first_rep_fast && (
               <div className={styles.stat}>
                 <span className={styles.statLabel}>Note</span>
