@@ -136,6 +136,13 @@ function HrZonesSection() {
   );
 }
 
+// Server contract for the athlete fields (server/src/routes/settings.js):
+// blank, or a value inside these bounds.
+const minWeightKg = 20;
+const maxWeightKg = 300;
+const minBirthYear = 1900;
+const maxBirthYear = new Date().getUTCFullYear() - 5;
+
 function AthleteSection() {
   const { weightKg, sex, birthYear, updatePref } = usePrefs();
   const [weight, setWeight] = useState('');
@@ -158,16 +165,26 @@ function AthleteSection() {
 
   const saveWeight = () => {
     const parsed = Number(weight);
-    const valid = weight === '' || (Number.isFinite(parsed) && parsed > 0);
-    if (!valid) return;
+    const valid = weight === ''
+      || (Number.isFinite(parsed) && parsed >= minWeightKg && parsed <= maxWeightKg);
+    if (!valid) {
+      toast.error(`Body weight must be between ${minWeightKg} and ${maxWeightKg} kg`);
+      setWeight(weightKg ? String(weightKg) : '');
+      return;
+    }
     if ((weightKg || '') === (parsed || '')) return;
     savePref('weight_kg', weight === '' ? '' : parsed);
   };
 
   const saveYear = () => {
     const parsed = Number(year);
-    const valid = year === '' || (Number.isInteger(parsed) && parsed >= 1900);
-    if (!valid) return;
+    const valid = year === ''
+      || (Number.isInteger(parsed) && parsed >= minBirthYear && parsed <= maxBirthYear);
+    if (!valid) {
+      toast.error(`Birth year must be between ${minBirthYear} and ${maxBirthYear}`);
+      setYear(birthYear ? String(birthYear) : '');
+      return;
+    }
     if ((birthYear || '') === (parsed || '')) return;
     savePref('birth_year', year === '' ? '' : parsed);
   };
@@ -184,8 +201,8 @@ function AthleteSection() {
         </div>
         <input
           type="number"
-          min="30"
-          max="200"
+          min={minWeightKg}
+          max={maxWeightKg}
           step="0.5"
           value={weight}
           placeholder="kg"
@@ -222,8 +239,8 @@ function AthleteSection() {
         </div>
         <input
           type="number"
-          min="1900"
-          max="2020"
+          min={minBirthYear}
+          max={maxBirthYear}
           step="1"
           value={year}
           placeholder="yyyy"
