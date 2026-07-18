@@ -6,6 +6,10 @@ import { buildSessionNarrative } from '../sessionNarrative.js';
 import { parseEditedFields } from '../workoutFields.js';
 import { classifyComparison, rankComparisonCandidates } from '../workoutComparison.js';
 import {
+  athleteFromSettings, percentileForPace, eventKeyForDistance, eventKeyForDuration,
+} from '../rankings.js';
+import { liveBenchmark } from '../rankingsLive.js';
+import {
   createManualWorkout,
   validateWorkoutFields,
   applyWorkoutCorrection,
@@ -367,6 +371,7 @@ router.get('/:id', (req, res) => {
 
   res.json({
     ...formatted,
+    benchmark: getSessionBenchmark(db, workout),
     pb_distances: getCurrentPbDistances(db, id),
     intervals,
     strokes,
@@ -382,6 +387,48 @@ router.get('/:id', (req, res) => {
     }),
   });
 });
+
+// Ranked standing for the session itself, not only PBs - but strictly on
+// near-maximal continuous efforts. The public rankings are season bests, so
+// rating an easy steady row against them would mark good volume work as
+// failure. Mirrors the race-plan effort filter: the pace must be within this
+// factor of the profile's best for the same format.
+const SESSION_BENCHMARK_EFFORT_FACTOR = 1.06;
+
+export function getSessionBenchmark(db, workout) {
+  if (workout.type !== 'rower' || !(workout.pace_ms > 0)) return null;
+  if (normalizeWorkoutTag(workout.inferred_tag) === 'interval') return null;
+
+  let event = eventKeyForDistance(workout.distance);
+  let best = null;
+  if (event) {
+    best = db.prepare(`
+      SELECT MIN(pace_ms) AS best FROM workouts
+      WHERE type = 'rower' AND profile_id = ? AND distance = ? AND pace_ms > 0
+        AND (inferred_tag IS NULL OR inferred_tag != 'interval')
+    `).get(workout.profile_id, workout.distance)?.best;
+  } else if (/FixedTime/i.test(workout.workout_type || '')) {
+    // Exact 30:00 / 60:00 pieces rank as the fixed-time events.
+    event = eventKeyForDuration(Math.round(workout.time_ms / 1000));
+    if (event) {
+      best = db.prepare(`
+        SELECT MIN(pace_ms) AS best FROM workouts
+        WHERE type = 'rower' AND profile_id = ? AND time_ms = ? AND pace_ms > 0
+          AND (inferred_tag IS NULL OR inferred_tag != 'interval')
+      `).get(workout.profile_id, workout.time_ms)?.best;
+    }
+  }
+
+  if (!event || !(best > 0)) return null;
+  if (workout.pace_ms > best * SESSION_BENCHMARK_EFFORT_FACTOR) return null;
+
+  const settingsRows = db.prepare('SELECT key, value FROM settings WHERE profile_id = ?').all(workout.profile_id);
+  const athlete = athleteFromSettings(Object.fromEntries(settingsRows.map(r => [r.key, r.value])));
+  if (!athlete) return null;
+
+  return liveBenchmark(db, { event, paceMs: workout.pace_ms, athlete })
+    || percentileForPace({ event, paceMs: workout.pace_ms, ...athlete });
+}
 
 function getComparisonIntervals(db, workoutId) {
   return db.prepare(
