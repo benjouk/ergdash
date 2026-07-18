@@ -7,6 +7,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { initDb, getDb } from './src/db.js';
 import { startSyncSchedule } from './src/sync.js';
+import { startRankingRefreshSchedule } from './src/rankingsLive.js';
 import { initAuth, hasValidSession, hasConnectedProfile } from './src/auth.js';
 import { errorHandler } from './src/middleware/error.js';
 import { resolveProfile } from './src/middleware/profile.js';
@@ -140,6 +141,8 @@ for (const { id } of getDb().prepare('SELECT id FROM profiles').all()) {
 if (hasConnectedProfile()) {
   startSyncSchedule();
 }
+
+startRankingRefreshSchedule();
 
 function recomputePacesIfMissing() {
   const db = getDb();

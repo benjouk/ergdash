@@ -136,23 +136,57 @@ function HrZonesSection() {
   );
 }
 
+// Server contract for the athlete fields (server/src/routes/settings.js):
+// blank, or a value inside these bounds.
+const minWeightKg = 20;
+const maxWeightKg = 300;
+const minBirthYear = 1900;
+const maxBirthYear = new Date().getUTCFullYear() - 5;
+
 function AthleteSection() {
-  const { weightKg, updatePref } = usePrefs();
+  const { weightKg, sex, birthYear, updatePref } = usePrefs();
   const [weight, setWeight] = useState('');
+  const [year, setYear] = useState('');
   const toast = useToast();
 
   useEffect(() => {
     setWeight(weightKg ? String(weightKg) : '');
   }, [weightKg]);
 
-  const save = () => {
-    const parsed = Number(weight);
-    const valid = weight === '' || (Number.isFinite(parsed) && parsed > 0);
-    if (!valid) return;
-    if ((weightKg || '') === (parsed || '')) return;
-    updatePref('weight_kg', weight === '' ? '' : parsed)
+  useEffect(() => {
+    setYear(birthYear ? String(birthYear) : '');
+  }, [birthYear]);
+
+  const savePref = (key, value) => {
+    updatePref(key, value)
       .then(() => toast.success('Settings saved'))
       .catch(err => toast.error(err.message || 'Could not save settings'));
+  };
+
+  const saveWeight = () => {
+    const parsed = Number(weight);
+    const valid = weight === ''
+      || (Number.isFinite(parsed) && parsed >= minWeightKg && parsed <= maxWeightKg);
+    if (!valid) {
+      toast.error(`Body weight must be between ${minWeightKg} and ${maxWeightKg} kg`);
+      setWeight(weightKg ? String(weightKg) : '');
+      return;
+    }
+    if ((weightKg || '') === (parsed || '')) return;
+    savePref('weight_kg', weight === '' ? '' : parsed);
+  };
+
+  const saveYear = () => {
+    const parsed = Number(year);
+    const valid = year === ''
+      || (Number.isInteger(parsed) && parsed >= minBirthYear && parsed <= maxBirthYear);
+    if (!valid) {
+      toast.error(`Birth year must be between ${minBirthYear} and ${maxBirthYear}`);
+      setYear(birthYear ? String(birthYear) : '');
+      return;
+    }
+    if ((birthYear || '') === (parsed || '')) return;
+    savePref('birth_year', year === '' ? '' : parsed);
   };
 
   return (
@@ -167,14 +201,52 @@ function AthleteSection() {
         </div>
         <input
           type="number"
-          min="30"
-          max="200"
+          min={minWeightKg}
+          max={maxWeightKg}
           step="0.5"
           value={weight}
           placeholder="kg"
           onChange={e => setWeight(e.target.value)}
-          onBlur={save}
+          onBlur={saveWeight}
           aria-label="Body weight in kilograms"
+          className={styles.numberInput}
+        />
+      </div>
+      <div className={styles.row}>
+        <div>
+          <div className={styles.label}>Sex</div>
+          <div className={styles.subtext}>
+            With birth year and weight, shows your estimated ranking percentile on personal bests - leave unset to disable
+          </div>
+        </div>
+        <select
+          className={styles.select}
+          value={sex || ''}
+          onChange={e => savePref('sex', e.target.value)}
+          aria-label="Sex for ranking comparison"
+        >
+          <option value="">Not set</option>
+          <option value="M">Male</option>
+          <option value="F">Female</option>
+        </select>
+      </div>
+      <div className={styles.row}>
+        <div>
+          <div className={styles.label}>Birth Year</div>
+          <div className={styles.subtext}>
+            Places percentiles in your ranking age group
+          </div>
+        </div>
+        <input
+          type="number"
+          min={minBirthYear}
+          max={maxBirthYear}
+          step="1"
+          value={year}
+          placeholder="yyyy"
+          onChange={e => setYear(e.target.value)}
+          onBlur={saveYear}
+          aria-label="Birth year"
           className={styles.numberInput}
         />
       </div>

@@ -23,6 +23,27 @@ const TIME_LABELS = {
   3600: '60 min',
 };
 
+// "top 18% · M 30-39 Hwt" - standing in the ranked erg population for the
+// athlete's class. Reconciled buckets (source 'live') come from the real
+// Concept2 season rankings; the bundled estimate keeps a "~" prefix.
+function benchmarkLabel(benchmark) {
+  const cls = [
+    benchmark.sex,
+    benchmark.age_band,
+    benchmark.weight_class === 'lwt' ? 'Lwt' : 'Hwt',
+  ].filter(Boolean).join(' ');
+  const prefix = benchmark.source === 'live' ? 'top' : '~top';
+  return `${prefix} ${benchmark.top_percent}% · ${cls}`;
+}
+
+function benchmarkTitle(benchmark) {
+  if (benchmark.source === 'live') {
+    const ranked = typeof benchmark.n === 'number' ? ` (${benchmark.n.toLocaleString()} ranked)` : '';
+    return `Percentile from the Concept2 ${benchmark.season} season rankings${ranked}`;
+  }
+  return 'Estimated percentile among ranked ergs for your class';
+}
+
 export default function PBStrip() {
   const [pbs, setPbs] = useState([]);
   const [timeBests, setTimeBests] = useState([]);
@@ -64,6 +85,11 @@ export default function PBStrip() {
           {weightKg && (
             <span className={styles.pbAdjusted}>wt adj {formatTime(Math.round(weightAdjusted(pb.time_ms, weightKg)))}</span>
           )}
+          {pb.benchmark && (
+            <span className={styles.pbRank} title={benchmarkTitle(pb.benchmark)}>
+              {benchmarkLabel(pb.benchmark)}
+            </span>
+          )}
           <span className={styles.pbDate}>{new Date(pb.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' })}</span>
         </button>
       ))}
@@ -81,6 +107,11 @@ export default function PBStrip() {
           <span className={styles.pbPace}>{formatPace(tb.pace_ms)}</span>
           {weightKg && (
             <span className={styles.pbAdjusted}>wt adj {formatDistance(Math.round(weightAdjustedDistance(tb.distance, weightKg)))}</span>
+          )}
+          {tb.benchmark && (
+            <span className={styles.pbRank} title={benchmarkTitle(tb.benchmark)}>
+              {benchmarkLabel(tb.benchmark)}
+            </span>
           )}
           <span className={styles.pbDate}>{new Date(tb.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' })}</span>
         </button>

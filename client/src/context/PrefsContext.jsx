@@ -9,12 +9,15 @@ const DEFAULT_PREFS = {
   week_start: 'monday',
   date_format: 'day-month',
   weight_kg: '',
+  sex: '',
+  birth_year: '',
 };
 
 const VALID_VALUES = {
   default_landing: ['/', '/progress', '/workouts'],
   week_start: ['monday', 'sunday'],
   date_format: ['day-month', 'month-day'],
+  sex: ['', 'M', 'F'],
 };
 
 function normalizePrefs(settings = {}) {
@@ -31,6 +34,11 @@ function normalizePrefs(settings = {}) {
     if (key === 'weight_kg') {
       const parsed = Number(value);
       if (Number.isFinite(parsed) && parsed > 0) prefs.weight_kg = String(parsed);
+      continue;
+    }
+    if (key === 'birth_year') {
+      const parsed = Number(value);
+      if (Number.isInteger(parsed) && parsed >= 1900) prefs.birth_year = String(parsed);
       continue;
     }
     prefs[key] = value;
@@ -61,6 +69,8 @@ export function PrefsProvider({ children }) {
         weekStart: prefs.week_start,
         dateFormat: prefs.date_format,
         weightKg: Number(prefs.weight_kg) > 0 ? Number(prefs.weight_kg) : null,
+        sex: prefs.sex || null,
+        birthYear: Number(prefs.birth_year) >= 1900 ? Number(prefs.birth_year) : null,
         updatePref,
       }}
     >

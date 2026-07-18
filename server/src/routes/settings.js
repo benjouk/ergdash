@@ -65,6 +65,22 @@ function validateSetting(key, value) {
     return { value: String(n) };
   }
 
+  if (key === 'sex') {
+    if (value === '' || value == null) return { value: '' };
+    if (!['M', 'F'].includes(String(value))) return { error: 'sex must be M, F, or empty' };
+    return { value: String(value) };
+  }
+
+  if (key === 'birth_year') {
+    if (value === '' || value == null) return { value: '' };
+    const n = parseNumber(value);
+    const maxYear = new Date().getUTCFullYear() - 5;
+    if (!Number.isInteger(n) || n < 1900 || n > maxYear) {
+      return { error: `birth_year must be an integer between 1900 and ${maxYear}` };
+    }
+    return { value: String(n) };
+  }
+
   if (key === 'weight_kg') {
     if (value === '' || value == null) return { value: '' };
     const n = parseNumber(value);
