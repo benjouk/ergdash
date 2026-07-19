@@ -3,6 +3,7 @@ import PaceChart from '../components/Charts/PaceChart.jsx';
 import VolumeChart from '../components/Charts/VolumeChart.jsx';
 import ZoneStackChart from '../components/Charts/ZoneStackChart.jsx';
 import PlanAdherenceChart from '../components/Charts/PlanAdherenceChart.jsx';
+import Eyebrow from '../components/Eyebrow/Eyebrow.jsx';
 import styles from './Progress.module.css';
 
 export default function ProgressTraining() {
@@ -29,7 +30,7 @@ export default function ProgressTraining() {
 function SectionHeading({ id, eyebrow, title, text }) {
   return (
     <div className={styles.sectionHeading}>
-      <div><span className={styles.eyebrow}>{eyebrow}</span><h3 id={id}>{title}</h3></div>
+      <div><Eyebrow>{eyebrow}</Eyebrow><h3 id={id}>{title}</h3></div>
       <span>{text}</span>
     </div>
   );
