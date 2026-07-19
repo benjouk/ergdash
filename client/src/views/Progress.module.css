@@ -244,6 +244,13 @@
   font-size: 0.68rem;
 }
 
+.sectionDivider {
+  height: 0;
+  margin: 0;
+  border: 0;
+  border-top: 1px solid var(--rule);
+}
+
 .targetCard,
 .targetEmpty,
 .inlineEmpty {
@@ -255,6 +262,12 @@
   border-radius: var(--radius-lg);
   background: var(--surface);
   box-shadow: var(--shadow-sm);
+}
+
+/* Accent edge marks the target as a distinct headline, not a fifth signal. */
+.targetCard,
+.targetEmpty {
+  border-top: 3px solid var(--accent);
 }
 
 .targetLead {

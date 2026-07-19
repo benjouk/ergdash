@@ -74,6 +74,8 @@ export default function ProgressOverview() {
         </div>
       </section>
 
+      <hr className={styles.sectionDivider} aria-hidden="true" />
+
       <PrimaryTarget target={target} loading={goals.loading} />
     </div>
   );
