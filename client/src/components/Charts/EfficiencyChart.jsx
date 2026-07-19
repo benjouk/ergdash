@@ -13,14 +13,14 @@ import styles from './Charts.module.css';
 const SMOOTH_WINDOW = 7;
 
 // Watts per heartbeat - the slow-moving "am I getting fitter?" line.
-export default function EfficiencyChart() {
+export default function EfficiencyChart({ tag = 'endurance' }) {
   const { from, to } = useTimeRange();
   const { data = [], loading, error, retry } = useChartData(() => {
-    const params = { metric: 'watts_per_beat', period: 'all' };
+    const params = { metric: 'watts_per_beat', period: 'all', tag };
     if (from) params.from = from;
     if (to) params.to = to;
     return api.getTrends(params).then(d => d.watts_per_beat_trend || []);
-  }, [from, to]);
+  }, [from, tag, to]);
 
   const formatted = useMemo(() => data.map((d, i) => {
     const window = data.slice(Math.max(0, i - SMOOTH_WINDOW + 1), i + 1);
@@ -91,7 +91,7 @@ export default function EfficiencyChart() {
         </ComposedChart>
       </ResponsiveContainer>
     
-      <ChartInfo>Average watts divided by average heart rate for each session measures how much power each heartbeat buys. A smoothed trend that climbs over months signals improving aerobic fitness.</ChartInfo>
+      <ChartInfo>For comparable steady sessions, average watts divided by average heart rate measures how much power each heartbeat buys. A smoothed trend that climbs over months signals improving aerobic fitness.</ChartInfo>
     </div>
   );
 }

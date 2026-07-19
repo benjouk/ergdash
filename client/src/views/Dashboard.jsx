@@ -3,13 +3,9 @@ import { api } from '../api.js';
 import { useTimeRange } from '../context/TimeRangeContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { distanceLabel } from '../components/PBBadge.jsx';
-import CoachCard from '../components/Stats/CoachCard.jsx';
 import StatsRow from '../components/Stats/StatsRow.jsx';
 import VolumeSummaryCard from '../components/Stats/VolumeSummaryCard.jsx';
 import SplitDonut from '../components/Stats/SplitDonut.jsx';
-import TargetsCard from '../components/Stats/TargetsCard.jsx';
-import RacePlanCard from '../components/Stats/RacePlanCard.jsx';
-import VolumeChart from '../components/Charts/VolumeChart.jsx';
 import PBStrip from '../components/Stats/PBStrip.jsx';
 import CalendarHeatmap from '../components/Charts/CalendarHeatmap.jsx';
 import FeedPanel from '../components/Feed/FeedPanel.jsx';
@@ -87,8 +83,6 @@ export default function Dashboard() {
         </section>
       )}
 
-      <CoachCard />
-
       <StatsRow summary={summary} goals={goals} />
 
       <div className={styles.chartsGrid}>
@@ -96,18 +90,10 @@ export default function Dashboard() {
         <SplitDonut summary={summary} />
       </div>
 
-      <TargetsCard goals={goals} />
-
-      <RacePlanCard goals={goals} />
-
       <section className={styles.mobileFeed} aria-label="Recent Sessions">
         <h3 className={styles.sectionHeader}>Recent Sessions</h3>
         <FeedPanel layout="row" />
       </section>
-
-      {/* Pace, zones, and fitness trends live on the Progress page; the
-          dashboard stays focused on volume, PBs, and the calendar. */}
-      <VolumeChart />
 
       <div>
         <h3 className={styles.sectionHeader}>Personal Bests</h3>

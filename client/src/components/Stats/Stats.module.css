@@ -548,6 +548,10 @@
   flex-wrap: wrap;
 }
 
+.racePhaseLegend {
+  display: none;
+}
+
 .raceVerdictOnTrack {
   color: var(--positive);
   border-color: var(--positive);
@@ -706,4 +710,90 @@
   background: var(--accent-bg);
   border-color: var(--accent);
   font-weight: 700;
+}
+
+@media (max-width: 480px) {
+  .targetStats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .targetStat:nth-child(3) {
+    grid-column: 1 / -1;
+  }
+
+  .targetStat {
+    min-width: 0;
+    padding: var(--space-2);
+  }
+
+  .targetStatLabel {
+    font-size: 0.58rem;
+    letter-spacing: 0.05em;
+  }
+
+  .racePlanHeader {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .racePlanMeta {
+    width: 100%;
+    gap: var(--space-1);
+  }
+
+  /* Multi-race selector buttons already include the countdown (for example,
+     2k · 42d), so a second countdown chip only adds noise on a phone. */
+  .raceCountdownDuplicate {
+    display: none;
+  }
+
+  .raceSummary {
+    font-size: 0.78rem;
+  }
+
+  .racePhase span {
+    display: none;
+  }
+
+  .racePhaseLegend {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-3);
+    margin-top: var(--space-2);
+    color: var(--ink-2);
+    font-size: 0.64rem;
+  }
+
+  .racePhaseLegend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .racePhaseLegend i {
+    display: block;
+    flex: 0 0 auto;
+    width: 8px;
+    height: 8px;
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+  }
+
+  .raceMilestone {
+    align-items: flex-start;
+    gap: var(--space-2);
+  }
+
+  .raceMilestoneDate {
+    min-width: 42px;
+    font-size: 0.64rem;
+  }
+
+  .raceMilestoneDesc {
+    display: block;
+    margin-top: 2px;
+    line-height: 1.35;
+  }
 }

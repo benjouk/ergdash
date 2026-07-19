@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Calculator, Clock3, Gauge, Scale, TrendingUp, Zap } from 'lucide-react';
-import { api } from '../api.js';
+import { Calculator, Clock3, Gauge, Scale, Zap } from 'lucide-react';
 import { useUnits } from '../context/UnitsContext.jsx';
 import { usePrefs } from '../context/PrefsContext.jsx';
-import { distanceLabel } from '../components/PBBadge.jsx';
 import {
   buildRacePlan,
   calHrToWatts,
@@ -131,91 +129,6 @@ function WeightAdjustCard() {
   );
 }
 
-// Current predicted time at every benchmark distance, from the same trend
-// engine the Targets and Race Plan cards use. Distances without enough recent
-// results get a ~pace-per-doubling estimate off the nearest trained distance.
-function PredictedTimesCard() {
-  const { formatTime, formatPace } = useUnits();
-  const [data, setData] = useState(null);
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    let mounted = true;
-    api.getPredictedTimes()
-      .then(d => { if (mounted) setData(d); })
-      .catch(() => { if (mounted) setFailed(true); });
-    return () => { mounted = false; };
-  }, []);
-
-  const rows = data?.predicted_times || [];
-  const doublingS = data ? (data.pace_per_doubling_ms / 1000).toFixed(1) : null;
-
-  return (
-    <section className={styles.card}>
-      <div className={styles.cardHeader}>
-        <div>
-          <span className={styles.kicker}>Prediction</span>
-          <h3 className={styles.cardTitle}>Predicted times</h3>
-        </div>
-        <TrendingUp size={20} className={styles.cardIcon} aria-hidden="true" />
-      </div>
-
-      {rows.length > 0 ? (
-        <>
-          <div className={styles.tableWrap}>
-            <table className={styles.splitsTable}>
-              <thead>
-                <tr>
-                  <th>Distance</th>
-                  <th>Predicted</th>
-                  <th>/500m</th>
-                  <th>vs PB</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map(row => (
-                  <tr key={row.distance}>
-                    <td>{distanceLabel(row.distance)}</td>
-                    <td
-                      title={row.source === 'trend'
-                        ? `Projected from ${row.sample_size} recent hard ${distanceLabel(row.distance)} results`
-                        : `Estimated from your ${distanceLabel(row.anchor_distance)} trend`}
-                    >
-                      {row.source === 'estimated' && '~'}{formatTime(row.predicted_time_ms)}
-                    </td>
-                    <td>{formatPace(row.pace_ms)}</td>
-                    <td>{deltaVsPb(row.delta_ms)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <p className={styles.cardNote}>
-            Plain rows project your recent hard results at that distance to today.
-            ~ rows are estimated from the nearest trained distance at {doublingS}s
-            of split per doubling{data.doubling_source === 'fitted'
-              ? ', fitted to your own results' : " (Paul's Law)"}.
-          </p>
-        </>
-      ) : (
-        <div className={styles.empty}>
-          {failed
-            ? 'Predictions are unavailable right now.'
-            : data
-              ? 'Row a few hard pieces at a benchmark distance and predictions will appear here.'
-              : 'Loading…'}
-        </div>
-      )}
-    </section>
-  );
-}
-
-function deltaVsPb(deltaMs) {
-  if (deltaMs == null) return '—';
-  const seconds = Math.abs(deltaMs) / 1000;
-  return `${deltaMs > 0 ? '+' : '-'}${seconds.toFixed(1)}s`;
-}
-
 export default function Tools() {
   const { formatDistanceFull } = useUnits();
   const [paceSeconds, setPaceSeconds] = useState(120);
@@ -323,8 +236,6 @@ export default function Tools() {
         </section>
 
         <WeightAdjustCard />
-
-        <PredictedTimesCard />
 
         <section className={styles.card}>
           <div className={styles.cardHeader}>

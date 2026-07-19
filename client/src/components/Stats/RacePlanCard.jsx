@@ -67,7 +67,7 @@ export default function RacePlanCard({ goals }) {
 
   return (
     <div className={chartStyles.chartCard}>
-      <div className={chartStyles.chartHeader}>
+      <div className={`${chartStyles.chartHeader} ${styles.racePlanHeader}`}>
         <div className={chartStyles.chartTitle}>Race Plan</div>
         <div className={styles.racePlanMeta}>
           {raceGoals.length > 1 ? (
@@ -84,7 +84,7 @@ export default function RacePlanCard({ goals }) {
           ) : (
             <span className={styles.targetDistance}>{distanceLabel(plan.distance)}</span>
           )}
-          <span className={`${styles.targetChip} ${styles.targetChipAccent}`}>
+          <span className={`${styles.targetChip} ${styles.targetChipAccent} ${raceGoals.length > 1 ? styles.raceCountdownDuplicate : ''}`}>
             {plan.days_to_race === 0 ? 'race today' : `${plan.days_to_race} days to race`}
           </span>
           {verdict.label && (
@@ -107,6 +107,7 @@ export default function RacePlanCard({ goals }) {
               className={`${styles.racePhase} ${PHASE_CLASSES[phase.key] || ''} ${isCurrent ? styles.racePhaseCurrent : ''}`}
               style={{ width }}
               title={`${phase.label}: ${phase.description}`}
+              aria-label={`${phase.label}: ${phase.description}`}
             >
               <span>{phase.label}</span>
             </div>
@@ -117,6 +118,14 @@ export default function RacePlanCard({ goals }) {
       <div className={styles.raceScale}>
         <span>{shortDate(plan.timeline_start)}</span>
         <span>{shortDate(plan.race_date)}</span>
+      </div>
+      <div className={styles.racePhaseLegend} aria-hidden="true">
+        {plan.phases.map(phase => (
+          <span key={phase.key}>
+            <i className={PHASE_CLASSES[phase.key] || ''} />
+            {phase.label}
+          </span>
+        ))}
       </div>
 
       <ul className={styles.raceMilestones}>

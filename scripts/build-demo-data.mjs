@@ -19,6 +19,10 @@ const TREND_METRICS = [
   'volume', 'pace', 'rate', 'consistency', 'dps',
   'watts_per_beat', 'hr_drift', 'rate_discipline', 'drag', 'effort',
 ];
+const COMPARABLE_TREND_METRICS = [
+  'pace', 'consistency', 'dps', 'watts_per_beat',
+  'hr_drift', 'rate_discipline', 'drag', 'effort',
+];
 
 function computeDateRange(key) {
   const now = new Date();
@@ -202,8 +206,18 @@ async function captureProfile(profileId) {
     await capture('/api/stats/zones', { ...params, group: 'week' }, rangeKey);
     await capture('/api/stats/polarization', params, rangeKey);
     await capture('/api/stats/pb-history', params, rangeKey);
+    await capture('/api/stats/power-curve', params, rangeKey);
+    await capture('/api/plans/adherence', {
+      ...params,
+      ...(rangeKey === 'all' ? { from: '1900-01-01' } : {}),
+    }, rangeKey);
     for (const metric of TREND_METRICS) {
       await capture('/api/stats/trends', { ...params, metric, period: 'all' }, rangeKey);
+    }
+    for (const metric of COMPARABLE_TREND_METRICS) {
+      await capture('/api/stats/trends', {
+        ...params, metric, period: 'all', tag: 'endurance',
+      }, rangeKey);
     }
   }
 

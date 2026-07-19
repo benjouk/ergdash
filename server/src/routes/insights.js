@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { getDb } from '../db.js';
-import { buildWeeklyInsights } from '../insights.js';
+import { buildWeeklyOverview } from '../insights.js';
 import { computeWeekStreak } from '../analytics.js';
 
 const router = Router();
@@ -43,7 +43,7 @@ router.get('/weekly', (req, res) => {
   const weekAgo = fitnessRows.find(r => r.date <= new Date(now - 7 * DAY).toISOString().slice(0, 10))
     || fitnessRows[fitnessRows.length - 1] || null;
 
-  const insights = buildWeeklyInsights({
+  const overview = buildWeeklyOverview({
     weeklyMeters: thisWeek.meters,
     prevWeeklyMeters: prevWeek.meters,
     sessionsThisWeek: thisWeek.count,
@@ -56,7 +56,7 @@ router.get('/weekly', (req, res) => {
     priorEndurancePaceMs: endurancePaceBetween(db, req.profileId, now - 60 * DAY, now - 30 * DAY),
   });
 
-  res.json({ insights });
+  res.json(overview);
 });
 
 export default router;

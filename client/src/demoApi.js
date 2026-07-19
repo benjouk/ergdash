@@ -18,6 +18,8 @@ const RANGE_SCOPED_ROUTES = new Set([
   '/api/stats/polarization',
   '/api/stats/pb-history',
   '/api/stats/trends',
+  '/api/stats/power-curve',
+  '/api/plans/adherence',
 ]);
 
 // Fixtures are captured per profile under demo-data/p<id>/, so each household
@@ -94,6 +96,30 @@ async function lookupFixture(path, params) {
   if (RANGE_SCOPED_ROUTES.has(path)) {
     const fallbackKey = manifestKey(path, { ...params, from: undefined, to: undefined });
     if (manifest[fallbackKey]) return loadFixture(manifest[fallbackKey]);
+
+    // Backward compatibility for a checked-in fixture set captured before an
+    // endpoint became range-aware. Fresh captures write exact range keys.
+    const unscopedKey = manifestKey(path, {
+      ...params, from: undefined, to: undefined,
+    }).replace(/^([^?]+)\?range=all&?/, '$1?').replace(/\?$/, '');
+    if (manifest[unscopedKey]) return loadFixture(manifest[unscopedKey]);
+  }
+
+  // Technique filtering was added after the original static fixture set.
+  // Prefer exact tagged captures; otherwise use the untagged response and
+  // filter rows that carry a tag. New demo captures include exact fixtures.
+  if (path === '/api/stats/trends' && params.tag) {
+    const withoutTag = { ...params };
+    delete withoutTag.tag;
+    const fallback = await lookupFixture(path, withoutTag);
+    const key = Object.keys(fallback).find(name => name.endsWith('_trend'));
+    if (!key) return fallback;
+    return {
+      ...fallback,
+      [key]: fallback[key].filter(row => (
+        !row.inferred_tag || row.inferred_tag === params.tag
+      )),
+    };
   }
 
   console.warn(`[demo] no fixture for ${key}`);

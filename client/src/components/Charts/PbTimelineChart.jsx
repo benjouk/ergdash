@@ -89,7 +89,7 @@ export default function PbTimelineChart() {
           />
           <Tooltip
             {...TOOLTIP_PROPS}
-            formatter={(value, key) => [formatPace(value), seriesLabel(String(key))]}
+            formatter={(value, name) => [formatPace(value), String(name)]}
           />
           {keys.map((key, index) => (
             <Line
