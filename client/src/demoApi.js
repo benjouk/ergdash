@@ -7,6 +7,11 @@ import {
   generateProgramSessions, resolveDurationWeeks, deriveIntervalTotals,
   validateProgramInput, shiftDate, remapDate, RACE_MIN_LEAD_DAYS,
 } from './utils/programSchedule.js';
+import {
+  GOAL_PERIODS, STANDARD_PB_DISTANCES, isStrictDate,
+  periodWindow, volumeProgress, performanceGap,
+} from './utils/goalMath.js';
+import { projectPerformance, buildRacePlan } from './utils/racePlanMath.js';
 
 const BASE = import.meta.env.BASE_URL;
 const RANGE_KEYS = ['30d', '90d', 'season', 'last_season', 'all'];
@@ -438,6 +443,284 @@ async function startDemoProgram(body) {
   return findDemoProgram(programId);
 }
 
+// --- goal overlay (visitor-side goal management) ---
+// Goals live in localStorage like plans. The fixture captured each goal with
+// its progress decoration baked in, but edits (and the deployed demo aging
+// past the capture) change that decoration, so ALL goals are re-decorated at
+// read time from the workouts fixture. Mirrors server/src/routes/goals.js;
+// the maths lives in utils/goalMath.js + utils/racePlanMath.js.
+
+const GOAL_OVERLAY_KEY = 'ergdash-demo-goal-overlay';
+const DEMO_GOAL_ID_FLOOR = 900000;
+const MAX_GOAL_LABEL_LENGTH = 100;
+
+function getGoalOverlay() {
+  return readOverlay(GOAL_OVERLAY_KEY, { created: [], patched: {}, deleted: [] });
+}
+
+// Full workout rows (with visitor edits applied) - the demo's stand-in for
+// the workouts table when goal progress needs PBs and result trends.
+async function loadWorkoutRows() {
+  const all = await loadFixture((await loadManifest())['/api/workouts']);
+  return all.data.map(applyWorkoutOverlay);
+}
+
+// Fastest row at the distance (mirrors the server's PB query: warmups
+// excluded, intervals still count - an all-out 2k is a PB however it's tagged).
+function demoGoalPb(workouts, distance) {
+  let best = null;
+  for (const w of workouts) {
+    if (w.type !== 'rower' || w.distance !== distance || !(w.pace_ms > 0) || w.intent === 'warmup') continue;
+    if (!best || w.pace_ms < best.pace_ms) best = w;
+  }
+  return best ? { workout_id: best.id, date: best.date, time_ms: best.time_ms, pace_ms: best.pace_ms } : null;
+}
+
+// Continuous pieces only, mirroring the server's goalDistanceResults: an
+// interval session's work pace is not a race-distance result.
+function demoGoalResults(workouts, distance) {
+  return workouts
+    .filter(w => w.type === 'rower' && w.distance === distance && w.pace_ms > 0
+      && w.inferred_tag !== 'interval' && w.intent !== 'warmup')
+    .map(w => ({ date: w.date, time_ms: w.time_ms, pace_ms: w.pace_ms }))
+    .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+}
+
+async function demoWeekStart() {
+  const fixture = await lookupFixture('/api/settings', {});
+  const settings = { ...fixture, ...getSettingsOverlay() };
+  return settings.week_start === 'sunday' ? 'sunday' : 'monday';
+}
+
+// Mirrors the server's decorateGoal, minus the achieved_at stamp (the server
+// persists first achievement; the demo just reports the computed flag).
+function decorateDemoGoal(goal, workouts, weekStart, now = new Date()) {
+  if (goal.kind === 'volume') {
+    const window = periodWindow(goal.period, now, weekStart);
+    const meters = workouts.reduce((sum, w) => (
+      w.type === 'rower' && w.date >= window.from && w.date < window.to ? sum + w.distance : sum
+    ), 0);
+    return {
+      ...goal,
+      progress: {
+        window: { from: window.from, to: window.to },
+        ...volumeProgress(goal.target_meters, meters, window.elapsedFraction),
+      },
+    };
+  }
+
+  const pb = demoGoalPb(workouts, goal.distance);
+  const today = now.toISOString().slice(0, 10);
+  const projectTo = goal.race_date && goal.race_date >= today ? goal.race_date : today;
+  const projection = projectPerformance({
+    distance: goal.distance,
+    results: demoGoalResults(workouts, goal.distance),
+    toDate: projectTo,
+    today,
+  });
+  const prediction = projection.projected_time_ms != null
+    ? {
+      distance: goal.distance,
+      predicted_time: projection.projected_time_ms,
+      confidence: projection.confidence,
+      sample_size: projection.sample_size,
+      projected_to: projectTo,
+    }
+    : null;
+
+  return { ...goal, progress: { pb, prediction, ...performanceGap(goal, pb, prediction, now) } };
+}
+
+// Mirrors "ORDER BY active DESC, kind, period, distance, id" (SQLite sorts
+// NULLs first ascending).
+function demoGoalOrder(a, b) {
+  const nullFirst = (x, y) => {
+    if (x == null && y == null) return 0;
+    if (x == null) return -1;
+    if (y == null) return 1;
+    return x < y ? -1 : x > y ? 1 : 0;
+  };
+  return (b.active ? 1 : 0) - (a.active ? 1 : 0)
+    || nullFirst(a.kind, b.kind)
+    || nullFirst(a.period, b.period)
+    || nullFirst(a.distance, b.distance)
+    || a.id - b.id;
+}
+
+async function loadDemoGoals() {
+  const fixture = await lookupFixture('/api/goals', {});
+  const overlay = getGoalOverlay();
+  const deleted = new Set(overlay.deleted);
+  const [workouts, weekStart] = await Promise.all([loadWorkoutRows(), demoWeekStart()]);
+  return [...(fixture.goals || []), ...overlay.created]
+    .filter(g => !deleted.has(g.id))
+    .map(g => ({ ...g, ...(overlay.patched[g.id] || {}) }))
+    .map(g => decorateDemoGoal(g, workouts, weekStart))
+    .sort(demoGoalOrder);
+}
+
+async function findDemoGoal(id) {
+  const goal = (await loadDemoGoals()).find(g => g.id === id);
+  if (!goal) throw new Error('Goal not found');
+  return goal;
+}
+
+// Mirrors the server's validateGoalBody; the demo surfaces the first problem
+// directly (the real client only ever sees the generic "Validation failed").
+function validateDemoGoalBody(body, kind, { partial = false } = {}) {
+  const errors = [];
+  const fields = {};
+  const has = (f) => Object.prototype.hasOwnProperty.call(body, f);
+
+  if (kind === 'volume') {
+    if (has('period') || !partial) {
+      if (!GOAL_PERIODS.includes(body.period)) {
+        errors.push(`period must be one of: ${GOAL_PERIODS.join(', ')}`);
+      } else {
+        fields.period = body.period;
+      }
+    }
+    if (has('target_meters') || !partial) {
+      if (!Number.isInteger(body.target_meters) || body.target_meters <= 0) {
+        errors.push('target_meters must be a positive integer');
+      } else {
+        fields.target_meters = body.target_meters;
+      }
+    }
+  } else {
+    if (has('distance') || !partial) {
+      if (!STANDARD_PB_DISTANCES.includes(body.distance)) {
+        errors.push(`distance must be one of: ${STANDARD_PB_DISTANCES.join(', ')}`);
+      } else {
+        fields.distance = body.distance;
+      }
+    }
+    if (has('target_time_ms') || !partial) {
+      if (!Number.isInteger(body.target_time_ms) || body.target_time_ms <= 0) {
+        errors.push('target_time_ms must be a positive integer');
+      } else {
+        fields.target_time_ms = body.target_time_ms;
+      }
+    }
+    if (has('race_date')) {
+      if (body.race_date == null || body.race_date === '') {
+        fields.race_date = null;
+      } else if (!isStrictDate(body.race_date)) {
+        errors.push('race_date must be an ISO 8601 date (YYYY-MM-DD)');
+      } else {
+        fields.race_date = body.race_date;
+      }
+    }
+    if (has('label')) {
+      if (body.label == null || body.label === '') {
+        fields.label = null;
+      } else if (typeof body.label !== 'string' || body.label.length > MAX_GOAL_LABEL_LENGTH) {
+        errors.push(`label must be a string of ${MAX_GOAL_LABEL_LENGTH} characters or fewer`);
+      } else {
+        fields.label = body.label;
+      }
+    }
+  }
+
+  if (has('active')) {
+    if (typeof body.active !== 'boolean') {
+      errors.push('active must be a boolean');
+    } else {
+      fields.active = body.active ? 1 : 0;
+    }
+  }
+
+  if (errors.length > 0) throw new Error(errors[0]);
+  return fields;
+}
+
+function activeDemoVolumeConflict(goals, period, excludeId = null) {
+  return goals.some(g => g.kind === 'volume' && g.period === period && g.active && g.id !== excludeId);
+}
+
+async function createDemoGoal(body) {
+  if (!['volume', 'performance'].includes(body.kind)) {
+    throw new Error('kind must be one of: volume, performance');
+  }
+  const fields = validateDemoGoalBody(body, body.kind);
+
+  const active = fields.active ?? 1;
+  if (body.kind === 'volume' && active && activeDemoVolumeConflict(await loadDemoGoals(), fields.period)) {
+    throw new Error(`An active ${fields.period} volume goal already exists`);
+  }
+
+  const overlay = getGoalOverlay();
+  const id = Math.max(DEMO_GOAL_ID_FLOOR - 1, ...overlay.created.map(g => g.id)) + 1;
+  const now = new Date().toISOString();
+  overlay.created.push({
+    id,
+    profile_id: Number(await activeProfileId()),
+    kind: body.kind,
+    period: fields.period ?? null,
+    target_meters: fields.target_meters ?? null,
+    distance: fields.distance ?? null,
+    target_time_ms: fields.target_time_ms ?? null,
+    race_date: fields.race_date ?? null,
+    label: fields.label ?? null,
+    active,
+    achieved_at: null,
+    created_at: now,
+    updated_at: now,
+  });
+  writeOverlay(GOAL_OVERLAY_KEY, overlay);
+  return findDemoGoal(id);
+}
+
+async function patchDemoGoal(id, body) {
+  const goals = await loadDemoGoals();
+  const existing = goals.find(g => g.id === id);
+  if (!existing) throw new Error('Goal not found');
+
+  const fields = validateDemoGoalBody(body, existing.kind, { partial: true });
+  if (Object.keys(fields).length === 0) throw new Error('No valid fields provided');
+
+  if (existing.kind === 'volume') {
+    const period = fields.period ?? existing.period;
+    const active = fields.active ?? existing.active;
+    if (active && activeDemoVolumeConflict(goals, period, id)) {
+      throw new Error(`An active ${period} volume goal already exists`);
+    }
+  }
+
+  const overlay = getGoalOverlay();
+  overlay.patched[id] = { ...overlay.patched[id], ...fields, updated_at: new Date().toISOString() };
+  writeOverlay(GOAL_OVERLAY_KEY, overlay);
+  return findDemoGoal(id);
+}
+
+async function deleteDemoGoal(id) {
+  await findDemoGoal(id);
+  const overlay = getGoalOverlay();
+  if (overlay.created.some(g => g.id === id)) {
+    overlay.created = overlay.created.filter(g => g.id !== id);
+    delete overlay.patched[id];
+  } else {
+    overlay.deleted.push(id);
+  }
+  writeOverlay(GOAL_OVERLAY_KEY, overlay);
+  return { ok: true };
+}
+
+// Same maths as the server's race-plan route, recomputed from the fixture so
+// visitor-created race goals get a plan too.
+async function demoRacePlan(id) {
+  const goal = await findDemoGoal(id);
+  if (goal.kind !== 'performance') throw new Error('Goal not found');
+  if (!goal.race_date) throw new Error('Goal has no race date');
+  const workouts = await loadWorkoutRows();
+  const pb = demoGoalPb(workouts, goal.distance);
+  return buildRacePlan({
+    goal,
+    results: demoGoalResults(workouts, goal.distance),
+    pb: pb ? { time_ms: pb.time_ms } : null,
+  });
+}
+
 // --- request handling ---
 
 function parsePath(path) {
@@ -514,8 +797,17 @@ async function handleGet(route, params) {
     return { workouts: [a, b], comparison_match: demoComparisonMatch(a, b) };
   }
 
-  // Goals/predictions/adherence are served straight from their fixtures by
-  // the default lookup below; plans get overlay merging + range filtering.
+  if (route === '/api/goals') {
+    return { goals: await loadDemoGoals() };
+  }
+
+  const racePlanMatch = route.match(/^\/api\/goals\/(\d+)\/race-plan$/);
+  if (racePlanMatch) {
+    return demoRacePlan(Number(racePlanMatch[1]));
+  }
+
+  // Predictions/adherence are served straight from their fixtures by the
+  // default lookup below; plans get overlay merging + range filtering.
   if (route === '/api/plans') {
     let plans = await loadDemoPlans();
     if (params.from) plans = plans.filter(p => p.date >= params.from.slice(0, 10));
@@ -626,8 +918,9 @@ async function handlePatch(route, body) {
     return findDemoPlan(id);
   }
 
-  if (route.startsWith('/api/goals')) {
-    throw new Error('Demo mode - goals are read-only in the live demo');
+  const goalMatch = route.match(/^\/api\/goals\/(\d+)$/);
+  if (goalMatch) {
+    return patchDemoGoal(Number(goalMatch[1]), body);
   }
 
   const programMatch = route.match(/^\/api\/programs\/(\d+)$/);
@@ -704,8 +997,8 @@ export async function demoRequest(path, options = {}) {
       const body = options.body ? JSON.parse(options.body) : {};
       return shiftDemoProgram(Number(shiftRoute[1]), Number(body.weeks));
     }
-    if (route.startsWith('/api/goals')) {
-      throw new Error('Demo mode - goals are read-only in the live demo');
+    if (route === '/api/goals') {
+      return createDemoGoal(options.body ? JSON.parse(options.body) : {});
     }
     throw new Error('Demo mode - run ErgDash self-hosted to connect your own Concept2 account');
   }
@@ -733,8 +1026,9 @@ export async function demoRequest(path, options = {}) {
     if (programRoute) {
       return deleteDemoProgram(Number(programRoute[1]));
     }
-    if (route.startsWith('/api/goals')) {
-      throw new Error('Demo mode - goals are read-only in the live demo');
+    const goalRoute = route.match(/^\/api\/goals\/(\d+)$/);
+    if (goalRoute) {
+      return deleteDemoGoal(Number(goalRoute[1]));
     }
   }
 

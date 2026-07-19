@@ -286,9 +286,11 @@ function GoalsSection() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Resolves true on success so callers can gate follow-up UI state (the
+  // add-target form must keep its input when the save fails).
   const run = (promise, message = 'Goal saved') => promise
-    .then(() => { toast.success(message); return load(); })
-    .catch(err => toast.error(err.message || 'Could not save goal'));
+    .then(() => { toast.success(message); return load().then(() => true); })
+    .catch(err => { toast.error(err.message || 'Could not save goal'); return false; });
 
   const saveVolume = (period) => {
     const existing = goals?.find(g => g.kind === 'volume' && g.period === period && g.active);
@@ -317,8 +319,9 @@ function GoalsSection() {
     };
     if (newTarget.raceDate) payload.race_date = newTarget.raceDate;
     if (newTarget.label.trim()) payload.label = newTarget.label.trim();
-    run(api.createGoal(payload), 'Target added')
-      .then(() => setNewTarget({ distance: '2000', time: '', raceDate: '', label: '' }));
+    run(api.createGoal(payload), 'Target added').then(ok => {
+      if (ok) setNewTarget({ distance: '2000', time: '', raceDate: '', label: '' });
+    });
   };
 
   const patchTarget = (goal, field, value) => {
