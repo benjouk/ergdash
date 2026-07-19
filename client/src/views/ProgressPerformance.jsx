@@ -9,6 +9,7 @@ import PredictedTimesCard from '../components/Stats/PredictedTimesCard.jsx';
 import PowerCurveChart from '../components/Charts/PowerCurveChart.jsx';
 import PbTimelineChart from '../components/Charts/PbTimelineChart.jsx';
 import FadeFingerprint from '../components/Charts/FadeFingerprint.jsx';
+import Eyebrow from '../components/Eyebrow/Eyebrow.jsx';
 import styles from './Progress.module.css';
 
 export default function ProgressPerformance() {
@@ -19,7 +20,7 @@ export default function ProgressPerformance() {
     <div className={styles.detailSections}>
       <section className={styles.detailSection} aria-labelledby="targets-heading">
         <div className={styles.sectionHeading}>
-          <div><span className={styles.eyebrow}>Targets & readiness</span><h3 id="targets-heading">What can you produce now?</h3></div>
+          <div><Eyebrow>Targets & readiness</Eyebrow><h3 id="targets-heading">What can you produce now?</h3></div>
           <span>Targets and predictions are current-state estimates, independent of the selected range.</span>
         </div>
         {loading ? (
@@ -39,7 +40,7 @@ export default function ProgressPerformance() {
 
       <section className={styles.detailSection} aria-labelledby="benchmarks-heading">
         <div className={styles.sectionHeading}>
-          <div><span className={styles.eyebrow}>Benchmarks</span><h3 id="benchmarks-heading">Speed across the range</h3></div>
+          <div><Eyebrow>Benchmarks</Eyebrow><h3 id="benchmarks-heading">Speed across the range</h3></div>
           <span>Selected-period bests sit alongside current projections and PB history.</span>
         </div>
         <div className={styles.benchmarkColumns}>

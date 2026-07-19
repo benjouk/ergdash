@@ -6,6 +6,7 @@ import { distanceLabel } from '../components/PBBadge.jsx';
 import { ChartSkeleton } from '../components/Skeleton/Skeleton.jsx';
 import { useChartData } from '../components/Charts/useChartData.js';
 import { selectPrimaryTarget } from './progressModel.js';
+import Eyebrow from '../components/Eyebrow/Eyebrow.jsx';
 import styles from './Progress.module.css';
 
 const SIGNAL_META = {
@@ -30,7 +31,7 @@ export default function ProgressOverview() {
     <div className={styles.overview}>
       <section className={`${styles.verdictCard} ${overview?.status ? styles[`verdict_${overview.status.tone}`] : ''}`}>
         <div className={styles.verdictIntro}>
-          <span className={styles.eyebrow}>Current direction · last 7 days</span>
+          <Eyebrow>Current direction · last 7 days</Eyebrow>
           {overview?.status ? (
             <>
               <div className={styles.verdictHeading}>
@@ -61,7 +62,7 @@ export default function ProgressOverview() {
       <section aria-labelledby="signals-heading">
         <div className={styles.sectionHeading}>
           <div>
-            <span className={styles.eyebrow}>The evidence</span>
+            <Eyebrow>The evidence</Eyebrow>
             <h3 id="signals-heading">Four signals worth watching</h3>
           </div>
           <span>Fixed windows are labelled so the numbers stay comparable.</span>
@@ -133,7 +134,7 @@ function PrimaryTarget({ target, loading }) {
     return (
       <section className={styles.targetEmpty}>
         <div>
-          <span className={styles.eyebrow}>Primary target</span>
+          <Eyebrow>Primary target</Eyebrow>
           <h3>Give the trend somewhere to go</h3>
           <p>Set a performance target to compare your PB and current projection against a real outcome.</p>
         </div>
@@ -149,7 +150,7 @@ function PrimaryTarget({ target, loading }) {
   return (
     <section className={styles.targetCard}>
       <div className={styles.targetLead}>
-        <span className={styles.eyebrow}>Primary target · current projection</span>
+        <Eyebrow>Primary target · current projection</Eyebrow>
         <div className={styles.targetTitleRow}>
           <h3>{distanceLabel(target.distance)} · {formatTime(target.target_time_ms)}</h3>
           {days != null && days >= 0 && <span>{days === 0 ? 'Race today' : `${days} days to race`}</span>}

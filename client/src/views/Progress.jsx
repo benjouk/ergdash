@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ChartSkeleton } from '../components/Skeleton/Skeleton.jsx';
+import PageHeader from '../components/PageHeader/PageHeader.jsx';
 import { normalizeProgressView, PROGRESS_VIEWS } from './progressModel.js';
 import styles from './Progress.module.css';
 
@@ -25,12 +26,7 @@ export default function Progress() {
 
   return (
     <div className={styles.progress}>
-      <header className={styles.header}>
-        <div>
-          <h2 className={styles.title}>Progress</h2>
-          <p className={styles.subtitle}>{VIEW_META[activeView].description}</p>
-        </div>
-      </header>
+      <PageHeader title="Progress" subtitle={VIEW_META[activeView].description} />
 
       <nav className={styles.tabs} aria-label="Progress views">
         {PROGRESS_VIEWS.map(view => (

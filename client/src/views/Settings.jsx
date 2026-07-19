@@ -10,6 +10,7 @@ import { useToast } from '../context/ToastContext.jsx';
 import { usePrefs } from '../context/PrefsContext.jsx';
 import { useTimeRange } from '../context/TimeRangeContext.jsx';
 import Segmented from '../components/ui/Segmented.jsx';
+import PageHeader from '../components/PageHeader/PageHeader.jsx';
 import styles from './Settings.module.css';
 
 const DEFAULT_ZONE_PERCENTS = [60, 70, 80, 90, 100];
@@ -727,7 +728,10 @@ export default function Settings() {
 
   return (
     <div className={styles.settings}>
-      <h2 className={styles.title}>Settings</h2>
+      <PageHeader
+        title="Settings"
+        subtitle="Manage your profile, preferences, connection, and data."
+      />
 
       <div className={styles.section}>
         <h3 className={styles.sectionTitle}>Appearance</h3>

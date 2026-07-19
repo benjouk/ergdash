@@ -4,27 +4,6 @@
   gap: var(--space-4);
 }
 
-.header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-}
-
-.title {
-  font-family: var(--font-hero);
-  font-size: clamp(1.5rem, 1.35rem + 0.9vw, 1.85rem);
-  font-weight: 700;
-  letter-spacing: -0.03em;
-  color: var(--ink);
-}
-
-.actions {
-  display: flex;
-  gap: var(--space-2);
-}
-
 .compareModeActive { color: var(--accent-2); border-color: var(--accent-2); }
 .compareTray { position: sticky; top: var(--space-3); z-index: 12; display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); margin-bottom: var(--space-3); padding: var(--space-3) var(--space-4); background: color-mix(in srgb, var(--accent-2) 10%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent-2) 35%, var(--rule)); border-radius: var(--radius-md); box-shadow: var(--shadow-md); }
 .compareTray > div { display: flex; align-items: center; gap: var(--space-2); color: var(--ink); }

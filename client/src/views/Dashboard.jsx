@@ -9,6 +9,7 @@ import SplitDonut from '../components/Stats/SplitDonut.jsx';
 import PBStrip from '../components/Stats/PBStrip.jsx';
 import CalendarHeatmap from '../components/Charts/CalendarHeatmap.jsx';
 import FeedPanel from '../components/Feed/FeedPanel.jsx';
+import PageHeader from '../components/PageHeader/PageHeader.jsx';
 import styles from './Dashboard.module.css';
 
 export default function Dashboard() {
@@ -66,6 +67,11 @@ export default function Dashboard() {
 
   return (
     <div className={styles.dashboard}>
+      <PageHeader
+        title="Dashboard"
+        subtitle="Your recent training at a glance."
+      />
+
       {pbEvents.length > 0 && !pbBannerHidden && (
         <section className={styles.pbBanner} aria-label="New personal best">
           <div>

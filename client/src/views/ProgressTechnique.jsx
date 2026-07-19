@@ -10,6 +10,7 @@ import DpsTrendChart from '../components/Charts/DpsTrendChart.jsx';
 import StrokeQualityCard from '../components/Charts/StrokeQualityCard.jsx';
 import DragFactorChart from '../components/Charts/DragFactorChart.jsx';
 import { buildTechniqueSummaries } from './progressModel.js';
+import Eyebrow from '../components/Eyebrow/Eyebrow.jsx';
 import styles from './Progress.module.css';
 
 const METRICS = [
@@ -56,7 +57,7 @@ export default function ProgressTechnique() {
     <div className={styles.detailSections}>
       <section className={styles.detailSection} aria-labelledby="technique-heading">
         <div className={styles.sectionHeading}>
-          <div><span className={styles.eyebrow}>Steady sessions only</span><h3 id="technique-heading">One technique signal at a time</h3></div>
+          <div><Eyebrow>Steady sessions only</Eyebrow><h3 id="technique-heading">One technique signal at a time</h3></div>
           <span>Like-for-like rows reduce noise. Efficiency and HR drift need heart-rate data.</span>
         </div>
 

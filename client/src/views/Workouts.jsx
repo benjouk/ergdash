@@ -14,6 +14,7 @@ import { RowSkeleton } from '../components/Skeleton/Skeleton.jsx';
 import PBBadges from '../components/PBBadge.jsx';
 import WorkoutForm from '../components/Import/WorkoutForm.jsx';
 import ImportPanel from '../components/Import/ImportPanel.jsx';
+import PageHeader from '../components/PageHeader/PageHeader.jsx';
 import styles from './Workouts.module.css';
 
 const IS_DEMO = import.meta.env.VITE_DEMO === '1';
@@ -255,44 +256,47 @@ export default function Workouts() {
 
   return (
     <div className={styles.workouts}>
-      <div className={styles.header}>
-        <h2 className={styles.title}>Workouts</h2>
-        <div className={styles.actions}>
-          <button
-            type="button"
-            onClick={() => compareMode ? exitCompareMode() : setCompareMode(true)}
-            className={`${styles.exportButton} ${compareMode ? styles.compareModeActive : ''}`}
-            aria-pressed={compareMode}
-          >
-            {compareMode ? <X size={14} /> : <GitCompare size={14} />} {compareMode ? 'Cancel' : 'Compare'}
-          </button>
-          {/* Visible-but-disabled in the demo so the feature is discoverable. */}
-          <button
-            onClick={() => setPanel(prev => (prev === 'add' ? null : 'add'))}
-            className={styles.exportButton}
-            aria-expanded={panel === 'add'}
-            disabled={IS_DEMO}
-            title={IS_DEMO ? 'Demo mode - run ErgDash self-hosted to add workouts' : undefined}
-          >
-            <Plus size={14} /> Add
-          </button>
-          <button
-            onClick={() => setPanel(prev => (prev === 'import' ? null : 'import'))}
-            className={styles.exportButton}
-            aria-expanded={panel === 'import'}
-            disabled={IS_DEMO}
-            title={IS_DEMO ? 'Demo mode - run ErgDash self-hosted to import workout files' : undefined}
-          >
-            <Upload size={14} /> Import
-          </button>
-          <button onClick={exportJson} className={styles.exportButton}>
-            <Download size={14} /> JSON
-          </button>
-          <button onClick={exportCsv} className={styles.exportButton}>
-            <Download size={14} /> CSV
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="Workouts"
+        subtitle="Browse, search, and compare every session you've logged."
+        actions={(
+          <>
+            <button
+              type="button"
+              onClick={() => compareMode ? exitCompareMode() : setCompareMode(true)}
+              className={`${styles.exportButton} ${compareMode ? styles.compareModeActive : ''}`}
+              aria-pressed={compareMode}
+            >
+              {compareMode ? <X size={14} /> : <GitCompare size={14} />} {compareMode ? 'Cancel' : 'Compare'}
+            </button>
+            {/* Visible-but-disabled in the demo so the feature is discoverable. */}
+            <button
+              onClick={() => setPanel(prev => (prev === 'add' ? null : 'add'))}
+              className={styles.exportButton}
+              aria-expanded={panel === 'add'}
+              disabled={IS_DEMO}
+              title={IS_DEMO ? 'Demo mode - run ErgDash self-hosted to add workouts' : undefined}
+            >
+              <Plus size={14} /> Add
+            </button>
+            <button
+              onClick={() => setPanel(prev => (prev === 'import' ? null : 'import'))}
+              className={styles.exportButton}
+              aria-expanded={panel === 'import'}
+              disabled={IS_DEMO}
+              title={IS_DEMO ? 'Demo mode - run ErgDash self-hosted to import workout files' : undefined}
+            >
+              <Upload size={14} /> Import
+            </button>
+            <button onClick={exportJson} className={styles.exportButton}>
+              <Download size={14} /> JSON
+            </button>
+            <button onClick={exportCsv} className={styles.exportButton}>
+              <Download size={14} /> CSV
+            </button>
+          </>
+        )}
+      />
 
       {panel === 'add' && (
         <WorkoutForm

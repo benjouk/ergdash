@@ -13,6 +13,8 @@ import {
   weightAdjusted,
   weightFactor,
 } from '../utils/ergMath.js';
+import PageHeader from '../components/PageHeader/PageHeader.jsx';
+import Eyebrow from '../components/Eyebrow/Eyebrow.jsx';
 import styles from './Tools.module.css';
 
 const DISTANCE_PRESETS = [
@@ -63,7 +65,7 @@ function WeightAdjustCard() {
     <section className={styles.card}>
       <div className={styles.cardHeader}>
         <div>
-          <span className={styles.kicker}>Converter</span>
+          <Eyebrow>Converter</Eyebrow>
           <h3 className={styles.cardTitle}>Weight-adjusted score</h3>
         </div>
         <Scale size={20} className={styles.cardIcon} aria-hidden="true" />
@@ -179,15 +181,16 @@ export default function Tools() {
 
   return (
     <div className={styles.tools}>
-      <div className={styles.header}>
-        <h2 className={styles.title}>Tools</h2>
-      </div>
+      <PageHeader
+        title="Tools"
+        subtitle="Calculators for pace, power, and race planning."
+      />
 
       <div className={styles.grid}>
         <section className={styles.card}>
           <div className={styles.cardHeader}>
             <div>
-              <span className={styles.kicker}>Converter</span>
+              <Eyebrow>Converter</Eyebrow>
               <h3 className={styles.cardTitle}>Pace ⇄ Watts ⇄ Cal/hr</h3>
             </div>
             <Calculator size={20} className={styles.cardIcon} aria-hidden="true" />
@@ -240,7 +243,7 @@ export default function Tools() {
         <section className={styles.card}>
           <div className={styles.cardHeader}>
             <div>
-              <span className={styles.kicker}>Planner</span>
+              <Eyebrow>Planner</Eyebrow>
               <h3 className={styles.cardTitle}>Race pace planner</h3>
             </div>
             <Clock3 size={20} className={styles.cardIcon} aria-hidden="true" />

@@ -9,6 +9,7 @@ import WeekList from '../components/Plan/WeekList.jsx';
 import DayPanel from '../components/Plan/DayPanel.jsx';
 import ProgramCard from '../components/Plan/ProgramCard.jsx';
 import ProgramBrowser from '../components/Plan/ProgramBrowser.jsx';
+import PageHeader from '../components/PageHeader/PageHeader.jsx';
 import styles from './Plan.module.css';
 
 function isoToday() {
@@ -91,10 +92,11 @@ export default function Plan() {
 
   return (
     <div className={styles.plan}>
-      <div className={styles.header}>
-        <h2 className={styles.title}>Plan</h2>
-        <button type="button" className={styles.navButton} onClick={goToday}>Today</button>
-      </div>
+      <PageHeader
+        title="Plan"
+        subtitle="Schedule sessions and follow your training program."
+        actions={<button type="button" className={styles.navButton} onClick={goToday}>Today</button>}
+      />
 
       <DayPanel
         date={selectedDate}
