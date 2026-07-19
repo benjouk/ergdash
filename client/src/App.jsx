@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './context/AuthContext.jsx';
 import { usePrefs } from './context/PrefsContext.jsx';
 import { useToast } from './context/ToastContext.jsx';
+import ErrorBoundary from './components/ErrorBoundary/ErrorBoundary.jsx';
 import Ticker from './components/Ticker/Ticker.jsx';
 import BottomNav from './components/BottomNav/BottomNav.jsx';
 import FeedPanel from './components/Feed/FeedPanel.jsx';
@@ -38,6 +39,7 @@ export default function App() {
   const { isAuthenticated, isLoading, profiles } = useAuth();
   const { defaultLanding } = usePrefs();
   const toast = useToast();
+  const { pathname } = useLocation();
   usePageTitle(isAuthenticated);
 
   // The OAuth callback redirects to /?error=<code> when a connect/reconnect is
@@ -86,18 +88,20 @@ export default function App() {
           <FeedPanel />
         </aside>
         <main className={styles.main}>
-          <Suspense fallback={<div className={styles.routeLoading}>Loading…</div>}>
-            <Routes>
-              <Route path="/" element={defaultLanding && defaultLanding !== '/' ? <Navigate to={defaultLanding} replace /> : <Dashboard />} />
-              <Route path="/session/:id" element={<Session />} />
-              <Route path="/progress" element={<Progress />} />
-              <Route path="/workouts" element={<Workouts />} />
-              <Route path="/plan" element={<Plan />} />
-              <Route path="/tools" element={<Tools />} />
-              <Route path="/settings" element={<Settings />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </Suspense>
+          <ErrorBoundary resetKey={pathname}>
+            <Suspense fallback={<div className={styles.routeLoading}>Loading…</div>}>
+              <Routes>
+                <Route path="/" element={defaultLanding && defaultLanding !== '/' ? <Navigate to={defaultLanding} replace /> : <Dashboard />} />
+                <Route path="/session/:id" element={<Session />} />
+                <Route path="/progress" element={<Progress />} />
+                <Route path="/workouts" element={<Workouts />} />
+                <Route path="/plan" element={<Plan />} />
+                <Route path="/tools" element={<Tools />} />
+                <Route path="/settings" element={<Settings />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </Suspense>
+          </ErrorBoundary>
         </main>
       </div>
       <BottomNav />

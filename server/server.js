@@ -3,9 +3,9 @@ import helmet from 'helmet';
 import cors from 'cors';
 import compression from 'compression';
 import morgan from 'morgan';
-import { join, dirname } from 'path';
+import { join, dirname, sep } from 'path';
 import { fileURLToPath } from 'url';
-import { initDb, getDb } from './src/db.js';
+import { initDb, getDb, closeDb } from './src/db.js';
 import { startSyncSchedule } from './src/sync.js';
 import { startRankingRefreshSchedule } from './src/rankingsLive.js';
 import { initAuth, hasValidSession, hasConnectedProfile } from './src/auth.js';
@@ -73,7 +73,10 @@ app.use(helmet({
 // disabled unless explicitly opted in via CORS_ORIGIN.
 app.use(cors({ origin: validateCorsOriginConfig(), credentials: true }));
 app.use(compression());
-app.use(morgan('short'));
+// The Docker healthcheck polls /health every 30s; keep it out of the log.
+// morgan runs skip when the response finishes, by which point the router has
+// rewritten req.path - originalUrl is the stable value.
+app.use(morgan('short', { skip: req => req.originalUrl.split('?')[0] === '/health' }));
 // Import routes parse their own bodies (raw file uploads and multi-MB commit
 // payloads); the default 100kb JSON parser must not run for them.
 const jsonParser = express.json();
@@ -114,12 +117,23 @@ app.use('/api/programs', requireAuth, resolveProfile, programsRouter);
 app.use('/api/import', requireAuth, resolveProfile, importRouter);
 
 const distPath = join(__dirname, 'dist');
-app.use(express.static(distPath));
+// Vite content-hashes everything under assets/, so those files can be cached
+// forever; index.html (and anything else unhashed) must revalidate on every
+// load or browsers keep referencing chunks that no longer exist after a
+// redeploy.
+app.use(express.static(distPath, {
+  setHeaders(res, filePath) {
+    res.setHeader(
+      'Cache-Control',
+      filePath.includes(`${sep}assets${sep}`) ? 'public, max-age=31536000, immutable' : 'no-cache'
+    );
+  },
+}));
 app.get('*', (req, res, next) => {
   if (req.path.startsWith('/api') || req.path.startsWith('/auth') || req.path === '/health') {
     return next();
   }
-  res.sendFile(join(distPath, 'index.html'), err => {
+  res.sendFile(join(distPath, 'index.html'), { headers: { 'Cache-Control': 'no-cache' } }, err => {
     if (err) next();
   });
 });
@@ -158,6 +172,22 @@ function recomputePacesIfMissing() {
   }
 }
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`ErgDash server listening on port ${PORT}`);
 });
+
+// Node runs as PID 1 in the container, where SIGTERM has no default handler -
+// without this, every `docker stop` waits out the full grace period and then
+// SIGKILLs SQLite cold. Drain the listener, checkpoint the DB, and exit.
+function shutdown(signal) {
+  console.log(`${signal} received, shutting down`);
+  server.close(() => {
+    closeDb();
+    process.exit(0);
+  });
+  server.closeIdleConnections();
+  // Hard deadline in case an in-flight request refuses to finish.
+  setTimeout(() => process.exit(1), 8000).unref();
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
