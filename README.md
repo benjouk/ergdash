@@ -100,6 +100,36 @@ APP_ORIGIN=https://ergdash.example.com
 `APP_ORIGIN` makes same-origin write checks work when TLS terminates at the
 proxy. It does not force HTTPS and should be left empty for normal LAN HTTP.
 
+### Moving to a reverse-proxy domain
+
+If you set ErgDash up on a raw LAN address (e.g. `http://192.168.1.50:3100`)
+and later put it behind a reverse proxy with its own hostname, expect to sign
+in **once** on the new URL. The browser session lives in a cookie scoped to the
+exact origin (scheme + host + port), so a cookie set on the LAN IP is never sent
+to `https://ergdash.example.com` — a different origin gets its own session.
+
+To make the new domain work and stick:
+
+1. In your Concept2 app at
+   [log.concept2.com/developers/keys](https://log.concept2.com/developers/keys),
+   change the Callback Endpoint to `https://ergdash.example.com/auth/callback`.
+   It must match `C2_REDIRECT_URI` exactly, so update both together.
+2. Set `C2_REDIRECT_URI` and `APP_ORIGIN` to the new domain (as above) and
+   restart. If the callback still points at the old address, the OAuth flow
+   redirects back there and the session cookie never lands on the domain.
+   `APP_ORIGIN` is required, not optional, once you are on HTTPS: it lets the
+   same-origin write guard accept the proxied `https://` origin, otherwise
+   saving settings, goals, and plans can 403 even after login succeeds.
+3. Open the app on the new domain and connect once. On an already-initialized
+   instance this is a login-only flow: your existing Concept2 identity is
+   matched to your existing profile, so no data is lost and no duplicate profile
+   is created.
+
+Pick one canonical URL going forward — because the callback now points at the
+domain, reaching the instance by its raw LAN IP will prompt for login again (and
+its writes would fail the origin check unless that origin is also added to
+`CORS_ORIGIN`).
+
 ## Environment Variables
 
 | Variable | Default | Description |
