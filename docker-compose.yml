@@ -17,6 +17,8 @@ services:
       - COOKIE_SECURE=${COOKIE_SECURE:-}
       - APP_ORIGIN=${APP_ORIGIN:-}
       - CORS_ORIGIN=${CORS_ORIGIN:-}
+      - BACKUP_ENABLED=${BACKUP_ENABLED:-}
+      - BACKUP_KEEP=${BACKUP_KEEP:-}
       - NODE_ENV=${NODE_ENV:-production}
     restart: unless-stopped
 

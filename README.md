@@ -145,5 +145,23 @@ its writes would fail the origin check unless that origin is also added to
 | `COOKIE_SECURE` | auto | Force the session cookie's `Secure` flag on/off; auto-detects from `C2_REDIRECT_URI` |
 | `APP_ORIGIN` | - | Canonical public origin for an HTTPS reverse proxy; leave empty for direct LAN HTTP |
 | `CORS_ORIGIN` | disabled | Allow credentialed cross-origin API access from an explicit trusted origin. Production values must be `https://` and must not be `*`; not needed for normal same-origin setups |
+| `BACKUP_ENABLED` | `1` | Nightly automatic database backups; set to `0` to disable |
+| `BACKUP_KEEP` | `7` | How many automatic backups to keep before the oldest is rotated out |
 | `ERGDASH_DEV_AUTH_BYPASS` | disabled | Set to `1` only for local development if you intentionally want API routes to bypass OAuth/session checks |
 | `ERGDASH_SEED_DEMO` | disabled | Set to `1` on a non-production server to explicitly load mock workouts, goals, and plans |
+
+## Automatic Backups
+
+Every night at 03:30 (server time) ErgDash snapshots the whole database to
+`DATA_DIR/backups/ergdash-auto-<date>.sqlite3`, keeping the newest
+`BACKUP_KEEP` and skipping nights where nothing changed. Snapshots are taken
+with SQLite's online backup API, so they are safe while the app is running,
+and each file is a plain database that Settings → Restore accepts directly.
+The authenticated `/health` payload reports `last_backup` so you can verify
+it is running.
+
+These backups live on the same disk as the database — they protect against
+corruption, a bad upgrade, or an accidental wipe, **not** against the disk
+itself dying. For that, copy `DATA_DIR/backups` somewhere else on a schedule
+(rsync to a NAS, restic, a cloud sync client, ...), or download a copy from
+Settings now and then.

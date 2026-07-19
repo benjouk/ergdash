@@ -3,6 +3,7 @@ import { statSync } from 'fs';
 import { createRequire } from 'module';
 import { getDb, getDbPath } from '../db.js';
 import { hasValidSession } from '../auth.js';
+import { lastBackupAt } from '../backupSchedule.js';
 
 const router = Router();
 const startTime = Date.now();
@@ -57,6 +58,7 @@ router.get('/', (req, res) => {
       status: aggregateSyncStatus(syncStatuses),
       enrichment: `${enriched}/${c2Count}`,
     },
+    last_backup: lastBackupAt(),
     version,
   });
 });
