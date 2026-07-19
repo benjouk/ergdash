@@ -13,6 +13,7 @@ import {
   weightAdjusted,
   weightFactor,
 } from '../utils/ergMath.js';
+import PageHeader from '../components/PageHeader/PageHeader.jsx';
 import styles from './Tools.module.css';
 
 const DISTANCE_PRESETS = [
@@ -179,9 +180,10 @@ export default function Tools() {
 
   return (
     <div className={styles.tools}>
-      <div className={styles.header}>
-        <h2 className={styles.title}>Tools</h2>
-      </div>
+      <PageHeader
+        title="Tools"
+        subtitle="Calculators for pace, power, and race planning."
+      />
 
       <div className={styles.grid}>
         <section className={styles.card}>
