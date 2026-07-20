@@ -173,6 +173,12 @@ export const api = {
     body: JSON.stringify(data),
   }),
   resetSettings: () => request('/api/settings/reset', { method: 'POST' }),
+  getBackupStatus: () => request('/api/admin/backups'),
+  updateBackupSettings: (data) => request('/api/admin/backups', {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  }),
+  runBackupNow: () => request('/api/admin/backups/run', { method: 'POST' }),
   restoreDatabase: (file) => uploadRaw('/api/admin/restore', file, 'Demo mode - run ErgDash self-hosted to restore a backup'),
   restoreBackup: (file) => uploadRaw('/api/admin/restore-data', file, 'Demo mode - run ErgDash self-hosted to restore a backup'),
   // First-run restore on a fresh install (no session/profile yet), before any

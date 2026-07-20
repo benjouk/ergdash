@@ -8,6 +8,7 @@ import { fileURLToPath } from 'url';
 import { initDb, getDb, closeDb } from './src/db.js';
 import { startSyncSchedule } from './src/sync.js';
 import { startRankingRefreshSchedule } from './src/rankingsLive.js';
+import { startBackupSchedule } from './src/backupSchedule.js';
 import { initAuth, hasValidSession, hasConnectedProfile } from './src/auth.js';
 import { errorHandler } from './src/middleware/error.js';
 import { resolveProfile } from './src/middleware/profile.js';
@@ -155,6 +156,7 @@ if (hasConnectedProfile()) {
 }
 
 startRankingRefreshSchedule();
+startBackupSchedule();
 
 function recomputePacesIfMissing() {
   const db = getDb();
