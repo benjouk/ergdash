@@ -42,6 +42,20 @@ export default function App() {
   const { pathname } = useLocation();
   usePageTitle(isAuthenticated);
 
+  // Offline visibility: with the service worker serving cached data, the app
+  // keeps working when the server is unreachable - say so, or stale numbers
+  // look current.
+  useEffect(() => {
+    const goneOffline = () => toast.error('Offline - showing your last synced data');
+    const backOnline = () => toast.success('Back online');
+    window.addEventListener('offline', goneOffline);
+    window.addEventListener('online', backOnline);
+    return () => {
+      window.removeEventListener('offline', goneOffline);
+      window.removeEventListener('online', backOnline);
+    };
+  }, [toast]);
+
   // The OAuth callback redirects to /?error=<code> when a connect/reconnect is
   // refused. Surface it once, then strip the param so a refresh doesn't repeat.
   useEffect(() => {
