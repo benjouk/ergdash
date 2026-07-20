@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { mkdtempSync, rmSync } from 'fs';
+import { mkdtempSync, readFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import express from 'express';
+
+const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 
 let dataDir;
 let closeDb;
@@ -48,6 +50,6 @@ describe('GET /health authenticated metadata', () => {
       status: 'idle',
       enrichment: '1/1',
     });
-    expect(body.version).toBe('0.1.0');
+    expect(body.version).toBe(version);
   });
 });
