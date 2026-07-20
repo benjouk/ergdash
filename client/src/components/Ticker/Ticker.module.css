@@ -8,12 +8,15 @@
   top: 0;
   left: 0;
   right: 0;
-  height: var(--ticker-height);
+  /* Grow into the top safe area (status bar / Dynamic Island) and pad the
+     content back down, so viewport-fit=cover doesn't tuck the bar under it.
+     Horizontal max() keeps content clear of rounded corners in landscape. */
+  height: calc(var(--ticker-height) + env(safe-area-inset-top));
   background: var(--ticker-bg);
   color: var(--ticker-text);
   display: flex;
   align-items: center;
-  padding: 0 var(--space-5);
+  padding: env(safe-area-inset-top) max(var(--space-5), env(safe-area-inset-right)) 0 max(var(--space-5), env(safe-area-inset-left));
   gap: var(--space-5);
   z-index: 100;
   border-bottom: 2px solid var(--ticker-accent);
@@ -245,8 +248,8 @@
    Navigation moves to the bottom nav. */
 @media (max-width: 767px) {
   .ticker {
-    height: var(--ticker-height-mobile);
-    padding: 0 var(--space-3);
+    height: calc(var(--ticker-height-mobile) + env(safe-area-inset-top));
+    padding: env(safe-area-inset-top) max(var(--space-3), env(safe-area-inset-right)) 0 max(var(--space-3), env(safe-area-inset-left));
     gap: var(--space-3);
   }
   .nav {
@@ -285,7 +288,7 @@
   }
   .rangeMenu {
     position: fixed;
-    top: calc(var(--ticker-height-mobile) + var(--space-2));
+    top: calc(var(--ticker-height-mobile) + var(--space-2) + env(safe-area-inset-top));
     left: var(--space-3);
     right: var(--space-3);
     width: auto;
