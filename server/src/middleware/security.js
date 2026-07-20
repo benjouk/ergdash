@@ -34,9 +34,20 @@ export function sameOriginWriteGuard(req, res, next) {
   }
 
   const allowed = parseAllowedOrigins();
-  const host = req.get('host');
-  if (host) {
-    allowed.add(`${req.protocol}://${host}`);
+  // Reconstruct the request's own origin so a same-origin write is allowed
+  // without any configuration. Behind a TLS-terminating reverse proxy,
+  // req.protocol is 'http' (Express isn't told to trust the proxy) while the
+  // browser's Origin is https://, so we accept the host under both schemes and
+  // honour the forwarded host/proto the proxy advertises. The host match is the
+  // CSRF boundary here - a cross-site request carries the attacker's Origin,
+  // not this host - so tolerating either scheme is safe.
+  const forwardedHost = req.get('x-forwarded-host');
+  const forwardedProto = (req.get('x-forwarded-proto') || '').split(',')[0].trim();
+  for (const host of [req.get('host'), forwardedHost]) {
+    if (!host) continue;
+    allowed.add(`http://${host}`);
+    allowed.add(`https://${host}`);
+    if (forwardedProto) allowed.add(`${forwardedProto}://${host}`);
   }
 
   const origin = req.get('origin');
