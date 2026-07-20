@@ -12,7 +12,9 @@ import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from
 import { join } from 'path';
 import { getDb, getDbPath, getDataDir, getInstanceSetting } from './db.js';
 
-const BACKUP_PATTERN = /^ergdash-auto-\d{4}-\d{2}-\d{2}-\d{4}\.sqlite3$/;
+// Second-precision names; the optional group keeps recognising (and
+// rotating) minute-precision files written by earlier versions.
+const BACKUP_PATTERN = /^ergdash-auto-\d{4}-\d{2}-\d{2}-\d{4}(?:\d{2})?\.sqlite3$/;
 
 // Preferences live in instance_settings so the Settings page can change them
 // without a restart; the BACKUP_* env vars act as defaults for installs that
@@ -62,7 +64,7 @@ export function listBackupFiles(dir = getBackupDir()) {
 
 function backupFilename(now) {
   const pad = n => String(n).padStart(2, '0');
-  return `ergdash-auto-${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}.sqlite3`;
+  return `ergdash-auto-${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}.sqlite3`;
 }
 
 // The database "changed" if the main file or its WAL sidecar was written to
@@ -85,7 +87,19 @@ export function rotateBackups(dir = getBackupDir(), keep = backupKeepCount()) {
   return excess;
 }
 
-export async function runScheduledBackup({ now = new Date(), force = false } = {}) {
+// Runs are serialized through this chain: overlapping calls (several "Back
+// up now" clicks, or one landing during the scheduled run) each get their own
+// snapshot, one after another, instead of racing over shared paths. Each
+// caller still sees only its own result; a failed run doesn't break the chain.
+let backupQueue = Promise.resolve();
+
+export function runScheduledBackup(options = {}) {
+  const run = backupQueue.then(() => performBackup(options));
+  backupQueue = run.catch(() => {});
+  return run;
+}
+
+async function performBackup({ now = new Date(), force = false } = {}) {
   const dir = getBackupDir();
   mkdirSync(dir, { recursive: true });
 
@@ -96,9 +110,10 @@ export async function runScheduledBackup({ now = new Date(), force = false } = {
   }
 
   // Snapshot to a temp name first so a crash mid-copy never leaves a partial
-  // file that looks like (and would rotate out) a valid backup.
+  // file that looks like (and would rotate out) a valid backup. The temp name
+  // is unique per invocation as extra insurance against path collisions.
   const file = backupFilename(now);
-  const tempPath = join(dir, `${file}.tmp`);
+  const tempPath = join(dir, `${file}.${process.pid}.${Date.now()}.tmp`);
   try {
     await getDb().backup(tempPath);
     renameSync(tempPath, join(dir, file));

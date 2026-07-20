@@ -47,7 +47,7 @@ describe('runScheduledBackup', () => {
   it('writes a restorable snapshot named for the backup time', async () => {
     const result = await backup.runScheduledBackup({ now: new Date(2026, 6, 19, 3, 30) });
 
-    expect(result.file).toBe('ergdash-auto-2026-07-19-0330.sqlite3');
+    expect(result.file).toBe('ergdash-auto-2026-07-19-033000.sqlite3');
     expect(result.removed).toEqual([]);
 
     const snapshot = new Database(join(backupDir, result.file), { readonly: true });
@@ -71,7 +71,7 @@ describe('runScheduledBackup', () => {
     db.prepare("INSERT INTO profiles (id, name) VALUES (2, 'Second')").run();
 
     const second = await backup.runScheduledBackup({ now: new Date(2026, 6, 20, 3, 30) });
-    expect(second.file).toBe('ergdash-auto-2026-07-20-0330.sqlite3');
+    expect(second.file).toBe('ergdash-auto-2026-07-20-033000.sqlite3');
     expect(backup.listBackups()).toEqual([second.file, first.file]);
   });
 
@@ -91,8 +91,8 @@ describe('runScheduledBackup', () => {
       'ergdash-auto-2026-06-02-0330.sqlite3',
     ]);
     expect(backup.listBackups()).toEqual([
-      'ergdash-auto-2026-07-05-0330.sqlite3',
-      'ergdash-auto-2026-07-01-0330.sqlite3',
+      'ergdash-auto-2026-07-05-033000.sqlite3',
+      'ergdash-auto-2026-07-01-033000.sqlite3',
       'ergdash-auto-2026-06-04-0330.sqlite3',
     ]);
   });
@@ -110,7 +110,7 @@ describe('runScheduledBackup', () => {
     const files = readdirSync(backupDir).sort();
     expect(files).toContain('manual-copy.sqlite3');
     expect(files).toContain('notes.txt');
-    expect(backup.listBackups()).toEqual(['ergdash-auto-2026-07-20-0330.sqlite3']);
+    expect(backup.listBackups()).toEqual(['ergdash-auto-2026-07-20-033000.sqlite3']);
   });
 });
 
@@ -177,8 +177,45 @@ describe('force runs', () => {
     expect(first.file).toBeTruthy();
 
     const forced = await backup.runScheduledBackup({ now: new Date(2026, 6, 19, 12, 0), force: true });
-    expect(forced.file).toBe('ergdash-auto-2026-07-19-1200.sqlite3');
+    expect(forced.file).toBe('ergdash-auto-2026-07-19-120000.sqlite3');
     expect(backup.listBackups()).toContain(first.file);
+  });
+});
+
+describe('overlapping runs', () => {
+  it('serializes concurrent runs so every one produces its snapshot', async () => {
+    // Regression: unserialized runs shared one temp path, so overlapping
+    // "Back up now" clicks all ENOENTed on rename and left no backup at all.
+    const results = await Promise.all(
+      [0, 1, 2, 3, 4].map(second =>
+        backup.runScheduledBackup({ now: new Date(2026, 6, 19, 12, 0, second), force: true })
+      )
+    );
+
+    const files = results.map(result => result.file);
+    expect(files).toEqual([
+      'ergdash-auto-2026-07-19-120000.sqlite3',
+      'ergdash-auto-2026-07-19-120001.sqlite3',
+      'ergdash-auto-2026-07-19-120002.sqlite3',
+      'ergdash-auto-2026-07-19-120003.sqlite3',
+      'ergdash-auto-2026-07-19-120004.sqlite3',
+    ]);
+    for (const file of files) {
+      expect(backup.listBackups()).toContain(file);
+    }
+    expect(readdirSync(backupDir).filter(f => f.endsWith('.tmp'))).toEqual([]);
+  });
+
+  it('a run queued behind a failed one still succeeds', async () => {
+    // now: null makes the first run throw while building its filename; the
+    // failure must not wedge the queue for the run behind it.
+    const results = await Promise.allSettled([
+      backup.runScheduledBackup({ now: null, force: true }),
+      backup.runScheduledBackup({ now: new Date(2026, 6, 19, 12, 5), force: true }),
+    ]);
+    expect(results[0].status).toBe('rejected');
+    expect(results[1].status).toBe('fulfilled');
+    expect(results[1].value.file).toBe('ergdash-auto-2026-07-19-120500.sqlite3');
   });
 });
 
