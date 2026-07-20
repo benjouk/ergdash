@@ -35,6 +35,37 @@ describe('sameOriginWriteGuard', () => {
     expect(result.status).toBe(200);
     vi.unstubAllEnvs();
   });
+
+  it('allows HTTPS writes behind a TLS-terminating proxy (req.protocol is http)', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    const result = await runMiddleware(sameOriginWriteGuard, {
+      method: 'PATCH',
+      // Proxy terminated TLS, so Express sees plain http upstream while the
+      // browser's Origin is https - this used to 403 without APP_ORIGIN set.
+      protocol: 'http',
+      get: (name) => ({
+        host: 'ergdash.example.com',
+        origin: 'https://ergdash.example.com',
+        'x-forwarded-proto': 'https',
+      }[name.toLowerCase()]),
+    });
+    expect(result.status).toBe(200);
+    vi.unstubAllEnvs();
+  });
+
+  it('still rejects a genuine cross-origin write', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    const result = await runMiddleware(sameOriginWriteGuard, {
+      method: 'POST',
+      protocol: 'https',
+      get: (name) => ({
+        host: 'ergdash.example.com',
+        origin: 'https://evil.example.com',
+      }[name.toLowerCase()]),
+    });
+    expect(result.status).toBe(403);
+    vi.unstubAllEnvs();
+  });
 });
 
 describe('security config', () => {
