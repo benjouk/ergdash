@@ -10,6 +10,11 @@ import { TimeRangeProvider } from './context/TimeRangeContext.jsx';
 import { PrefsProvider } from './context/PrefsContext.jsx';
 import App from './App.jsx';
 import './styles/global.css';
+import { registerSW } from 'virtual:pwa-register';
+
+// No-op on insecure origins (plain LAN-IP HTTP) and in the demo build.
+// autoUpdate: a redeployed app replaces the worker on the next visit.
+registerSW({ immediate: true });
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

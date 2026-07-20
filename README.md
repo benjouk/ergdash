@@ -34,6 +34,7 @@ ErgDash connects to the Concept2 Logbook API to sync your workout history and di
 - **Body weight:** Optional setting that adds weight-adjusted equivalents to personal bests and Tools
 - **Feed:** Always-visible sidebar of recent sessions with sparklines and interval summaries
 - **Ticker:** Sticky header with key stats, pace trace, profile switcher, and navigation
+- **Offline & installable (PWA):** Install to a phone/tablet home screen; the app shell and your recent data stay viewable when the server is unreachable (requires HTTPS or localhost - see Offline below)
 - **Light/Dark theme:** System-aware with manual override
 - **Units:** Toggle between /500m pace, watts, and cal/hr
 
@@ -171,3 +172,19 @@ corruption, a bad upgrade, or an accidental wipe, **not** against the disk
 itself dying. For that, copy `DATA_DIR/backups` somewhere else on a schedule
 (rsync to a NAS, restic, a cloud sync client, ...), or download a copy from
 Settings now and then.
+
+## Offline & PWA
+
+ErgDash is an installable PWA with a service worker: the app shell is
+precached and API reads are cached as you browse, so the dashboard, recent
+sessions, and charts stay viewable when the server is unreachable — on the
+train, in a gym basement, or while the home server reboots. Data shown
+offline is your last synced view; anything that writes (sync, edits, plans)
+needs the server.
+
+One requirement, imposed by browsers rather than ErgDash: service workers
+only run on **secure origins** — HTTPS or `localhost`. Reaching ErgDash by a
+plain LAN IP (`http://192.168.1.50:3100`) works exactly as before but skips
+offline support. To get it, serve ErgDash over HTTPS behind a reverse proxy
+(see "Moving to a reverse-proxy domain" above) or a VPN hostname with TLS,
+e.g. Tailscale with `tailscale serve`.
