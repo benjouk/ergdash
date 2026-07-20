@@ -854,6 +854,9 @@ function filterWorkouts(rows, params) {
   if (['1', 'true'].includes(String(params.pinned).toLowerCase())) {
     result = result.filter(w => w.pinned);
   }
+  if (['1', 'true'].includes(String(params.pb).toLowerCase())) {
+    result = result.filter(w => w.pb_distances?.length > 0);
+  }
   if (params.q) {
     const needle = params.q.toLowerCase();
     result = result.filter(w =>

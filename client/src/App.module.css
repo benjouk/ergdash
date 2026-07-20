@@ -35,7 +35,8 @@
   display: flex;
   flex: 1;
   width: 100%;
-  margin-top: var(--ticker-height);
+  /* Matches the ticker's safe-area-aware height so content clears it. */
+  margin-top: calc(var(--ticker-height) + env(safe-area-inset-top));
 }
 
 .feed {
@@ -43,9 +44,9 @@
   flex-shrink: 0;
   border-right: 1px solid var(--rule);
   overflow-y: auto;
-  height: calc(100vh - var(--ticker-height));
+  height: calc(100vh - var(--ticker-height) - env(safe-area-inset-top));
   position: sticky;
-  top: var(--ticker-height);
+  top: calc(var(--ticker-height) + env(safe-area-inset-top));
 }
 
 .main {
@@ -84,7 +85,7 @@
 
 @media (max-width: 767px) {
   .layout {
-    margin-top: var(--ticker-height-mobile);
+    margin-top: calc(var(--ticker-height-mobile) + env(safe-area-inset-top));
   }
 
   .main {

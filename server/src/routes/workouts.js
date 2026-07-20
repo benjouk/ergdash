@@ -25,6 +25,7 @@ import {
   validateDistanceRange,
   validateSearchQuery,
   validatePinnedFlag,
+  validatePbFlag,
   escapeLikePattern,
 } from '../middleware/validate.js';
 
@@ -36,6 +37,20 @@ router.use(validateTag);
 router.use(validateDistanceRange);
 router.use(validateSearchQuery);
 router.use(validatePinnedFlag);
+router.use(validatePbFlag);
+
+// A workout is a "current PB" when it still holds the record (fastest pace)
+// for at least one distance/tag it appears in. Mirrors getCurrentPbDistances()
+// as a correlated EXISTS so the list can be filtered to record holders only.
+const CURRENT_PB_EXISTS = `EXISTS (
+  SELECT 1 FROM pb_history ph
+  WHERE ph.workout_id = w.id
+    AND ph.pace_ms = (
+      SELECT MIN(cur.pace_ms) FROM pb_history cur
+      WHERE cur.distance = ph.distance AND cur.tag = ph.tag
+        AND cur.profile_id = ph.profile_id
+    )
+)`;
 
 const SORT_ALLOWLIST = {
   date_desc: 'w.date DESC',
@@ -51,7 +66,7 @@ router.get('/', (req, res) => {
   const db = getDb();
   const {
     from, to, type, tag, min_distance, max_distance,
-    pinned, q,
+    pinned, pb, q,
     sort = 'date_desc', limit = '20', offset = '0',
   } = req.query;
 
@@ -65,6 +80,7 @@ router.get('/', (req, res) => {
   if (min_distance) { conditions.push('w.distance >= ?'); params.push(Number(min_distance)); }
   if (max_distance) { conditions.push('w.distance <= ?'); params.push(Number(max_distance)); }
   if (isPinnedQuery(pinned)) { conditions.push('w.pinned = 1'); }
+  if (isPbQuery(pb)) { conditions.push(CURRENT_PB_EXISTS); }
   if (q) {
     const pattern = `%${escapeLikePattern(q)}%`;
     conditions.push("(w.notes LIKE ? ESCAPE '\\' OR w.comments LIKE ? ESCAPE '\\')");
@@ -616,6 +632,10 @@ function normalizeWorkoutTag(tag) {
 
 function isPinnedQuery(pinned) {
   return ['1', 'true'].includes(String(pinned).toLowerCase());
+}
+
+function isPbQuery(pb) {
+  return ['1', 'true'].includes(String(pb).toLowerCase());
 }
 
 function getWorkoutWithMetrics(db, id) {

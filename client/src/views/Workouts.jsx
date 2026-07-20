@@ -53,6 +53,7 @@ export default function Workouts() {
   const [sort, setSort] = useState('date_desc');
   const [tag, setTag] = useState('');
   const [pinnedOnly, setPinnedOnly] = useState(false);
+  const [pbOnly, setPbOnly] = useState(false);
   const [searchInput, setSearchInput] = useState('');
   const [q, setQ] = useState('');
   const [distancePreset, setDistancePreset] = useState('');
@@ -86,6 +87,7 @@ export default function Workouts() {
     const params = { limit, offset, sort };
     if (tag) params.tag = tag;
     if (pinnedOnly) params.pinned = 1;
+    if (pbOnly) params.pb = 1;
     if (q) params.q = q;
     Object.assign(params, getDistancePresetParams(distancePreset));
     if (from) params.from = from;
@@ -109,7 +111,7 @@ export default function Workouts() {
       .finally(() => {
         if (mountedRef.current && loadRequestRef.current === requestId) setLoading(false);
       });
-  }, [offset, sort, tag, pinnedOnly, q, distancePreset, from, to]);
+  }, [offset, sort, tag, pinnedOnly, pbOnly, q, distancePreset, from, to]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -150,6 +152,7 @@ export default function Workouts() {
       const params = { limit: pageSize, offset: nextOffset, sort };
       if (tag) params.tag = tag;
       if (pinnedOnly) params.pinned = 1;
+      if (pbOnly) params.pb = 1;
       if (q) params.q = q;
       Object.assign(params, getDistancePresetParams(distancePreset));
       if (from) params.from = from;
@@ -166,7 +169,7 @@ export default function Workouts() {
     } while (allRows.length < expectedTotal);
 
     return allRows;
-  }, [sort, tag, pinnedOnly, q, distancePreset, from, to]);
+  }, [sort, tag, pinnedOnly, pbOnly, q, distancePreset, from, to]);
 
   const downloadBlob = (content, type, filename) => {
     const blob = new Blob([content], { type });
@@ -340,6 +343,15 @@ export default function Workouts() {
           aria-pressed={pinnedOnly}
         >
           Pinned
+        </button>
+        <button
+          type="button"
+          onClick={() => { setPbOnly(value => !value); setOffset(0); }}
+          className={`${styles.filterChip} ${pbOnly ? styles.filterChipActive : ''}`}
+          aria-pressed={pbOnly}
+          title="Show only workouts that hold a personal best"
+        >
+          PB
         </button>
         <span className={styles.filterDivider} aria-hidden="true" />
         {DISTANCE_PRESETS.map(preset => (
