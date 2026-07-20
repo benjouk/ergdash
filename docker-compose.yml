@@ -19,6 +19,7 @@ services:
       - CORS_ORIGIN=${CORS_ORIGIN:-}
       - BACKUP_ENABLED=${BACKUP_ENABLED:-}
       - BACKUP_KEEP=${BACKUP_KEEP:-}
+      - BACKUP_HOUR=${BACKUP_HOUR:-}
       - NODE_ENV=${NODE_ENV:-production}
     restart: unless-stopped
 

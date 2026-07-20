@@ -10,18 +10,30 @@
 import cron from 'node-cron';
 import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'fs';
 import { join } from 'path';
-import { getDb, getDbPath, getDataDir } from './db.js';
+import { getDb, getDbPath, getDataDir, getInstanceSetting } from './db.js';
 
 const BACKUP_PATTERN = /^ergdash-auto-\d{4}-\d{2}-\d{2}-\d{4}\.sqlite3$/;
 
+// Preferences live in instance_settings so the Settings page can change them
+// without a restart; the BACKUP_* env vars act as defaults for installs that
+// have never touched the UI. All three are read at fire time, not startup.
 export function isBackupEnabled() {
-  const value = (process.env.BACKUP_ENABLED || '').toLowerCase();
+  const stored = getInstanceSetting('backup_enabled');
+  const value = (stored ?? process.env.BACKUP_ENABLED ?? '').toLowerCase();
   return value !== '0' && value !== 'false';
 }
 
 export function backupKeepCount() {
-  const n = parseInt(process.env.BACKUP_KEEP || '7', 10);
+  const stored = getInstanceSetting('backup_keep');
+  const n = parseInt(stored ?? process.env.BACKUP_KEEP ?? '7', 10);
   return Number.isInteger(n) && n > 0 ? n : 7;
+}
+
+// Hour of day (0-23) the nightly backup fires, at 30 minutes past.
+export function backupHour() {
+  const stored = getInstanceSetting('backup_hour');
+  const n = parseInt(stored ?? process.env.BACKUP_HOUR ?? '3', 10);
+  return Number.isInteger(n) && n >= 0 && n <= 23 ? n : 3;
 }
 
 export function getBackupDir() {
@@ -38,6 +50,14 @@ export function lastBackupAt(dir = getBackupDir()) {
   const [newest] = listBackups(dir);
   if (!newest) return null;
   return statSync(join(dir, newest)).mtime.toISOString();
+}
+
+// Detailed listing for the Settings page, newest first.
+export function listBackupFiles(dir = getBackupDir()) {
+  return listBackups(dir).map(file => {
+    const stats = statSync(join(dir, file));
+    return { file, size_bytes: stats.size, created_at: stats.mtime.toISOString() };
+  });
 }
 
 function backupFilename(now) {
@@ -65,11 +85,13 @@ export function rotateBackups(dir = getBackupDir(), keep = backupKeepCount()) {
   return excess;
 }
 
-export async function runScheduledBackup({ now = new Date() } = {}) {
+export async function runScheduledBackup({ now = new Date(), force = false } = {}) {
   const dir = getBackupDir();
   mkdirSync(dir, { recursive: true });
 
-  if (!dbChangedSince(dir)) {
+  // force is the "Back up now" button: the user asked, so take a snapshot
+  // even if nothing changed since the last one.
+  if (!force && !dbChangedSince(dir)) {
     return { skipped: true };
   }
 
@@ -90,12 +112,10 @@ export async function runScheduledBackup({ now = new Date() } = {}) {
 }
 
 export function startBackupSchedule() {
-  if (!isBackupEnabled()) {
-    console.log('Automatic backups disabled (BACKUP_ENABLED=0)');
-    return;
-  }
-
-  cron.schedule('30 3 * * *', async () => {
+  // Fire every hour at :30 and decide then, so enabling/disabling or moving
+  // the hour from the Settings page takes effect without a restart.
+  cron.schedule('30 * * * *', async () => {
+    if (!isBackupEnabled() || new Date().getHours() !== backupHour()) return;
     try {
       const result = await runScheduledBackup();
       if (result.skipped) {
@@ -108,5 +128,9 @@ export function startBackupSchedule() {
     }
   });
 
-  console.log(`Backups scheduled: nightly at 03:30, keeping the newest ${backupKeepCount()}`);
+  if (isBackupEnabled()) {
+    console.log(`Backups scheduled: nightly at ${String(backupHour()).padStart(2, '0')}:30, keeping the newest ${backupKeepCount()}`);
+  } else {
+    console.log('Automatic backups disabled; enable in Settings or unset BACKUP_ENABLED');
+  }
 }

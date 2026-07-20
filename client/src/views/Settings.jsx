@@ -578,6 +578,90 @@ function formatSyncTime(isoString) {
   });
 }
 
+function AutoBackupSection() {
+  const toast = useToast();
+  const [status, setStatus] = useState(null);
+  const [runBusy, setRunBusy] = useState(false);
+
+  useEffect(() => {
+    api.getBackupStatus().then(setStatus).catch(() => {});
+  }, []);
+
+  const save = (patch) => {
+    api.updateBackupSettings(patch)
+      .then(next => {
+        setStatus(next);
+        toast.success('Settings saved');
+      })
+      .catch(err => toast.error(err.message || 'Could not save settings'));
+  };
+
+  const runNow = async () => {
+    setRunBusy(true);
+    try {
+      const result = await api.runBackupNow();
+      setStatus(result.status);
+      toast.success(`Backup written: ${result.file}`);
+    } catch (err) {
+      toast.error(err.message || 'Backup failed');
+    } finally {
+      setRunBusy(false);
+    }
+  };
+
+  if (!status) return null;
+
+  return (
+    <div className={styles.section}>
+      <h3 className={styles.sectionTitle}>Automatic Backups</h3>
+      <SelectRow
+        label="Nightly Backup"
+        subtext="Snapshot the whole database (all profiles) into the data directory each night"
+        value={status.enabled ? 'on' : 'off'}
+        onChange={value => save({ enabled: value === 'on' })}
+        options={[
+          { value: 'on', label: 'Enabled' },
+          { value: 'off', label: 'Disabled' },
+        ]}
+      />
+      <SelectRow
+        label="Backup Time"
+        subtext="Hour the nightly snapshot is taken (server time)"
+        value={String(status.hour)}
+        onChange={value => save({ hour: Number(value) })}
+        options={Array.from({ length: 24 }, (_, hour) => ({
+          value: String(hour),
+          label: `${String(hour).padStart(2, '0')}:30`,
+        }))}
+      />
+      <SelectRow
+        label="Keep"
+        subtext="Snapshots retained before the oldest is removed"
+        value={String(status.keep)}
+        onChange={value => save({ keep: Number(value) })}
+        options={[3, 7, 14, 30].map(n => ({ value: String(n), label: `${n} backups` }))}
+      />
+      <div className={styles.row}>
+        <div>
+          <div className={styles.label}>Last Backup</div>
+          <div className={styles.subtext}>
+            {status.last_backup
+              ? `${formatSyncTime(status.last_backup)} · ${status.files.length} on disk`
+              : 'No automatic backups yet'}
+          </div>
+        </div>
+        <button type="button" className={styles.button} onClick={runNow} disabled={runBusy}>
+          <Download size={14} /> {runBusy ? 'Backing up...' : 'Back up now'}
+        </button>
+      </div>
+      <div className={styles.subtext}>
+        Backups live next to the database, so they cover corruption or accidental deletion -
+        not the disk itself failing. Copy the backups folder somewhere else for that.
+      </div>
+    </div>
+  );
+}
+
 function SelectRow({ label, subtext, value, onChange, options }) {
   return (
     <div className={styles.row}>
@@ -892,6 +976,8 @@ export default function Settings() {
           <div className={styles.subtext}>Not available in the demo - self-host ErgDash to back up and restore your own data.</div>
         </div>
       ) : (
+        <>
+        <AutoBackupSection />
         <div className={styles.section}>
           <h3 className={styles.sectionTitle}>ErgDash Data Backup</h3>
           <div className={styles.row}>
@@ -992,6 +1078,7 @@ export default function Settings() {
             </div>
           </form>
         </div>
+        </>
       )}
 
       <div className={styles.section}>

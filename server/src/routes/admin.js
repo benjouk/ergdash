@@ -2,8 +2,17 @@ import express, { Router } from 'express';
 import { createReadStream, existsSync, renameSync, rmSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { clearAuth } from '../auth.js';
-import { closeDb, getDataDir, getDb, getDbPath, reopenDb } from '../db.js';
+import { closeDb, getDataDir, getDb, getDbPath, reopenDb, setInstanceSetting } from '../db.js';
 import { isSyncInProgress, runFullSync } from '../sync.js';
+import {
+  backupHour,
+  backupKeepCount,
+  isBackupEnabled,
+  lastBackupAt,
+  listBackupFiles,
+  rotateBackups,
+  runScheduledBackup,
+} from '../backupSchedule.js';
 import {
   BACKUP_TABLES,
   BACKUP_VERSION,
@@ -91,6 +100,67 @@ function removeDbSidecars(dbPath) {
   removeIfExists(`${dbPath}-wal`);
   removeIfExists(`${dbPath}-shm`);
 }
+
+// Automatic backup preferences and status for the Settings page. Instance
+// scoped: one schedule covers every profile, so any household member can see
+// and change it (same trust model as restore/wipe below).
+function backupStatus() {
+  return {
+    enabled: isBackupEnabled(),
+    keep: backupKeepCount(),
+    hour: backupHour(),
+    last_backup: lastBackupAt(),
+    files: listBackupFiles(),
+  };
+}
+
+router.get('/backups', (req, res) => {
+  res.json(backupStatus());
+});
+
+router.patch('/backups', (req, res) => {
+  const { enabled, keep, hour } = req.body || {};
+  const errors = [];
+  const updates = [];
+
+  if (enabled !== undefined) {
+    if (typeof enabled !== 'boolean') errors.push('enabled must be a boolean');
+    else updates.push(['backup_enabled', enabled ? '1' : '0']);
+  }
+  if (keep !== undefined) {
+    const n = Number(keep);
+    if (!Number.isInteger(n) || n < 1 || n > 365) errors.push('keep must be an integer between 1 and 365');
+    else updates.push(['backup_keep', String(n)]);
+  }
+  if (hour !== undefined) {
+    const n = Number(hour);
+    if (!Number.isInteger(n) || n < 0 || n > 23) errors.push('hour must be an integer between 0 and 23');
+    else updates.push(['backup_hour', String(n)]);
+  }
+
+  if (errors.length > 0) {
+    return res.status(400).json({ error: 'Validation failed', details: errors });
+  }
+
+  for (const [key, value] of updates) {
+    setInstanceSetting(key, value);
+  }
+  // A lower keep count applies immediately rather than at the next backup.
+  if (updates.some(([key]) => key === 'backup_keep')) {
+    rotateBackups();
+  }
+
+  res.json(backupStatus());
+});
+
+router.post('/backups/run', async (req, res, next) => {
+  try {
+    const result = await runScheduledBackup({ force: true });
+    res.json({ ...result, status: backupStatus() });
+  } catch (err) {
+    next(err);
+  }
+});
 
 router.get('/backup', async (req, res, next) => {
   const db = getDb();

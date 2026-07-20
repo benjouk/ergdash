@@ -142,4 +142,52 @@ describe('config parsing', () => {
     process.env.BACKUP_ENABLED = 'false';
     expect(backup.isBackupEnabled()).toBe(false);
   });
+
+  it('defaults the backup hour to 3 and clamps invalid values', () => {
+    expect(backup.backupHour()).toBe(3);
+    process.env.BACKUP_HOUR = '22';
+    expect(backup.backupHour()).toBe(22);
+    process.env.BACKUP_HOUR = '24';
+    expect(backup.backupHour()).toBe(3);
+    delete process.env.BACKUP_HOUR;
+  });
+
+  it('lets stored instance settings override the env defaults', async () => {
+    const { setInstanceSetting } = await import('../src/db.js');
+
+    process.env.BACKUP_ENABLED = '0';
+    setInstanceSetting('backup_enabled', '1');
+    expect(backup.isBackupEnabled()).toBe(true);
+    setInstanceSetting('backup_enabled', '0');
+    delete process.env.BACKUP_ENABLED;
+    expect(backup.isBackupEnabled()).toBe(false);
+
+    process.env.BACKUP_KEEP = '14';
+    setInstanceSetting('backup_keep', '30');
+    expect(backup.backupKeepCount()).toBe(30);
+
+    setInstanceSetting('backup_hour', '5');
+    expect(backup.backupHour()).toBe(5);
+  });
+});
+
+describe('force runs', () => {
+  it('takes a snapshot even when the database is unchanged', async () => {
+    const first = await backup.runScheduledBackup({ now: new Date(2026, 6, 19, 3, 30) });
+    expect(first.file).toBeTruthy();
+
+    const forced = await backup.runScheduledBackup({ now: new Date(2026, 6, 19, 12, 0), force: true });
+    expect(forced.file).toBe('ergdash-auto-2026-07-19-1200.sqlite3');
+    expect(backup.listBackups()).toContain(first.file);
+  });
+});
+
+describe('listBackupFiles', () => {
+  it('reports name, size and creation time newest first', async () => {
+    const { file } = await backup.runScheduledBackup({ now: new Date(2026, 6, 19, 3, 30) });
+    const [entry] = backup.listBackupFiles();
+    expect(entry.file).toBe(file);
+    expect(entry.size_bytes).toBeGreaterThan(0);
+    expect(entry.created_at).toBe(backup.lastBackupAt());
+  });
 });

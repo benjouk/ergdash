@@ -84,6 +84,20 @@ export function seedDefaultSettings(db, profileId) {
   })();
 }
 
+// Instance-wide settings (whole install, not per-profile). Missing keys
+// return null so callers can fall back to env vars or built-in defaults.
+export function getInstanceSetting(key) {
+  const row = getDb().prepare('SELECT value FROM instance_settings WHERE key = ?').get(key);
+  return row ? row.value : null;
+}
+
+export function setInstanceSetting(key, value) {
+  getDb().prepare(`
+    INSERT INTO instance_settings (key, value, updated_at) VALUES (?, ?, datetime('now'))
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')
+  `).run(key, String(value));
+}
+
 export function getDbPath() {
   return DB_PATH;
 }
