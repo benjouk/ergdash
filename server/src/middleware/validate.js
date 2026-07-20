@@ -126,6 +126,24 @@ export function validatePinnedFlag(req, res, next) {
   next();
 }
 
+export function validatePbFlag(req, res, next) {
+  const { pb } = req.query;
+
+  if (pb == null) {
+    return next();
+  }
+
+  const valid = ['0', '1', 'true', 'false'];
+  if (!valid.includes(String(pb).toLowerCase())) {
+    return res.status(400).json({
+      error: 'Validation failed',
+      details: ['pb must be one of: 0, 1, true, false'],
+    });
+  }
+
+  next();
+}
+
 export function escapeLikePattern(str) {
   return String(str).replace(/[\\%_]/g, match => `\\${match}`);
 }
