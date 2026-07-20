@@ -18,14 +18,20 @@ test('logs in, renders the dashboard, and opens a session with charts', async ({
   await expect(sessionLinks.first()).toBeVisible();
   expect(await sessionLinks.count()).toBeGreaterThan(3);
 
-  // Dashboard main content renders at least one chart (recharts -> svg).
-  await expect(page.locator('main svg').first()).toBeVisible();
+  // Dashboard main content renders at least one real chart. Icons are svg
+  // too, so anchor on recharts' wrapper, not on bare `svg`.
+  await expect(page.locator('main .recharts-wrapper svg').first()).toBeVisible();
 
-  // Open the most recent session and expect its detail view with charts.
+  // Open the most recent session and expect its detail view with loaded
+  // data: the "<time> Row" heading and splits table only render once
+  // /api/workouts/:id succeeds, and the pace chart is recharts again — the
+  // error state's icons must not satisfy any of these.
   await sessionLinks.first().click();
   await expect(page).toHaveURL(/\/session\/-?\d+/);
   await expect(page).toHaveTitle('Session · ErgDash');
-  await expect(page.locator('main svg').first()).toBeVisible();
+  await expect(page.locator('main h1')).toHaveText(/Row$/);
+  await expect(page.getByText(/^(Splits|Intervals)$/).first()).toBeVisible();
+  await expect(page.locator('main .recharts-wrapper svg').first()).toBeVisible();
 
   // A white screen or broken chunk shows up here even if the DOM checks pass.
   expect(pageErrors).toEqual([]);
