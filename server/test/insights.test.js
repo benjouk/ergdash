@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildWeeklyInsights, buildWeeklyOverview, buildWorkoutInsight } from '../src/insights.js';
+import { buildTrendNudges, buildWeeklyInsights, buildWeeklyOverview, buildWorkoutInsight } from '../src/insights.js';
 
 function byId(insights) {
   return Object.fromEntries(insights.map(i => [i.id, i]));
@@ -214,5 +214,101 @@ describe('buildWorkoutInsight — interval sets', () => {
       intervals: [rep(110000), { type: 'rest', pace_ms: 0 }],
     });
     expect(out).toEqual([]);
+  });
+});
+
+describe('buildTrendNudges', () => {
+  const steady = (values) => values; // readability alias for sample arrays
+
+  it('stays silent when either window has too few sessions', () => {
+    expect(buildTrendNudges({
+      recent: { hrDriftPct: steady([12, 13]) },
+      prior: { hrDriftPct: steady([5, 6, 7, 5]) },
+    })).toEqual([]);
+    expect(buildTrendNudges({})).toEqual([]);
+  });
+
+  it('flags climbing HR drift and praises falling drift', () => {
+    const climbing = byId(buildTrendNudges({
+      recent: { hrDriftPct: [11, 12, 13] },
+      prior: { hrDriftPct: [6, 7, 8, 6] },
+    }));
+    expect(climbing.drift_trend.kind).toBe('watch');
+    expect(climbing.drift_trend.text).toContain('~7% to ~12%');
+
+    const falling = byId(buildTrendNudges({
+      recent: { hrDriftPct: [4, 5, 5] },
+      prior: { hrDriftPct: [9, 10, 11] },
+    }));
+    expect(falling.drift_trend.kind).toBe('positive');
+  });
+
+  it('reads distance-per-stroke moves in both directions', () => {
+    const better = byId(buildTrendNudges({
+      recent: { distancePerStroke: [10.5, 10.6, 10.7] },
+      prior: { distancePerStroke: [10.1, 10.2, 10.2] },
+    }));
+    expect(better.stroke_trend.kind).toBe('positive');
+    expect(better.stroke_trend.text).toContain('10.60m per stroke');
+
+    const worse = byId(buildTrendNudges({
+      recent: { distancePerStroke: [9.7, 9.8, 9.8] },
+      prior: { distancePerStroke: [10.1, 10.2, 10.2] },
+    }));
+    expect(worse.stroke_trend.kind).toBe('watch');
+  });
+
+  it('reads watts per heartbeat as the aerobic engine', () => {
+    const growing = byId(buildTrendNudges({
+      recent: { wattsPerBeat: [1.30, 1.32, 1.34] },
+      prior: { wattsPerBeat: [1.20, 1.22, 1.24] },
+    }));
+    expect(growing.aerobic_trend.kind).toBe('positive');
+
+    const shrinking = byId(buildTrendNudges({
+      recent: { wattsPerBeat: [1.10, 1.12, 1.14] },
+      prior: { wattsPerBeat: [1.20, 1.22, 1.24] },
+    }));
+    expect(shrinking.aerobic_trend.kind).toBe('watch');
+  });
+
+  it('only compares heart-rate cost when the paces are genuinely comparable', () => {
+    const comparable = byId(buildTrendNudges({
+      recent: { paceMs: [120000, 120500, 121000], hrAvg: [152, 153, 154] },
+      prior: { paceMs: [120200, 120600, 120900], hrAvg: [146, 147, 148] },
+    }));
+    expect(comparable.pace_cost.kind).toBe('watch');
+    expect(comparable.pace_cost.text).toContain('~6 bpm more');
+
+    const notComparable = buildTrendNudges({
+      recent: { paceMs: [114000, 114500, 115000], hrAvg: [158, 159, 160] },
+      prior: { paceMs: [121000, 121500, 122000], hrAvg: [146, 147, 148] },
+    });
+    expect(notComparable.find(n => n.id === 'pace_cost')).toBeUndefined();
+
+    const cheaper = byId(buildTrendNudges({
+      recent: { paceMs: [120000, 120500, 121000], hrAvg: [141, 142, 143] },
+      prior: { paceMs: [120200, 120600, 120900], hrAvg: [147, 148, 149] },
+    }));
+    expect(cheaper.pace_cost.kind).toBe('positive');
+  });
+
+  it('ignores small moves inside every threshold', () => {
+    expect(buildTrendNudges({
+      recent: {
+        hrDriftPct: [8, 8, 9],
+        distancePerStroke: [10.20, 10.25, 10.25],
+        wattsPerBeat: [1.22, 1.23, 1.23],
+        paceMs: [120000, 120200, 120400],
+        hrAvg: [148, 149, 149],
+      },
+      prior: {
+        hrDriftPct: [7, 8, 8],
+        distancePerStroke: [10.15, 10.20, 10.20],
+        wattsPerBeat: [1.21, 1.22, 1.22],
+        paceMs: [120100, 120300, 120500],
+        hrAvg: [147, 148, 148],
+      },
+    })).toEqual([]);
   });
 });

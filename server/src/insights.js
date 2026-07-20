@@ -20,6 +20,12 @@ const REP_SPREAD_WIDE_S = 4.0; // s/500m spread → pacing drifted
 const REP_RATE_SPIKE_SPM = 2.5; // spm above the set average → spike
 const RECOVERY_GOOD_BPM = 10; // avg HR drop between reps → recovering well
 const RECOVERY_POOR_BPM = 3; // avg HR drop between reps → rests too short
+const NUDGE_MIN_SESSIONS = 3; // sessions per window before a trend is trusted
+const NUDGE_DRIFT_PP = 3; // percentage-point move in median HR drift
+const NUDGE_STROKE_PCT = 0.02; // 2% move in median distance per stroke
+const NUDGE_AEROBIC_PCT = 0.03; // 3% move in median watts per beat
+const NUDGE_SAME_PACE_S = 2.0; // windows comparable if median paces this close
+const NUDGE_HR_BPM = 4; // bpm move at a comparable pace worth naming
 
 // --- Formatting helpers (self-contained; server pace_ms is per-500m) ---------
 function km(meters) {
@@ -228,6 +234,82 @@ export function buildWeeklyOverview(input = {}) {
     },
     insights,
   };
+}
+
+// -----------------------------------------------------------------------------
+// Trend nudges: slow-moving technique and efficiency signals that no single
+// session shows. Each metric is already computed per workout; this compares
+// steady-session medians across two windows (callers use the last 3 weeks vs
+// the 6 weeks before) and only speaks when both windows have enough sessions
+// and the move clears a named threshold. Same { id, kind, text } shape as the
+// weekly insights.
+// -----------------------------------------------------------------------------
+function median(values) {
+  const sorted = values.filter(v => Number.isFinite(v)).sort((a, b) => a - b);
+  if (sorted.length === 0) return null;
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+function trendPair(recent = [], prior = []) {
+  if (recent.length < NUDGE_MIN_SESSIONS || prior.length < NUDGE_MIN_SESSIONS) return null;
+  const now = median(recent);
+  const then = median(prior);
+  if (now == null || then == null) return null;
+  return { now, then };
+}
+
+export function buildTrendNudges(input = {}) {
+  const { recent = {}, prior = {} } = input;
+  const out = [];
+
+  // 1. HR drift on steady rows: rising drift means the back half keeps
+  // getting harder - aerobic endurance slipping or fatigue accumulating.
+  const drift = trendPair(recent.hrDriftPct, prior.hrDriftPct);
+  if (drift) {
+    if (drift.now - drift.then >= NUDGE_DRIFT_PP) {
+      out.push(insight('drift_trend', 'watch', `HR drift on steady rows has climbed from ~${drift.then.toFixed(0)}% to ~${drift.now.toFixed(0)}% over six weeks. Endurance may be slipping, or fatigue is building.`));
+    } else if (drift.then - drift.now >= NUDGE_DRIFT_PP) {
+      out.push(insight('drift_trend', 'positive', `HR drift on steady rows is down from ~${drift.then.toFixed(0)}% to ~${drift.now.toFixed(0)}% over six weeks. Aerobic control is improving.`));
+    }
+  }
+
+  // 2. Distance per stroke: the cleanest technique trend in the data.
+  const stroke = trendPair(recent.distancePerStroke, prior.distancePerStroke);
+  if (stroke && stroke.then > 0) {
+    const change = (stroke.now - stroke.then) / stroke.then;
+    if (change >= NUDGE_STROKE_PCT) {
+      out.push(insight('stroke_trend', 'positive', `${stroke.now.toFixed(2)}m per stroke on steady rows, up from ${stroke.then.toFixed(2)}m six weeks ago. Technique is paying off.`));
+    } else if (change <= -NUDGE_STROKE_PCT) {
+      out.push(insight('stroke_trend', 'watch', `Distance per stroke has slipped from ${stroke.then.toFixed(2)}m to ${stroke.now.toFixed(2)}m over six weeks. Worth a technique check.`));
+    }
+  }
+
+  // 3. Watts per heartbeat: aerobic engine output per unit of effort.
+  const aerobic = trendPair(recent.wattsPerBeat, prior.wattsPerBeat);
+  if (aerobic && aerobic.then > 0) {
+    const change = (aerobic.now - aerobic.then) / aerobic.then;
+    if (change >= NUDGE_AEROBIC_PCT) {
+      out.push(insight('aerobic_trend', 'positive', `${pct(change)} more watts per heartbeat than six weeks ago. The aerobic engine is growing.`));
+    } else if (change <= -NUDGE_AEROBIC_PCT) {
+      out.push(insight('aerobic_trend', 'watch', `Watts per heartbeat is down ${pct(change)} vs six weeks ago. Could be fatigue - ease off if it persists.`));
+    }
+  }
+
+  // 4. Heart-rate cost of the same pace - only meaningful when the two
+  // windows were rowed at genuinely comparable steady paces.
+  const pace = trendPair(recent.paceMs, prior.paceMs);
+  const hr = trendPair(recent.hrAvg, prior.hrAvg);
+  if (pace && hr && paceGapSeconds(pace.now, pace.then) <= NUDGE_SAME_PACE_S) {
+    const hrGap = hr.now - hr.then;
+    if (hrGap >= NUDGE_HR_BPM) {
+      out.push(insight('pace_cost', 'watch', `Your usual steady pace is costing ~${Math.round(hrGap)} bpm more than six weeks ago. Watch recovery and sleep.`));
+    } else if (hrGap <= -NUDGE_HR_BPM) {
+      out.push(insight('pace_cost', 'positive', `Same steady pace, ~${Math.round(-hrGap)} bpm lower heart rate than six weeks ago. Fitness is doing its job.`));
+    }
+  }
+
+  return out;
 }
 
 // -----------------------------------------------------------------------------

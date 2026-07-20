@@ -74,6 +74,25 @@ export default function ProgressOverview() {
         </div>
       </section>
 
+      {overview?.nudges?.length > 0 && (
+        <section aria-labelledby="nudges-heading" className={styles.verdictCard}>
+          <div className={styles.verdictIntro}>
+            <Eyebrow>Trends · steady sessions, last 3 weeks vs the 6 before</Eyebrow>
+            <div className={styles.verdictHeading}>
+              <h3 id="nudges-heading">Worth knowing</h3>
+            </div>
+          </div>
+          <ul className={styles.insightList}>
+            {overview.nudges.slice(0, 4).map(item => (
+              <li key={item.id} className={styles[`insight_${item.kind}`] || ''}>
+                <span aria-hidden="true" />
+                {item.text}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       <hr className={styles.sectionDivider} aria-hidden="true" />
 
       <PrimaryTarget target={target} loading={goals.loading} />
