@@ -2,7 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- viewport-fit=cover lets the page draw into the iOS safe areas so
+       env(safe-area-inset-*) reports real values; without it those insets
+       are 0 and the bottom nav sits under the home indicator in standalone
+       PWA mode. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>ErgDash</title>
   <meta name="description" content="Self-hosted training dashboard for Concept2 RowErg — volume trends, pace tracking, personal bests, and fitness modelling from your Logbook." />
   <meta name="theme-color" media="(prefers-color-scheme: light)" content="#F3F2EA" />
