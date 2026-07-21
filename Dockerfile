@@ -12,7 +12,7 @@ WORKDIR /app
 
 LABEL org.opencontainers.image.source="https://github.com/benjouk/ergdash" \
       org.opencontainers.image.description="Self-hosted dashboard for Concept2 RowErg training analytics" \
-      org.opencontainers.image.licenses="MIT"
+      org.opencontainers.image.licenses="AGPL-3.0-only"
 
 RUN apk add --no-cache --virtual .build-deps python3 make g++
 COPY server/package.json server/package-lock.json ./
