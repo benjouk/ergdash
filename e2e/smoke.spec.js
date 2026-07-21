@@ -72,6 +72,8 @@ test('switches profiles in-app and reloads profile-scoped data', async ({ page }
   // still-fresh profile-scoped cache without reviving Sam's rows.
   await page.getByRole('link', { name: 'Settings' }).click();
   await expect(page).toHaveURL(/\/settings$/);
+  await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
+  expect(switchedApiRequests.filter(url => url.pathname === '/api/settings')).toHaveLength(1);
   await page.getByTitle('Profile: Sam').click();
   await page.getByRole('option').filter({ hasText: 'Alex' }).getByRole('button').click();
   await expect(page.getByTitle('Profile: Alex')).toBeVisible();

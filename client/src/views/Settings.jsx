@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Download, FileJson, LogOut, Plus, RotateCcw, Trash2, Upload } from 'lucide-react';
 import { api } from '../api.js';
+import { useProfileQuery } from '../hooks/useProfileQuery.js';
 import { parseTimeInput, formatDuration } from '../utils/ergMath.js';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { useUnits } from '../context/UnitsContext.jsx';
@@ -22,19 +23,23 @@ function HrZonesSection() {
   const [estimatedMax, setEstimatedMax] = useState(null);
   const [saved, setSaved] = useState(false);
   const toast = useToast();
+  const { data: settings } = useProfileQuery(['settings'], api.getSettings);
+  const { data: summary } = useProfileQuery(['summary', {}], api.getSummary);
 
   useEffect(() => {
-    api.getSettings().then(settings => {
-      if (settings.max_hr) setMaxHr(settings.max_hr);
-      if (settings.hr_zones) {
-        try {
-          const parsed = JSON.parse(settings.hr_zones);
-          if (Array.isArray(parsed) && parsed.length === 5) setPercents(parsed);
-        } catch { /* keep defaults */ }
-      }
-    }).catch(() => {});
-    api.getSummary().then(s => setEstimatedMax(s.estimated_max_hr)).catch(() => {});
-  }, []);
+    if (!settings) return;
+    if (settings.max_hr) setMaxHr(settings.max_hr);
+    if (settings.hr_zones) {
+      try {
+        const parsed = JSON.parse(settings.hr_zones);
+        if (Array.isArray(parsed) && parsed.length === 5) setPercents(parsed);
+      } catch { /* keep defaults */ }
+    }
+  }, [settings]);
+
+  useEffect(() => {
+    if (summary) setEstimatedMax(summary.estimated_max_hr);
+  }, [summary]);
 
   const effectiveMax = Number(maxHr) > 0 ? Number(maxHr) : estimatedMax;
 
