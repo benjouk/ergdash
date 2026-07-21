@@ -1,20 +1,18 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { api } from '../api.js';
+import { useProfileQuery } from '../hooks/useProfileQuery.js';
 
 const ThemeContext = createContext();
 
 export function ThemeProvider({ children }) {
   const [theme, setThemeState] = useState('system');
+  const { data: settings } = useProfileQuery(['settings'], api.getSettings);
 
   useEffect(() => {
-    api.getSettings()
-      .then(settings => {
-        if (['system', 'light', 'dark'].includes(settings.theme)) {
-          setThemeState(settings.theme);
-        }
-      })
-      .catch(() => {});
-  }, []);
+    if (['system', 'light', 'dark'].includes(settings?.theme)) {
+      setThemeState(settings.theme);
+    }
+  }, [settings]);
 
   const resolveTheme = useCallback((t) => {
     if (t === 'system') {

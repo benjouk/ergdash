@@ -1,3 +1,7 @@
+import { clearQueryCache, invalidateProfileQueries } from './queryClient.js';
+
+const OFFLINE_API_CACHE = 'ergdash-api';
+
 // The active household profile, chosen client-side and sent with every API
 // call. The server falls back to the first profile when the header is absent.
 export function getActiveProfileId() {
@@ -14,28 +18,100 @@ function profileHeaders() {
   return id ? { 'X-Profile-Id': id } : {};
 }
 
+const ACTIVITY_QUERY_TAGS = [
+  'summary', 'trends', 'goals', 'pb-history', 'workouts', 'stats', 'plans', 'programs',
+];
+
+function mutationQueryTags(path) {
+  const route = path.split('?')[0];
+  if (route === '/auth/logout') return 'clear';
+  if (route === '/api/sync') return [];
+  if (route.startsWith('/api/settings')) return ['settings'];
+  if (route.startsWith('/api/workouts') || route.startsWith('/api/import/commit')) {
+    return ACTIVITY_QUERY_TAGS;
+  }
+  if (route.startsWith('/api/goals')) return ['goals'];
+  if (route.startsWith('/api/plans') || route.startsWith('/api/programs')) {
+    return ['plans', 'programs', 'workouts'];
+  }
+  if (route.startsWith('/api/profiles') || route.startsWith('/api/admin/backups')) return [];
+  return null;
+}
+
+function invalidateAfterMutation(path, profileId) {
+  const tags = mutationQueryTags(path);
+  if (tags === 'clear') clearQueryCache();
+  else if (tags === null) invalidateProfileQueries(profileId);
+  else if (tags.length > 0) invalidateProfileQueries(profileId, tags);
+}
+
+// Cache Storage keys do not vary by request headers. Add the profile to GET
+// URLs as well as the X-Profile-Id header so the offline service worker cannot
+// serve one household member's cached response to another.
+export function addProfileCacheKey(path, profileId) {
+  if (!profileId || !path.startsWith('/api/')) return path;
+  const url = new URL(path, 'http://ergdash.local');
+  url.searchParams.set('_ergdash_profile', String(profileId));
+  return `${url.pathname}${url.search}`;
+}
+
+export async function clearOfflineApiCache() {
+  if (!globalThis.caches?.delete) return false;
+  return globalThis.caches.delete(OFFLINE_API_CACHE);
+}
+
+// Older service workers cached profile-scoped reads without the URL marker.
+// Remove only those legacy entries during a profile switch while retaining
+// the correctly partitioned responses that make offline switching useful.
+export async function clearLegacyOfflineApiEntries() {
+  if (!globalThis.caches?.open) return 0;
+  const cache = await globalThis.caches.open(OFFLINE_API_CACHE);
+  const requests = await cache.keys();
+  const legacy = requests.filter(request => {
+    const url = new URL(request.url);
+    return url.pathname.startsWith('/api/') && !url.searchParams.has('_ergdash_profile');
+  });
+  await Promise.all(legacy.map(request => cache.delete(request)));
+  return legacy.length;
+}
+
+function apiError(message, status) {
+  const error = new Error(message);
+  error.status = status;
+  return error;
+}
+
 async function request(path, options = {}) {
+  const method = (options.method || 'GET').toUpperCase();
+  const profileId = getActiveProfileId();
+
   if (import.meta.env.VITE_DEMO === '1') {
     const { demoRequest } = await import('./demoApi.js');
-    return demoRequest(path, options);
+    const data = await demoRequest(path, options);
+    if (method !== 'GET') invalidateAfterMutation(path, profileId);
+    return data;
   }
 
-  const res = await fetch(path, {
+  const { headers = {}, ...fetchOptions } = options;
+  const fetchPath = method === 'GET' ? addProfileCacheKey(path, profileId) : path;
+  const res = await fetch(fetchPath, {
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...profileHeaders(), ...options.headers },
-    ...options,
+    ...fetchOptions,
+    headers: { 'Content-Type': 'application/json', ...profileHeaders(), ...headers },
   });
 
   if (res.status === 401) {
-    throw new Error('Not authenticated');
+    throw apiError('Not authenticated', res.status);
   }
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.error || `API error: ${res.status}`);
+    throw apiError(body.error || `API error: ${res.status}`, res.status);
   }
 
-  return res.json();
+  const data = await res.json();
+  if (method !== 'GET') invalidateAfterMutation(path, profileId);
+  return data;
 }
 
 async function uploadRaw(path, file, demoMessage) {
@@ -43,6 +119,7 @@ async function uploadRaw(path, file, demoMessage) {
     throw new Error(demoMessage);
   }
 
+  const profileId = getActiveProfileId();
   const res = await fetch(path, {
     method: 'POST',
     credentials: 'include',
@@ -51,20 +128,26 @@ async function uploadRaw(path, file, demoMessage) {
   });
 
   if (res.status === 401) {
-    throw new Error('Not authenticated');
+    throw apiError('Not authenticated', res.status);
   }
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.error || `API error: ${res.status}`);
+    throw apiError(body.error || `API error: ${res.status}`, res.status);
   }
 
-  return res.json();
+  const data = await res.json();
+  if (!path.startsWith('/api/import/preview')) invalidateAfterMutation(path, profileId);
+  return data;
 }
 
 export const api = {
   getAuthStatus: () => request('/auth/status'),
-  logout: () => request('/auth/logout', { method: 'POST' }),
+  logout: async () => {
+    const result = await request('/auth/logout', { method: 'POST' });
+    await clearOfflineApiCache().catch(() => {});
+    return result;
+  },
 
   getProfiles: () => request('/api/profiles'),
   renameProfile: (id, name) => request(`/api/profiles/${id}`, {

@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
 import { Link, useMatch } from 'react-router-dom';
 import { Pin } from 'lucide-react';
 import { api } from '../../api.js';
+import { useProfileQuery } from '../../hooks/useProfileQuery.js';
 import { useUnits } from '../../context/UnitsContext.jsx';
 import { useTimeRange } from '../../context/TimeRangeContext.jsx';
 import { usePrefs } from '../../context/PrefsContext.jsx';
@@ -40,51 +40,29 @@ const TAG_CLASS = {
 };
 
 export default function FeedPanel({ layout = 'column' }) {
-  const [workouts, setWorkouts] = useState([]);
-  const [pinnedWorkouts, setPinnedWorkouts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [loaded, setLoaded] = useState(false);
-  const [error, setError] = useState('');
   const activeId = useMatch('/session/:id')?.params?.id;
   const { units, formatPace, formatDistance, formatTime } = useUnits();
   const { from, to } = useTimeRange();
   const { feedLimit, dateFormat } = usePrefs();
 
   const isRow = layout === 'row';
-
-  useEffect(() => {
-    let mounted = true;
-    const p = { limit: isRow ? 12 : feedLimit, sort: 'date_desc' };
-    if (from) p.from = from;
-    if (to) p.to = to;
-    const pinnedParams = { pinned: 1, limit: 10, sort: 'date_desc' };
-    setLoading(true);
-    setError('');
-    Promise.all([
-      api.getWorkouts(p),
-      api.getWorkouts(pinnedParams),
-    ])
-      .then(([recentData, pinnedData]) => {
-        if (!mounted) return;
-        setWorkouts(recentData.data || []);
-        setPinnedWorkouts(pinnedData.data || []);
-      })
-      .catch(err => {
-        if (!mounted) return;
-        setWorkouts([]);
-        setPinnedWorkouts([]);
-        setError(err.message || 'Could not load recent sessions');
-      })
-      .finally(() => {
-        if (!mounted) return;
-        setLoading(false);
-        setLoaded(true);
-      });
-
-    return () => {
-      mounted = false;
-    };
-  }, [from, to, isRow, activeId, feedLimit]);
+  const recentParams = { limit: isRow ? 12 : feedLimit, sort: 'date_desc' };
+  if (from) recentParams.from = from;
+  if (to) recentParams.to = to;
+  const pinnedParams = { pinned: 1, limit: 10, sort: 'date_desc' };
+  const recentQuery = useProfileQuery(
+    ['workouts', recentParams],
+    () => api.getWorkouts(recentParams)
+  );
+  const pinnedQuery = useProfileQuery(
+    ['workouts', pinnedParams],
+    () => api.getWorkouts(pinnedParams)
+  );
+  const workouts = recentQuery.data?.data || [];
+  const pinnedWorkouts = pinnedQuery.data?.data || [];
+  const loading = recentQuery.loading || pinnedQuery.loading;
+  const loaded = recentQuery.status !== 'idle' && pinnedQuery.status !== 'idle';
+  const error = recentQuery.error || pinnedQuery.error;
 
   return (
     <div className={styles.feed}>
@@ -120,7 +98,7 @@ export default function FeedPanel({ layout = 'column' }) {
           ))}
         </div>
       ) : error ? (
-        <div className={styles.error}>{error}</div>
+        <div className={styles.error}>{error.message || 'Could not load recent sessions'}</div>
       ) : workouts.length === 0 ? (
         <div className={styles.empty}>No workouts yet</div>
       ) : isRow ? (

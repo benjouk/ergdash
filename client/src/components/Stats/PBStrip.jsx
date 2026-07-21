@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../api.js';
+import { useProfileQuery } from '../../hooks/useProfileQuery.js';
 import { useUnits } from '../../context/UnitsContext.jsx';
 import { useTimeRange } from '../../context/TimeRangeContext.jsx';
 import { usePrefs } from '../../context/PrefsContext.jsx';
@@ -45,26 +45,33 @@ function benchmarkTitle(benchmark) {
 }
 
 export default function PBStrip() {
-  const [pbs, setPbs] = useState([]);
-  const [timeBests, setTimeBests] = useState([]);
   const navigate = useNavigate();
   const { formatPace, formatTime, formatDistance } = useUnits();
   const { from, to } = useTimeRange();
   const { weightKg } = usePrefs();
 
-  useEffect(() => {
-    const params = {};
-    if (from) params.from = from;
-    if (to) params.to = to;
-    api.getPersonalBests(params)
-      .then(d => {
-        setPbs(d.personal_bests || []);
-        setTimeBests(d.time_bests || []);
-      })
-      .catch(() => {});
-  }, [from, to]);
+  const params = {};
+  if (from) params.from = from;
+  if (to) params.to = to;
+  const { data, error, loading, refetch } = useProfileQuery(
+    ['stats', 'personal-bests', params],
+    () => api.getPersonalBests(params)
+  );
+  const pbs = data?.personal_bests || [];
+  const timeBests = data?.time_bests || [];
 
-  if (pbs.length === 0 && timeBests.length === 0) return null;
+  if (loading) return null;
+  if (error) {
+    return (
+      <div className={styles.pbState} role="alert">
+        <span>Couldn't load personal bests.</span>
+        <button type="button" onClick={() => refetch().catch(() => {})}>Retry</button>
+      </div>
+    );
+  }
+  if (pbs.length === 0 && timeBests.length === 0) {
+    return <div className={styles.pbState}>No personal bests in this period yet.</div>;
+  }
 
   return (
     <div className={styles.pbStrip}>

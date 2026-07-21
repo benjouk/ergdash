@@ -96,12 +96,13 @@ export default function App() {
 
   return (
     <div className={styles.appShell}>
+      <a className={styles.skipLink} href="#main-content">Skip to main content</a>
       <Ticker />
       <div className={styles.layout}>
         <aside aria-label="Recent Sessions" className={styles.feed}>
           <FeedPanel />
         </aside>
-        <main className={styles.main}>
+        <main id="main-content" className={styles.main} tabIndex="-1">
           <ErrorBoundary resetKey={pathname}>
             <Suspense fallback={<div className={styles.routeLoading}>Loading…</div>}>
               <Routes>

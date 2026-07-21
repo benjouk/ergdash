@@ -2,7 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { ThemeProvider } from './context/ThemeContext.jsx';
-import { AuthProvider } from './context/AuthContext.jsx';
+import { AuthProvider, useAuth } from './context/AuthContext.jsx';
 import { SyncProvider } from './context/SyncContext.jsx';
 import { ToastProvider } from './context/ToastContext.jsx';
 import { UnitsProvider } from './context/UnitsContext.jsx';
@@ -16,23 +16,36 @@ import { registerSW } from 'virtual:pwa-register';
 // autoUpdate: a redeployed app replaces the worker on the next visit.
 registerSW({ immediate: true });
 
+function ProfileProviders() {
+  const { activeProfile } = useAuth();
+  const profileKey = activeProfile?.id == null ? 'no-profile' : String(activeProfile.id);
+
+  return <ProfileScope key={profileKey} />;
+}
+
+function ProfileScope() {
+  return (
+    <ThemeProvider>
+      <ToastProvider>
+        <SyncProvider>
+          <UnitsProvider>
+            <PrefsProvider>
+              <TimeRangeProvider>
+                <App />
+              </TimeRangeProvider>
+            </PrefsProvider>
+          </UnitsProvider>
+        </SyncProvider>
+      </ToastProvider>
+    </ThemeProvider>
+  );
+}
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter basename={import.meta.env.BASE_URL}>
       <AuthProvider>
-        <ThemeProvider>
-          <ToastProvider>
-            <SyncProvider>
-              <UnitsProvider>
-                <PrefsProvider>
-                  <TimeRangeProvider>
-                    <App />
-                  </TimeRangeProvider>
-                </PrefsProvider>
-              </UnitsProvider>
-            </SyncProvider>
-          </ToastProvider>
-        </ThemeProvider>
+        <ProfileProviders />
       </AuthProvider>
     </BrowserRouter>
   </StrictMode>

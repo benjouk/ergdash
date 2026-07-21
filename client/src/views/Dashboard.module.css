@@ -83,6 +83,24 @@
   gap: var(--space-5);
 }
 
+.dataNotice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--warn);
+  border-radius: var(--radius-md);
+  background: var(--warn-bg);
+  color: var(--ink-2);
+  font-size: 0.82rem;
+}
+
+.dataNotice button {
+  color: var(--accent-deep);
+  font-weight: 700;
+}
+
 /* Feed lives in the sidebar on desktop; inline horizontal scroller below 1100px */
 .mobileFeed {
   display: none;
