@@ -1,21 +1,19 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { api } from '../api.js';
+import { useProfileQuery } from '../hooks/useProfileQuery.js';
 import { paceToWatts, wattsToCalHr } from '../utils/ergMath.js';
 
 const UnitsContext = createContext();
 
 export function UnitsProvider({ children }) {
   const [units, setUnits] = useState('pace');
+  const { data: settings } = useProfileQuery(['settings'], api.getSettings);
 
   useEffect(() => {
-    api.getSettings()
-      .then(settings => {
-        if (['pace', 'watts', 'calhr'].includes(settings.units)) {
-          setUnits(settings.units);
-        }
-      })
-      .catch(() => {});
-  }, []);
+    if (['pace', 'watts', 'calhr'].includes(settings?.units)) {
+      setUnits(settings.units);
+    }
+  }, [settings]);
 
   const updateUnits = useCallback((nextUnits) => {
     setUnits(nextUnits);

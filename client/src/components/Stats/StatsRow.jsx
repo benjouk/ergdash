@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
 import { api } from '../../api.js';
+import { useProfileQuery } from '../../hooks/useProfileQuery.js';
 import { useUnits } from '../../context/UnitsContext.jsx';
 import { useTimeRange } from '../../context/TimeRangeContext.jsx';
 import Sparkline from '../Feed/Sparkline.jsx';
@@ -29,7 +29,6 @@ function weekDeltaChip(summary) {
 }
 
 export default function StatsRow({ summary: summaryProp, goals, showMeters = true }) {
-  const [fetched, setFetched] = useState(null);
   const { formatPace, formatDistance, formatDistanceFull } = useUnits();
   const { from, to } = useTimeRange();
 
@@ -37,13 +36,14 @@ export default function StatsRow({ summary: summaryProp, goals, showMeters = tru
   // fetching a second time.
   const external = summaryProp !== undefined;
 
-  useEffect(() => {
-    if (external) return;
-    const params = {};
-    if (from) params.from = from;
-    if (to) params.to = to;
-    api.getSummary(params).then(setFetched).catch(() => {});
-  }, [from, to, external]);
+  const params = {};
+  if (from) params.from = from;
+  if (to) params.to = to;
+  const { data: fetched = null } = useProfileQuery(
+    ['summary', params],
+    () => api.getSummary(params),
+    { enabled: !external }
+  );
 
   const summary = external ? summaryProp : fetched;
   if (!summary) return null;

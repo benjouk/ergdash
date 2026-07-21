@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { api } from '../api.js';
+import { useProfileQuery } from '../hooks/useProfileQuery.js';
 
 const PrefsContext = createContext();
 
@@ -48,12 +49,11 @@ function normalizePrefs(settings = {}) {
 
 export function PrefsProvider({ children }) {
   const [prefs, setPrefs] = useState(DEFAULT_PREFS);
+  const { data: settings } = useProfileQuery(['settings'], api.getSettings);
 
   useEffect(() => {
-    api.getSettings()
-      .then(settings => setPrefs(normalizePrefs(settings)))
-      .catch(() => {});
-  }, []);
+    if (settings) setPrefs(normalizePrefs(settings));
+  }, [settings]);
 
   const updatePref = useCallback((key, value) => {
     const nextPrefs = normalizePrefs({ ...prefs, [key]: String(value) });

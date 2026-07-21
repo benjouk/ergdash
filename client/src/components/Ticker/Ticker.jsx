@@ -7,6 +7,7 @@ import { useSync } from '../../context/SyncContext.jsx';
 import { useUnits } from '../../context/UnitsContext.jsx';
 import { useTimeRange } from '../../context/TimeRangeContext.jsx';
 import { api } from '../../api.js';
+import { useProfileQuery } from '../../hooks/useProfileQuery.js';
 import PaceTrace from './PaceTrace.jsx';
 import styles from './Ticker.module.css';
 
@@ -30,21 +31,22 @@ export default function Ticker() {
   const { syncStatus } = useSync();
   const { formatPace, formatDistanceFull } = useUnits();
   const { rangeKey, setRange, from, to, PRESETS, describeRange } = useTimeRange();
-  const [summary, setSummary] = useState(null);
-  const [paceTrend, setPaceTrend] = useState(null);
   const [rangeMenuOpen, setRangeMenuOpen] = useState(false);
   const rangeMenuRef = useRef(null);
 
-  useEffect(() => {
-    const params = {};
-    if (from) params.from = from;
-    if (to) params.to = to;
-    api.getSummary(params).then(setSummary).catch(() => {});
-    api.getTrends({ metric: 'pace', period: 'all', ...params }).then(data => {
-      const rows = data.pace_trend || [];
-      setPaceTrend(rows.slice(-30));
-    }).catch(() => {});
-  }, [from, to]);
+  const summaryParams = {};
+  if (from) summaryParams.from = from;
+  if (to) summaryParams.to = to;
+  const { data: summary = null } = useProfileQuery(
+    ['summary', summaryParams],
+    () => api.getSummary(summaryParams)
+  );
+  const trendParams = { metric: 'pace', period: 'all', ...summaryParams };
+  const { data: trendData } = useProfileQuery(
+    ['trends', trendParams],
+    () => api.getTrends(trendParams)
+  );
+  const paceTrend = trendData ? (trendData.pace_trend || []).slice(-30) : null;
 
   useEffect(() => {
     if (!rangeMenuOpen) return;

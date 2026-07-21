@@ -36,3 +36,47 @@ test('logs in, renders the dashboard, and opens a session with charts', async ({
   // A white screen or broken chunk shows up here even if the DOM checks pass.
   expect(pageErrors).toEqual([]);
 });
+
+test('switches profiles in-app and reloads profile-scoped data', async ({ page }) => {
+  const pageErrors = [];
+  page.on('pageerror', error => pageErrors.push(error));
+  await page.goto('/auth/mock-login');
+  await expect(page.getByTitle('Profile: Alex')).toBeVisible();
+
+  const beforeHref = await page.locator('aside[aria-label="Recent Sessions"] a[href^="/session/"]').first().getAttribute('href');
+  expect(beforeHref).toMatch(/^\/session\/1\d+/);
+
+  const documentMarker = `profile-switch-${Date.now()}`;
+  await page.evaluate(marker => { window.__ergdashDocumentMarker = marker; }, documentMarker);
+  const switchedApiRequests = [];
+  page.on('request', request => {
+    const url = new URL(request.url());
+    if (url.pathname.startsWith('/api/')) switchedApiRequests.push(url);
+  });
+
+  await page.getByTitle('Profile: Alex').click();
+  await page.getByRole('option').filter({ hasText: 'Sam' }).getByRole('button').click();
+
+  await expect(page.getByTitle('Profile: Sam')).toBeVisible();
+  await expect(page.locator('aside[aria-label="Recent Sessions"] a[href^="/session/"]').first()).toHaveAttribute('href', /^\/session\/3\d+/);
+  expect(await page.evaluate(() => window.__ergdashDocumentMarker)).toBe(documentMarker);
+
+  const activeProfileId = await page.evaluate(() => localStorage.getItem('ergdash_profile'));
+  expect(activeProfileId).toBeTruthy();
+  expect(switchedApiRequests.length).toBeGreaterThan(0);
+  expect(switchedApiRequests.every(url => url.searchParams.get('_ergdash_profile') === activeProfileId)).toBe(true);
+  expect(switchedApiRequests.filter(url => url.pathname === '/api/settings')).toHaveLength(1);
+  expect(switchedApiRequests.filter(url => url.pathname === '/api/stats/summary')).toHaveLength(1);
+
+  // Profile-independent routes stay put, and switching back can reuse the
+  // still-fresh profile-scoped cache without reviving Sam's rows.
+  await page.getByRole('link', { name: 'Settings' }).click();
+  await expect(page).toHaveURL(/\/settings$/);
+  await page.getByTitle('Profile: Sam').click();
+  await page.getByRole('option').filter({ hasText: 'Alex' }).getByRole('button').click();
+  await expect(page.getByTitle('Profile: Alex')).toBeVisible();
+  await expect(page).toHaveURL(/\/settings$/);
+  await expect(page.locator('aside[aria-label="Recent Sessions"] a[href^="/session/"]').first()).toHaveAttribute('href', /^\/session\/1\d+/);
+  expect(await page.evaluate(() => window.__ergdashDocumentMarker)).toBe(documentMarker);
+  expect(pageErrors).toEqual([]);
+});

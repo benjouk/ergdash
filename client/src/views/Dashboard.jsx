@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api.js';
+import { useProfileQuery } from '../hooks/useProfileQuery.js';
 import { useTimeRange } from '../context/TimeRangeContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { distanceLabel } from '../components/PBBadge.jsx';
@@ -13,44 +14,32 @@ import PageHeader from '../components/PageHeader/PageHeader.jsx';
 import styles from './Dashboard.module.css';
 
 export default function Dashboard() {
-  const [summary, setSummary] = useState(null);
-  const [goals, setGoals] = useState(null);
-  const [pbEvents, setPbEvents] = useState([]);
   const [pbBannerHidden, setPbBannerHidden] = useState(false);
   const { from, to } = useTimeRange();
   const toast = useToast();
 
-  useEffect(() => {
-    const params = {};
-    if (from) params.from = from;
-    if (to) params.to = to;
-    api.getSummary(params).then(setSummary).catch(() => {});
-  }, [from, to]);
+  const summaryParams = {};
+  if (from) summaryParams.from = from;
+  if (to) summaryParams.to = to;
+  const { data: summary = null } = useProfileQuery(
+    ['summary', summaryParams],
+    () => api.getSummary(summaryParams)
+  );
+  const { data: goalsData } = useProfileQuery(['goals'], api.getGoals);
+  const goals = goalsData ? goalsData.goals || [] : null;
+  const { data: settings } = useProfileQuery(['settings'], api.getSettings);
+  const pbParams = {};
+  if (settings?.pb_last_seen_at) pbParams.since = settings.pb_last_seen_at;
+  const { data: pbData } = useProfileQuery(
+    ['pb-history', pbParams],
+    () => api.getPbHistory(pbParams),
+    { enabled: settings !== undefined }
+  );
+  const pbEvents = pbData?.pb_history || [];
 
   useEffect(() => {
-    api.getGoals().then(d => setGoals(d.goals || [])).catch(() => setGoals([]));
-  }, []);
-
-  useEffect(() => {
-    let mounted = true;
-
-    api.getSettings()
-      .then(settings => {
-        const params = {};
-        if (settings.pb_last_seen_at) params.since = settings.pb_last_seen_at;
-        return api.getPbHistory(params);
-      })
-      .then(data => {
-        if (!mounted) return;
-        setPbEvents(data.pb_history || []);
-        setPbBannerHidden(false);
-      })
-      .catch(() => {});
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
+    setPbBannerHidden(false);
+  }, [pbEvents]);
 
   const dismissPbBanner = async () => {
     const seenAt = new Date().toISOString();
@@ -58,7 +47,6 @@ export default function Dashboard() {
 
     try {
       await api.updateSettings({ pb_last_seen_at: seenAt });
-      setPbEvents([]);
     } catch (err) {
       setPbBannerHidden(false);
       toast.error(err.message || 'Could not save PB notification state');

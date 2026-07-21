@@ -1,9 +1,12 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { api, getActiveProfileId, setActiveProfileId } from '../api.js';
 
 const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
   const [profiles, setProfiles] = useState([]);
   const [activeProfile, setActiveProfile] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -42,12 +45,18 @@ export function AuthProvider({ children }) {
     checkAuth();
   }, [checkAuth]);
 
-  // A full reload is the simplest correct cache invalidation: every context
-  // and view refetches under the new X-Profile-Id.
-  const switchProfile = useCallback((id) => {
+  const switchProfile = useCallback(async (id) => {
     setActiveProfileId(id);
-    window.location.reload();
-  }, []);
+
+    const next = profiles.find(profile => String(profile.id) === String(id));
+    if (next) setActiveProfile(next);
+    else await checkAuth();
+
+    // Profile-scoped providers remount under the new id, keeping the app shell
+    // in place while every active query moves to the new profile cache. A
+    // session URL belongs to one profile, so only that route returns home.
+    if (pathname.startsWith('/session/')) navigate('/', { replace: true });
+  }, [checkAuth, navigate, pathname, profiles]);
 
   const logout = useCallback(async () => {
     await api.logout();

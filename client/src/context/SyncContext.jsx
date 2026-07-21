@@ -1,15 +1,20 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '../api.js';
 import { useToast } from './ToastContext.jsx';
+import { useAuth } from './AuthContext.jsx';
+import { invalidateProfileQueries } from '../queryClient.js';
 
 const SyncContext = createContext();
+const SYNCED_DATA_TAGS = ['summary', 'trends', 'goals', 'pb-history', 'workouts', 'stats', 'plans', 'programs'];
 
 export function SyncProvider({ children }) {
   const [syncStatus, setSyncStatus] = useState(null);
   const toast = useToast();
+  const { activeProfile } = useAuth();
   const previousStatusRef = useRef(null);
 
   const refresh = useCallback(async () => {
+    if (!activeProfile) return;
     try {
       const status = await api.getSyncStatus();
       const previousStatus = previousStatusRef.current;
@@ -18,17 +23,19 @@ export function SyncProvider({ children }) {
 
       if (previousStatus === 'syncing' && status.status === 'idle') {
         toast.success('Sync complete');
+        invalidateProfileQueries(activeProfile.id, SYNCED_DATA_TAGS);
       } else if (previousStatus && previousStatus !== 'error' && status.status === 'error') {
         toast.error('Sync failed');
       }
     } catch {}
-  }, [toast]);
+  }, [activeProfile, toast]);
 
   useEffect(() => {
+    if (!activeProfile) return undefined;
     refresh();
     const interval = setInterval(refresh, 30000);
     return () => clearInterval(interval);
-  }, [refresh]);
+  }, [activeProfile, refresh]);
 
   const triggerSync = useCallback(async () => {
     try {

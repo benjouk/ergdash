@@ -1,5 +1,6 @@
-import { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { api } from '../api.js';
+import { useProfileQuery } from '../hooks/useProfileQuery.js';
 import { PRESETS, computeDateRange } from '../utils/timeRange.js';
 
 const TimeRangeContext = createContext();
@@ -28,20 +29,17 @@ function describeRange(key) {
 export function TimeRangeProvider({ children }) {
   const [defaultRange, setDefaultRangeState] = useState(FALLBACK_DEFAULT_RANGE);
   const [rangeKey, setRangeKey] = useState(FALLBACK_DEFAULT_RANGE);
+  const hydrated = useRef(false);
+  const { data: settings } = useProfileQuery(['settings'], api.getSettings);
 
   useEffect(() => {
-    let active = true;
-    api.getSettings()
-      .then(s => {
-        if (!active) return;
-        if (s.time_range && PRESETS[s.time_range]) {
-          setDefaultRangeState(s.time_range);
-          setRangeKey(s.time_range);
-        }
-      })
-      .catch(() => {});
-    return () => { active = false; };
-  }, []);
+    if (hydrated.current || !settings) return;
+    hydrated.current = true;
+    if (settings.time_range && PRESETS[settings.time_range]) {
+      setDefaultRangeState(settings.time_range);
+      setRangeKey(settings.time_range);
+    }
+  }, [settings]);
 
   // Header selection: transient for the session, resets to the default on reload.
   const setRange = useCallback((key) => {
