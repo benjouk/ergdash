@@ -85,6 +85,31 @@
       </ul>
     </section>
 
+    <section class="screenshots" aria-labelledby="screenshots-heading">
+      <h2 id="screenshots-heading">See ErgDash in action</h2>
+      <p class="screenshots-intro">Select a screenshot to expand it.</p>
+      <div class="screenshot-grid">
+        <figure class="screenshot-card">
+          <a href="/screenshots/dashboard-light.png" data-screenshot-dialog="dashboard-screenshot">
+            <img src="/screenshots/dashboard-light.png" width="1920" height="1200" loading="lazy" decoding="async" alt="ErgDash dashboard in light mode, showing training summary cards, volume, session mix, personal bests, and a training calendar" />
+            <figcaption><span>Dashboard</span><span class="screenshot-hint">Expand</span></figcaption>
+          </a>
+        </figure>
+        <figure class="screenshot-card">
+          <a href="/screenshots/progress-training-light.png" data-screenshot-dialog="progress-training-screenshot">
+            <img src="/screenshots/progress-training-light.png" width="1920" height="1200" loading="lazy" decoding="async" alt="ErgDash Progress training page in light mode, showing fitness, fatigue, form, pace, volume, time in zone, and plan adherence charts" />
+            <figcaption><span>Progress · Training</span><span class="screenshot-hint">Expand</span></figcaption>
+          </a>
+        </figure>
+        <figure class="screenshot-card">
+          <a href="/screenshots/workouts-light.png" data-screenshot-dialog="workouts-screenshot">
+            <img src="/screenshots/workouts-light.png" width="1920" height="1200" loading="lazy" decoding="async" alt="ErgDash workouts page in light mode, showing search and filter controls above a detailed workout history table" />
+            <figcaption><span>Workouts</span><span class="screenshot-hint">Expand</span></figcaption>
+          </a>
+        </figure>
+      </div>
+    </section>
+
     <section class="self-host">
       <h2>Self-hosting</h2>
       <p>ErgDash runs as a single Docker container with SQLite for storage. The only setup is registering an API application with Concept2 so ErgDash can read your Logbook. The README walks you through it.</p>
@@ -95,9 +120,39 @@ docker compose up -d</code></pre>
     </section>
   </main>
 
+  <dialog class="screenshot-dialog" id="dashboard-screenshot" aria-label="Expanded dashboard screenshot">
+    <button type="button" class="screenshot-close" data-close-dialog aria-label="Close expanded screenshot">×</button>
+    <img src="/screenshots/dashboard-light.png" width="1920" height="1200" alt="ErgDash dashboard in light mode" />
+  </dialog>
+  <dialog class="screenshot-dialog" id="progress-training-screenshot" aria-label="Expanded Progress training screenshot">
+    <button type="button" class="screenshot-close" data-close-dialog aria-label="Close expanded screenshot">×</button>
+    <img src="/screenshots/progress-training-light.png" width="1920" height="1200" alt="ErgDash Progress training page in light mode" />
+  </dialog>
+  <dialog class="screenshot-dialog" id="workouts-screenshot" aria-label="Expanded workouts screenshot">
+    <button type="button" class="screenshot-close" data-close-dialog aria-label="Close expanded screenshot">×</button>
+    <img src="/screenshots/workouts-light.png" width="1920" height="1200" alt="ErgDash workouts page in light mode" />
+  </dialog>
+
   <footer class="site-footer">
     <span>ErgDash is open source under the MIT license.</span>
     <a href="https://github.com/benjouk/ergdash" target="_blank" rel="noopener">GitHub</a>
   </footer>
+  <script>
+    document.querySelectorAll('[data-screenshot-dialog]').forEach(trigger => {
+      trigger.addEventListener('click', event => {
+        const dialog = document.getElementById(trigger.dataset.screenshotDialog);
+        if (!dialog || typeof dialog.showModal !== 'function') return;
+        event.preventDefault();
+        dialog.showModal();
+      });
+    });
+
+    document.querySelectorAll('.screenshot-dialog').forEach(dialog => {
+      dialog.querySelector('[data-close-dialog]').addEventListener('click', () => dialog.close());
+      dialog.addEventListener('click', event => {
+        if (event.target === dialog) dialog.close();
+      });
+    });
+  </script>
 </body>
 </html>
