@@ -11,6 +11,7 @@ import { usePrefs } from '../context/PrefsContext.jsx';
 import { useTimeRange } from '../context/TimeRangeContext.jsx';
 import Segmented from '../components/ui/Segmented.jsx';
 import PageHeader from '../components/PageHeader/PageHeader.jsx';
+import { SETTINGS_GROUPS, SettingsGroup } from './settingsGroups.jsx';
 import styles from './Settings.module.css';
 
 const DEFAULT_ZONE_PERCENTS = [60, 70, 80, 90, 100];
@@ -704,6 +705,8 @@ export default function Settings() {
   const [dangerConfirm, setDangerConfirm] = useState('');
   const [wipeConfirm, setWipeConfirm] = useState('');
   const [dangerBusy, setDangerBusy] = useState('');
+  const [activeGroup, setActiveGroup] = useState(SETTINGS_GROUPS[0].id);
+  const [openGroups, setOpenGroups] = useState(() => new Set([SETTINGS_GROUPS[0].id]));
 
   useEffect(() => {
     fetch('/health').then(r => r.json()).then(setHealth).catch(() => {});
@@ -725,6 +728,15 @@ export default function Settings() {
     updatePref(key, value)
       .then(() => toast.success('Settings saved'))
       .catch(err => toast.error(err.message || 'Could not save settings'));
+  };
+
+  const selectGroup = (id) => {
+    setActiveGroup(id);
+    setOpenGroups(new Set([id]));
+  };
+
+  const toggleGroup = (id) => {
+    setOpenGroups(current => current.has(id) ? new Set() : new Set([id]));
   };
 
   const restoreDatabase = async (event) => {
@@ -816,6 +828,38 @@ export default function Settings() {
         title="Settings"
         subtitle="Manage your profile, preferences, connection, and data."
       />
+
+      <div className={styles.settingsLayout}>
+        <nav className={styles.settingsNav} aria-label="Settings sections">
+          <div className={styles.settingsNavLabel}>Sections</div>
+          {SETTINGS_GROUPS.map(group => {
+            const { Icon } = group;
+            const selected = activeGroup === group.id;
+            return (
+              <button
+                key={group.id}
+                type="button"
+                className={`${styles.settingsNavItem} ${selected ? styles.settingsNavItemActive : ''}`}
+                aria-current={selected ? 'page' : undefined}
+                onClick={() => selectGroup(group.id)}
+              >
+                <Icon size={17} aria-hidden="true" />
+                <span>
+                  <strong>{group.label}</strong>
+                  <small>{group.description}</small>
+                </span>
+              </button>
+            );
+          })}
+        </nav>
+
+        <div className={styles.settingsContent}>
+          <SettingsGroup
+            group={SETTINGS_GROUPS[0]}
+            active={activeGroup === 'appearance'}
+            open={openGroups.has('appearance')}
+            onToggle={() => toggleGroup('appearance')}
+          >
 
       <div className={styles.section}>
         <h3 className={styles.sectionTitle}>Appearance</h3>
@@ -924,13 +968,34 @@ export default function Settings() {
           </div>
         </div>
       </div>
+          </SettingsGroup>
 
-      <AthleteSection />
+          <SettingsGroup
+            group={SETTINGS_GROUPS[1]}
+            active={activeGroup === 'athlete'}
+            open={openGroups.has('athlete')}
+            onToggle={() => toggleGroup('athlete')}
+          >
+            <AthleteSection />
+          </SettingsGroup>
 
-      <GoalsSection />
+          <SettingsGroup
+            group={SETTINGS_GROUPS[2]}
+            active={activeGroup === 'training'}
+            open={openGroups.has('training')}
+            onToggle={() => toggleGroup('training')}
+          >
+            <GoalsSection />
 
-      <HrZonesSection />
+            <HrZonesSection />
+          </SettingsGroup>
 
+          <SettingsGroup
+            group={SETTINGS_GROUPS[3]}
+            active={activeGroup === 'connection'}
+            open={openGroups.has('connection')}
+            onToggle={() => toggleGroup('connection')}
+          >
       {isDemo ? (
         <div className={styles.section}>
           <h3 className={styles.sectionTitle}>Concept2 Connection</h3>
@@ -969,7 +1034,14 @@ export default function Settings() {
           </span>
         </div>
       </div>
+          </SettingsGroup>
 
+          <SettingsGroup
+            group={SETTINGS_GROUPS[4]}
+            active={activeGroup === 'backup'}
+            open={openGroups.has('backup')}
+            onToggle={() => toggleGroup('backup')}
+          >
       {isDemo ? (
         <div className={styles.section}>
           <h3 className={styles.sectionTitle}>Backup & Restore</h3>
@@ -1080,7 +1152,14 @@ export default function Settings() {
         </div>
         </>
       )}
+          </SettingsGroup>
 
+          <SettingsGroup
+            group={SETTINGS_GROUPS[5]}
+            active={activeGroup === 'advanced'}
+            open={openGroups.has('advanced')}
+            onToggle={() => toggleGroup('advanced')}
+          >
       <div className={styles.section}>
         <h3 className={styles.sectionTitle}>Data</h3>
         <div className={styles.row}>
@@ -1155,6 +1234,9 @@ export default function Settings() {
           </div>
         </div>
       )}
+          </SettingsGroup>
+        </div>
+      </div>
     </div>
   );
 }
