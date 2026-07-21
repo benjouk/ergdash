@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { api, getActiveProfileId, setActiveProfileId } from '../api.js';
+import { api, clearLegacyOfflineApiEntries, getActiveProfileId, setActiveProfileId } from '../api.js';
 
 const AuthContext = createContext();
 
@@ -47,6 +47,7 @@ export function AuthProvider({ children }) {
 
   const switchProfile = useCallback(async (id) => {
     setActiveProfileId(id);
+    clearLegacyOfflineApiEntries().catch(() => {});
 
     const next = profiles.find(profile => String(profile.id) === String(id));
     if (next) setActiveProfile(next);

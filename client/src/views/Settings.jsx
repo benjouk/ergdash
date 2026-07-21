@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Download, FileJson, LogOut, Plus, RotateCcw, Trash2, Upload } from 'lucide-react';
 import { api } from '../api.js';
 import { useProfileQuery } from '../hooks/useProfileQuery.js';
+import { buildSyncStatusView } from '../components/Ticker/syncStatus.js';
 import { parseTimeInput, formatDuration } from '../utils/ergMath.js';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { useUnits } from '../context/UnitsContext.jsx';
@@ -693,7 +694,7 @@ const isDemo = import.meta.env.VITE_DEMO === '1';
 export default function Settings() {
   const { theme, setTheme } = useTheme();
   const { units, setUnits } = useUnits();
-  const { syncStatus, triggerSync } = useSync();
+  const { syncStatus, syncError, isChecking, isOnline, triggerSync, refresh } = useSync();
   const { user } = useAuth();
   const { defaultLanding, feedLimit, weekStart, dateFormat, updatePref } = usePrefs();
   const { defaultRange, setDefaultRange, PRESETS } = useTimeRange();
@@ -712,6 +713,7 @@ export default function Settings() {
   const [dangerBusy, setDangerBusy] = useState('');
   const [activeGroup, setActiveGroup] = useState(SETTINGS_GROUPS[0].id);
   const [openGroups, setOpenGroups] = useState(() => new Set([SETTINGS_GROUPS[0].id]));
+  const syncView = buildSyncStatusView({ syncStatus, syncError, isOnline });
 
   useEffect(() => {
     fetch('/health').then(r => r.json()).then(setHealth).catch(() => {});
@@ -1024,10 +1026,28 @@ export default function Settings() {
           <div>
             <div className={styles.label}>Status</div>
             <div className={styles.subtext}>
-              {syncStatus?.status === 'syncing' ? 'Syncing...' : `Last sync: ${formatSyncTime(syncStatus?.last_completed)}`}
+              {syncView.detail}
             </div>
           </div>
-          {!isDemo && <button onClick={triggerSync} className={styles.button}>Sync Now</button>}
+          {!isDemo && (syncView.tone === 'error' || syncView.tone === 'stale' ? (
+            <button
+              type="button"
+              onClick={refresh}
+              className={styles.button}
+              disabled={isChecking || !isOnline}
+            >
+              {isChecking ? 'Checking…' : 'Retry'}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => triggerSync().catch(() => {})}
+              className={styles.button}
+              disabled={!isOnline || syncStatus?.status === 'syncing'}
+            >
+              {syncStatus?.status === 'syncing' ? 'Syncing…' : 'Sync Now'}
+            </button>
+          ))}
         </div>
         <div className={styles.row}>
           <div>

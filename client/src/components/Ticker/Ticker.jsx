@@ -3,12 +3,12 @@ import { NavLink } from 'react-router-dom';
 import { Calculator, Sun, Moon, CalendarRange, ChevronDown, UserPlus } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
-import { useSync } from '../../context/SyncContext.jsx';
 import { useUnits } from '../../context/UnitsContext.jsx';
 import { useTimeRange } from '../../context/TimeRangeContext.jsx';
 import { api } from '../../api.js';
 import { useProfileQuery } from '../../hooks/useProfileQuery.js';
 import PaceTrace from './PaceTrace.jsx';
+import SyncStatusControl from './SyncStatusControl.jsx';
 import styles from './Ticker.module.css';
 
 function initialsOf(name) {
@@ -28,11 +28,12 @@ export default function Ticker() {
   const { profiles, activeProfile, switchProfile } = useAuth();
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const profileMenuRef = useRef(null);
-  const { syncStatus } = useSync();
+  const profileButtonRef = useRef(null);
   const { formatPace, formatDistanceFull } = useUnits();
   const { rangeKey, setRange, from, to, PRESETS, describeRange } = useTimeRange();
   const [rangeMenuOpen, setRangeMenuOpen] = useState(false);
   const rangeMenuRef = useRef(null);
+  const rangeButtonRef = useRef(null);
 
   const summaryParams = {};
   if (from) summaryParams.from = from;
@@ -57,7 +58,10 @@ export default function Ticker() {
       }
     };
     const handleKeyDown = (event) => {
-      if (event.key === 'Escape') setRangeMenuOpen(false);
+      if (event.key === 'Escape') {
+        setRangeMenuOpen(false);
+        rangeButtonRef.current?.focus();
+      }
     };
 
     document.addEventListener('mousedown', handlePointerDown);
@@ -77,7 +81,10 @@ export default function Ticker() {
       }
     };
     const handleKeyDown = (event) => {
-      if (event.key === 'Escape') setProfileMenuOpen(false);
+      if (event.key === 'Escape') {
+        setProfileMenuOpen(false);
+        profileButtonRef.current?.focus();
+      }
     };
 
     document.addEventListener('mousedown', handlePointerDown);
@@ -87,8 +94,6 @@ export default function Ticker() {
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [profileMenuOpen]);
-
-  const isSyncing = syncStatus?.status === 'syncing';
 
   return (
     <header className={styles.ticker}>
@@ -124,19 +129,20 @@ export default function Ticker() {
       <div className={styles.rangeWrapper} ref={rangeMenuRef}>
         <button
           type="button"
+          ref={rangeButtonRef}
           onClick={() => setRangeMenuOpen(open => !open)}
           className={styles.rangeButton}
-          aria-haspopup="listbox"
           aria-expanded={rangeMenuOpen}
+          aria-controls="time-range-options"
         >
           <CalendarRange size={13} />
           <span>{PRESETS[rangeKey]}</span>
           <ChevronDown size={12} className={styles.rangeChevron} />
         </button>
         {rangeMenuOpen && (
-          <ul className={styles.rangeMenu} role="listbox">
+          <ul id="time-range-options" className={styles.rangeMenu}>
             {Object.entries(PRESETS).map(([k, label]) => (
-              <li key={k} role="option" aria-selected={rangeKey === k}>
+              <li key={k}>
                 <button
                   type="button"
                   className={`${styles.rangeOption} ${rangeKey === k ? styles.rangeOptionActive : ''}`}
@@ -144,6 +150,7 @@ export default function Ticker() {
                 >
                   <span className={styles.rangeOptionLabel}>{label}</span>
                   <span className={styles.rangeOptionContext}>{describeRange(k)}</span>
+                  {rangeKey === k && <span className="sr-only">Selected</span>}
                 </button>
               </li>
             ))}
@@ -173,16 +180,17 @@ export default function Ticker() {
         </NavLink>
       </nav>
 
-      <div className={`${styles.syncDot} ${isSyncing ? styles.syncDotSyncing : ''}`} title={isSyncing ? 'Syncing...' : 'Up to date'} />
+      <SyncStatusControl />
 
       {activeProfile && (
         <div className={styles.profileWrapper} ref={profileMenuRef}>
           <button
             type="button"
+            ref={profileButtonRef}
             className={styles.profileButton}
             onClick={() => setProfileMenuOpen(open => !open)}
-            aria-haspopup="listbox"
             aria-expanded={profileMenuOpen}
+            aria-controls="profile-options"
             title={`Profile: ${activeProfile.name}`}
           >
             <span className={styles.profileInitials}>{initialsOf(activeProfile.name)}</span>
@@ -190,9 +198,9 @@ export default function Ticker() {
             <ChevronDown size={12} className={styles.rangeChevron} />
           </button>
           {profileMenuOpen && (
-            <ul className={styles.profileMenu} role="listbox">
+            <ul id="profile-options" className={styles.profileMenu}>
               {profiles.map(profile => (
-                <li key={profile.id} role="option" aria-selected={profile.id === activeProfile.id}>
+                <li key={profile.id}>
                   <button
                     type="button"
                     className={`${styles.profileOption} ${profile.id === activeProfile.id ? styles.profileOptionActive : ''}`}
@@ -205,6 +213,7 @@ export default function Ticker() {
                     <span>
                       {profile.name}
                       {!profile.connected && <span className={styles.profileBadge}> · not connected</span>}
+                      {profile.id === activeProfile.id && <span className="sr-only">Selected</span>}
                     </span>
                   </button>
                 </li>

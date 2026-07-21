@@ -1,5 +1,13 @@
-import { describe, expect, it } from 'vitest';
-import { addProfileCacheKey } from './api.js';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  addProfileCacheKey,
+  clearLegacyOfflineApiEntries,
+  clearOfflineApiCache,
+} from './api.js';
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe('profile-aware API cache keys', () => {
   it('adds the active profile to API GET URLs while preserving query params', () => {
@@ -15,5 +23,32 @@ describe('profile-aware API cache keys', () => {
   it('does not alter shared auth routes or requests without a selected profile', () => {
     expect(addProfileCacheKey('/auth/status', 7)).toBe('/auth/status');
     expect(addProfileCacheKey('/api/settings', '')).toBe('/api/settings');
+  });
+
+  it('clears the complete API runtime cache on logout', async () => {
+    const deleteCache = vi.fn().mockResolvedValue(true);
+    vi.stubGlobal('caches', { delete: deleteCache });
+
+    await expect(clearOfflineApiCache()).resolves.toBe(true);
+    expect(deleteCache).toHaveBeenCalledWith('ergdash-api');
+  });
+
+  it('removes only legacy unpartitioned API entries on a profile switch', async () => {
+    const requests = [
+      { url: 'https://ergdash.test/api/settings' },
+      { url: 'https://ergdash.test/api/settings?_ergdash_profile=1' },
+      { url: 'https://ergdash.test/auth/status' },
+    ];
+    const deleteEntry = vi.fn().mockResolvedValue(true);
+    vi.stubGlobal('caches', {
+      open: vi.fn().mockResolvedValue({
+        keys: vi.fn().mockResolvedValue(requests),
+        delete: deleteEntry,
+      }),
+    });
+
+    await expect(clearLegacyOfflineApiEntries()).resolves.toBe(1);
+    expect(deleteEntry).toHaveBeenCalledTimes(1);
+    expect(deleteEntry).toHaveBeenCalledWith(requests[0]);
   });
 });

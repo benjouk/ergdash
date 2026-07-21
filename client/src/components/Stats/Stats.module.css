@@ -141,6 +141,24 @@
   padding: var(--space-1) 0;
 }
 
+.pbState {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  min-height: 72px;
+  padding: var(--space-3);
+  border: 1px dashed var(--rule);
+  border-radius: var(--radius-md);
+  color: var(--ink-3);
+  font-size: 0.82rem;
+}
+
+.pbState button {
+  color: var(--accent-deep);
+  font-weight: 700;
+}
+
 /* Trophy cards - volt-lime rule marks a best */
 .pbCard {
   flex-shrink: 0;

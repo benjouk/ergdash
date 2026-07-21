@@ -12,6 +12,18 @@ test('logs in, renders the dashboard, and opens a session with charts', async ({
   await page.goto('/auth/mock-login');
   await expect(page).toHaveTitle('Dashboard · ErgDash');
 
+  // Top-level page structure is keyboard-navigable and does not advertise
+  // listbox behavior that the disclosure menus do not implement.
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('link', { name: 'Skip to main content' })).toBeFocused();
+  await page.getByRole('link', { name: 'Skip to main content' }).click();
+  await expect(page.locator('main#main-content')).toBeFocused();
+  await expect(page.locator('main h1')).toHaveText('Dashboard');
+  await page.getByRole('button', { name: 'Last 30d' }).click();
+  await expect(page.locator('[role="listbox"]')).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('button', { name: 'Last 30d' })).toBeFocused();
+
   // The feed sidebar lists seeded sessions once /api/workouts responds.
   const feed = page.locator('aside[aria-label="Recent Sessions"]');
   const sessionLinks = feed.locator('a[href^="/session/"]');
@@ -21,6 +33,8 @@ test('logs in, renders the dashboard, and opens a session with charts', async ({
   // Dashboard main content renders at least one real chart. Icons are svg
   // too, so anchor on recharts' wrapper, not on bare `svg`.
   await expect(page.locator('main .recharts-wrapper svg').first()).toBeVisible();
+  await expect(page.getByText(/Training calendar for the last 12 months:/)).toBeAttached();
+  await expect(page.locator('svg[aria-hidden="true"] title').first()).toBeAttached();
 
   // Open the most recent session and expect its detail view with loaded
   // data: the "<time> Row" heading and splits table only render once
@@ -55,7 +69,7 @@ test('switches profiles in-app and reloads profile-scoped data', async ({ page }
   });
 
   await page.getByTitle('Profile: Alex').click();
-  await page.getByRole('option').filter({ hasText: 'Sam' }).getByRole('button').click();
+  await page.getByRole('button', { name: /Sam/ }).click();
 
   await expect(page.getByTitle('Profile: Sam')).toBeVisible();
   await expect(page.locator('aside[aria-label="Recent Sessions"] a[href^="/session/"]').first()).toHaveAttribute('href', /^\/session\/3\d+/);
@@ -75,7 +89,7 @@ test('switches profiles in-app and reloads profile-scoped data', async ({ page }
   await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
   expect(switchedApiRequests.filter(url => url.pathname === '/api/settings')).toHaveLength(1);
   await page.getByTitle('Profile: Sam').click();
-  await page.getByRole('option').filter({ hasText: 'Alex' }).getByRole('button').click();
+  await page.getByRole('button', { name: /Alex/ }).click();
   await expect(page.getByTitle('Profile: Alex')).toBeVisible();
   await expect(page).toHaveURL(/\/settings$/);
   await expect(page.locator('aside[aria-label="Recent Sessions"] a[href^="/session/"]').first()).toHaveAttribute('href', /^\/session\/1\d+/);

@@ -1,5 +1,7 @@
 import { clearQueryCache, invalidateProfileQueries } from './queryClient.js';
 
+const OFFLINE_API_CACHE = 'ergdash-api';
+
 // The active household profile, chosen client-side and sent with every API
 // call. The server falls back to the first profile when the header is absent.
 export function getActiveProfileId() {
@@ -51,6 +53,26 @@ export function addProfileCacheKey(path, profileId) {
   const url = new URL(path, 'http://ergdash.local');
   url.searchParams.set('_ergdash_profile', String(profileId));
   return `${url.pathname}${url.search}`;
+}
+
+export async function clearOfflineApiCache() {
+  if (!globalThis.caches?.delete) return false;
+  return globalThis.caches.delete(OFFLINE_API_CACHE);
+}
+
+// Older service workers cached profile-scoped reads without the URL marker.
+// Remove only those legacy entries during a profile switch while retaining
+// the correctly partitioned responses that make offline switching useful.
+export async function clearLegacyOfflineApiEntries() {
+  if (!globalThis.caches?.open) return 0;
+  const cache = await globalThis.caches.open(OFFLINE_API_CACHE);
+  const requests = await cache.keys();
+  const legacy = requests.filter(request => {
+    const url = new URL(request.url);
+    return url.pathname.startsWith('/api/') && !url.searchParams.has('_ergdash_profile');
+  });
+  await Promise.all(legacy.map(request => cache.delete(request)));
+  return legacy.length;
 }
 
 function apiError(message, status) {
@@ -121,7 +143,11 @@ async function uploadRaw(path, file, demoMessage) {
 
 export const api = {
   getAuthStatus: () => request('/auth/status'),
-  logout: () => request('/auth/logout', { method: 'POST' }),
+  logout: async () => {
+    const result = await request('/auth/logout', { method: 'POST' });
+    await clearOfflineApiCache().catch(() => {});
+    return result;
+  },
 
   getProfiles: () => request('/api/profiles'),
   renameProfile: (id, name) => request(`/api/profiles/${id}`, {
