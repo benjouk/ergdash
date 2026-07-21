@@ -8,11 +8,11 @@ A self-hosted dashboard for your Concept2 rower.
 
 ErgDash connects to the Concept2 Logbook API to sync your workout history and display training analytics: volume trends, pace tracking, personal bests, and fitness modelling. Build and track training plans: schedule sessions on a calendar or start a ready-made multi-week program like [The Pete Plan](https://thepeteplan.wordpress.com/the-pete-plan/), with adherence tracked automatically against your synced workouts. Try the [live demo](https://ergdash.com/demo/), loaded with a season of sample data.
 
-![ErgDash dashboard](.github/screenshot.png)
+![ErgDash dashboard](site/screenshots/dashboard-light.png)
 
-| Session detail | Progress |
+| Training progress | Workout history |
 |---|---|
-| ![Session detail](.github/screenshot-session.png) | ![Progress](.github/screenshot-progress.png) |
+| ![ErgDash Progress training page](site/screenshots/progress-training-light.png) | ![ErgDash workouts page](site/screenshots/workouts-light.png) |
 
 ## Features
 
