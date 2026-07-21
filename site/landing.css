@@ -208,16 +208,6 @@ main {
   color: var(--ink);
 }
 
-.screenshots h2 {
-  margin-bottom: 0.25rem;
-}
-
-.screenshots-intro {
-  color: var(--ink-2);
-  font-size: 0.95rem;
-  margin: 0 0 1.25rem;
-}
-
 .screenshot-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -263,14 +253,7 @@ main {
   display: flex;
   font-size: 0.9rem;
   font-weight: 600;
-  justify-content: space-between;
   padding: 0.85rem 1rem;
-}
-
-.screenshot-hint {
-  color: var(--ink-2);
-  font-size: 0.78rem;
-  font-weight: 500;
 }
 
 .screenshot-dialog {
