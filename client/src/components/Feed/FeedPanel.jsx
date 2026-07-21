@@ -10,7 +10,7 @@ import PBBadges from '../PBBadge.jsx';
 import Sparkline from './Sparkline.jsx';
 import { structureLabel, structureTooltip } from '../../utils/workoutStructure.js';
 import { intentLabel } from '../../utils/workoutIntent.js';
-import { groupByDay } from '../../utils/dateGroups.js';
+import { groupByRecency } from '../../utils/dateGroups.js';
 import styles from './Feed.module.css';
 
 function formatDateShort(dateStr, dateFormat) {
@@ -117,7 +117,7 @@ export default function FeedPanel({ layout = 'column' }) {
           ))}
         </div>
       ) : (
-        groupByDay(workouts, dateFormat).map(group => (
+        groupByRecency(workouts, dateFormat).map(group => (
           <div key={group.key}>
             <div className={styles.dayHeader}>{group.label}</div>
             <div className={styles.itemList}>
