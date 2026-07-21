@@ -9,6 +9,13 @@ function fromDateKey(key) {
   return new Date(y, m - 1, d);
 }
 
+function calendarDayAge(dateKey, now) {
+  const date = fromDateKey(dateKey);
+  const todayUtc = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  const dateUtc = Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
+  return Math.floor((todayUtc - dateUtc) / 86400000);
+}
+
 export function dayLabel(dateKey, dateFormat, now = new Date()) {
   const todayKey = toDateKey(now);
   if (dateKey === todayKey) return 'Today';
@@ -22,16 +29,22 @@ export function dayLabel(dateKey, dateFormat, now = new Date()) {
   return date.toLocaleDateString(locale, options);
 }
 
-// Groups a date-sorted workout list into one group per calendar day,
-// preserving the incoming order. Workout dates are datetime strings
-// ("YYYY-MM-DD HH:MM:SS"), so the day key is the leading date part.
-export function groupByDay(workouts, dateFormat, now = new Date()) {
+// Groups a date-sorted workout list by calendar day for the last week, then
+// combines anything more than seven calendar days old into an Older group.
+// Workout dates are datetime strings ("YYYY-MM-DD HH:MM:SS"), so the day key
+// is the leading date part.
+export function groupByRecency(workouts, dateFormat, now = new Date()) {
   const groups = [];
   let current = null;
   for (const w of workouts) {
-    const key = String(w.date).slice(0, 10);
+    const dateKey = String(w.date).slice(0, 10);
+    const key = calendarDayAge(dateKey, now) > 7 ? 'older' : dateKey;
     if (!current || current.key !== key) {
-      current = { key, label: dayLabel(key, dateFormat, now), items: [] };
+      current = {
+        key,
+        label: key === 'older' ? 'Older' : dayLabel(dateKey, dateFormat, now),
+        items: [],
+      };
       groups.push(current);
     }
     current.items.push(w);
