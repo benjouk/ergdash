@@ -16,27 +16,15 @@ ErgDash connects to the Concept2 Logbook API to sync your workout history and di
 
 ## Features
 
-- **Dashboard:** Season metres and streak stats, volume vs goal, session mix, personal bests with new-PB notifications, and a calendar heatmap
-- **Profiles (household):** Connect several Concept2 Logbook accounts to one instance, with one profile per household member, each with its own workouts, PBs, goals, plans, and settings. Switch profiles from the header; rename, reconnect, disconnect, or remove members in Settings. Existing single-user installs upgrade in place
-- **Session Detail:** Per-stroke pace and rate/HR charts, interval rep chart with HR recovery and a structure summary (e.g. 6×500m / 1:30r), rate-vs-pace scatter, HR zone bar, splits table, smart side-by-side comparison with ranked equivalent workouts and pacing diagnostics, downloadable session card, computed metrics (fade index, consistency, effort, distance per stroke, watts/beat, HR drift, rate discipline)
-- **Workouts:** Filterable/sortable table with CSV/JSON export
-- **Manual entry & file import:** Add rows that never reached the Logbook (old PM3/PM4 pieces, club machines, races) by hand, including work/rest splits, or import CSV (Concept2 Logbook export or generic), TCX, and FIT (PM5 USB / ErgData) files with a preview step, duplicate detection against synced workouts, and enrich-merge that fills in missing HR/drag/splits/stroke data
-- **Result correction:** Edit distance/time/HR/drag/rate on any workout; corrections to synced workouts are tracked per-field, survive future syncs, and can be reverted to the Concept2 values at any time. Manual and imported workouts can be deleted
-- **Session tags:** One-tap purpose tag on any session (warm-up / steady / test / race). Warm-up pieces logged as their own workouts keep counting toward volume, streaks, and fitness load, but drop out of pace and technique trends, the session mix, personal bests, and race projections - so a pre-5k paddle can't pollute your analytics
-- **Goals & Targets:** Weekly/monthly/season/annual volume goals overlaid on the dashboard, plus performance targets per benchmark distance compared against current PBs and trend-based race predictions, with an optional race-day countdown
-- **Race Plan:** A performance target with a race date gets a Progress card that counts back from race day - base/sharpen/taper phases on a timeline, countdown milestones (last all-out test, taper start, race-pace rehearsal, rest) - and projects the trend of your recent test pieces to a race-day time with an on-track / close / at-risk verdict and the required improvement per week
-- **Ranking percentiles:** Set sex (plus optional birth year and body weight) in Settings and each personal best shows your standing in the ranked erg population for your age band and weight class (e.g. `top 18% - M 30-39 Hwt`). The server reconciles each needed bucket against the public Concept2 season rankings once a week (a handful of throttled page fetches of the most recent completed season, cached in SQLite); until a bucket has been reconciled - or if the instance is offline - percentiles fall back to a bundled estimate and are marked with a `~`. Set `ERGDASH_RANKINGS_LIVE=0` to disable the outbound rankings fetches, and use `node scripts/fetch-rankings.mjs d2000 M 30-39 hwt` to check the fetcher against the live site
-- **Plan:** Month calendar to schedule future sessions (type, target distance/duration, pace, rate, notes) with interval structure (e.g. 4×2000m / 5:00r), common-session presets, and weekly repeat; synced workouts auto-match same-day plans with manual link/unlink, missed days are flagged, and a Progress chart tracks plan adherence over time
-- **Programs:** Start a ready-made multi-week training program in one click, including **The Pete Plan**, Beginner Pete Plan, 2k Race Prep, and Marathon Build, which schedules every session for you; track a week-by-week completed/missed view, pause and resume, shift the whole schedule, or edit training days and future sessions remap automatically
-- **Progress:** Coach-first Overview with a clear training verdict, four comparable signals, and the primary performance target; focused Training, Performance, and Technique views cover fitness/load, steady pace, zones, adherence, predictions, power-duration, PBs, fade, efficiency, stroke quality, HR drift, distance per stroke, and drag factor without putting every chart on screen at once
-- **Tools:** Pace / watts / cal-per-hour converter, a Concept2 weight-adjusted score calculator, and a race plan builder with even, negative, and aggressive pacing strategies
-- **HR Zones:** Five configurable zones in Settings (% of max HR), estimated from observed data until set
-- **Body weight:** Optional setting that adds weight-adjusted equivalents to personal bests and Tools
-- **Feed:** Always-visible sidebar of recent sessions with sparklines and interval summaries
-- **Ticker:** Sticky header with key stats, pace trace, profile switcher, and navigation
-- **Offline & installable (PWA):** Install to a phone/tablet home screen; the app shell and your recent data stay viewable when the server is unreachable (requires HTTPS or localhost - see Offline below)
-- **Light/Dark theme:** System-aware with manual override
-- **Units:** Toggle between /500m pace, watts, and cal/hr
+- **Training dashboard:** Track season metres, streaks, goals, session mix, personal bests, and recent workouts.
+- **Workout analysis:** Explore splits, stroke data, heart rate, pacing, technique, interval performance, and comparable sessions.
+- **Plans and programs:** Schedule sessions or follow ready-made programs such as The Pete Plan, with automatic workout matching and adherence tracking.
+- **Goals and progress:** Set volume and performance targets, follow fitness trends, estimate race results, and compare personal bests with Concept2 rankings.
+- **Workout management:** Sync with the Concept2 Logbook, add or correct results, tag sessions, import CSV, TCX, and FIT files, and export your history.
+- **Household profiles:** Give each household member separate workouts, goals, plans, and settings in one ErgDash instance.
+- **Personal settings:** Configure heart rate zones, body weight, display units, and light or dark themes.
+- **Self-hosted PWA:** Install ErgDash on a phone or tablet and keep recent data available when the server is unreachable.
+- **Rowing tools:** Convert pace, watts, and calories, calculate weight-adjusted scores, and build race pacing plans.
 
 ## Setup
 
