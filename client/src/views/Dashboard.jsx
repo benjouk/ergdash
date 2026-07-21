@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api.js';
+import { useProfileQuery } from '../hooks/useProfileQuery.js';
 import { useTimeRange } from '../context/TimeRangeContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { distanceLabel } from '../components/PBBadge.jsx';
@@ -8,49 +9,42 @@ import VolumeSummaryCard from '../components/Stats/VolumeSummaryCard.jsx';
 import SplitDonut from '../components/Stats/SplitDonut.jsx';
 import PBStrip from '../components/Stats/PBStrip.jsx';
 import CalendarHeatmap from '../components/Charts/CalendarHeatmap.jsx';
+import ChartEmpty from '../components/Charts/ChartEmpty.jsx';
 import FeedPanel from '../components/Feed/FeedPanel.jsx';
 import PageHeader from '../components/PageHeader/PageHeader.jsx';
 import styles from './Dashboard.module.css';
 
 export default function Dashboard() {
-  const [summary, setSummary] = useState(null);
-  const [goals, setGoals] = useState(null);
-  const [pbEvents, setPbEvents] = useState([]);
   const [pbBannerHidden, setPbBannerHidden] = useState(false);
   const { from, to } = useTimeRange();
   const toast = useToast();
 
-  useEffect(() => {
-    const params = {};
-    if (from) params.from = from;
-    if (to) params.to = to;
-    api.getSummary(params).then(setSummary).catch(() => {});
-  }, [from, to]);
+  const summaryParams = {};
+  if (from) summaryParams.from = from;
+  if (to) summaryParams.to = to;
+  const summaryQuery = useProfileQuery(
+    ['summary', summaryParams],
+    () => api.getSummary(summaryParams)
+  );
+  const { data: summary = null, error: summaryError, refetch: refetchSummary } = summaryQuery;
+  const goalsQuery = useProfileQuery(['goals'], api.getGoals);
+  const { data: goalsData, error: goalsError, refetch: refetchGoals } = goalsQuery;
+  const goals = goalsData ? goalsData.goals || [] : null;
+  const settingsQuery = useProfileQuery(['settings'], api.getSettings);
+  const { data: settings, error: settingsError, refetch: refetchSettings } = settingsQuery;
+  const pbParams = {};
+  if (settings?.pb_last_seen_at) pbParams.since = settings.pb_last_seen_at;
+  const pbHistoryQuery = useProfileQuery(
+    ['pb-history', pbParams],
+    () => api.getPbHistory(pbParams),
+    { enabled: settings !== undefined }
+  );
+  const { data: pbData, error: pbHistoryError, refetch: refetchPbHistory } = pbHistoryQuery;
+  const pbEvents = pbData?.pb_history || [];
 
   useEffect(() => {
-    api.getGoals().then(d => setGoals(d.goals || [])).catch(() => setGoals([]));
-  }, []);
-
-  useEffect(() => {
-    let mounted = true;
-
-    api.getSettings()
-      .then(settings => {
-        const params = {};
-        if (settings.pb_last_seen_at) params.since = settings.pb_last_seen_at;
-        return api.getPbHistory(params);
-      })
-      .then(data => {
-        if (!mounted) return;
-        setPbEvents(data.pb_history || []);
-        setPbBannerHidden(false);
-      })
-      .catch(() => {});
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
+    setPbBannerHidden(false);
+  }, [pbEvents]);
 
   const dismissPbBanner = async () => {
     const seenAt = new Date().toISOString();
@@ -58,7 +52,6 @@ export default function Dashboard() {
 
     try {
       await api.updateSettings({ pb_last_seen_at: seenAt });
-      setPbEvents([]);
     } catch (err) {
       setPbBannerHidden(false);
       toast.error(err.message || 'Could not save PB notification state');
@@ -89,12 +82,32 @@ export default function Dashboard() {
         </section>
       )}
 
-      <StatsRow summary={summary} goals={goals} />
+      {summaryError ? (
+        <ChartEmpty
+          title="Training Summary"
+          message="Couldn't load your training summary."
+          error
+          onRetry={refetchSummary}
+        />
+      ) : (
+        <>
+          <StatsRow summary={summary} goals={goals} />
+          <div className={styles.chartsGrid}>
+            <VolumeSummaryCard summary={summary} goals={goals} />
+            <SplitDonut summary={summary} />
+          </div>
+        </>
+      )}
 
-      <div className={styles.chartsGrid}>
-        <VolumeSummaryCard summary={summary} goals={goals} />
-        <SplitDonut summary={summary} />
-      </div>
+      {goalsError && (
+        <DataNotice message="Goal progress is unavailable." onRetry={refetchGoals} />
+      )}
+      {settingsError && (
+        <DataNotice message="Dashboard preferences are unavailable." onRetry={refetchSettings} />
+      )}
+      {pbHistoryError && (
+        <DataNotice message="Personal-best notifications are unavailable." onRetry={refetchPbHistory} />
+      )}
 
       <section className={styles.mobileFeed} aria-label="Recent Sessions">
         <h3 className={styles.sectionHeader}>Recent Sessions</h3>
@@ -107,6 +120,15 @@ export default function Dashboard() {
       </div>
 
       <CalendarHeatmap />
+    </div>
+  );
+}
+
+function DataNotice({ message, onRetry }) {
+  return (
+    <div className={styles.dataNotice} role="alert">
+      <span>{message}</span>
+      <button type="button" onClick={() => Promise.resolve(onRetry()).catch(() => {})}>Retry</button>
     </div>
   );
 }

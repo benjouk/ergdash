@@ -217,21 +217,107 @@
   color: var(--ticker-text);
 }
 
-.syncDot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--ticker-accent);
+.syncStatusWrapper {
+  position: relative;
   flex-shrink: 0;
 }
 
-.syncDotSyncing {
-  animation: pulse 1.5s ease-in-out infinite;
+.syncStatusButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 28px;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  color: var(--ticker-text);
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 0.68rem;
+  white-space: nowrap;
 }
 
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
+.syncStatus_current {
+  color: var(--ticker-accent);
+}
+
+.syncStatus_stale,
+.syncStatus_offline {
+  color: #f0bd65;
+}
+
+.syncStatus_error {
+  color: #ff8e88;
+}
+
+.syncStatus_syncing {
+  color: var(--ticker-accent);
+}
+
+.syncStatusSpin {
+  animation: spin 1s linear infinite;
+}
+
+.syncStatusPopover {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  z-index: 30;
+  width: min(280px, calc(100vw - 24px));
+  padding: var(--space-3);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.24);
+  font-size: 0.78rem;
+}
+
+.syncStatusPopover strong {
+  display: block;
+  margin-bottom: var(--space-1);
+}
+
+.syncStatusPopover p {
+  margin: 0;
+  color: var(--ink-2);
+  line-height: 1.45;
+}
+
+.syncStatusActions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-3);
+}
+
+.syncStatusActions button,
+.syncStatusActions a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.syncStatusActions button:disabled {
+  color: var(--ink-3);
+  cursor: default;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Keep the status control compact before the full header starts to crowd. */
+@media (max-width: 1399px) {
+  .syncStatusText {
+    display: none;
+  }
+
+  .syncStatusButton {
+    width: 28px;
+    justify-content: center;
+    padding: 0;
+  }
 }
 
 /* Tablet: keep top nav, drop the trace to save room */
@@ -292,6 +378,11 @@
     left: var(--space-3);
     right: var(--space-3);
     width: auto;
+  }
+  .syncStatusPopover {
+    position: fixed;
+    top: calc(var(--ticker-height-mobile) + var(--space-2) + env(safe-area-inset-top));
+    right: var(--space-3);
   }
 }
 

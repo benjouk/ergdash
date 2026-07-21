@@ -1089,9 +1089,9 @@ function ComparisonPicker({ options, scope, search, loading, formatDistance, for
           <button type="button" className={scope === 'all' ? styles.pickerScopeActive : ''} onClick={() => onScope('all')}>All workouts</button>
         </div>
       </div>
-      <div className={styles.pickerList} role="listbox">
+      <div className={styles.pickerList} role="region" aria-label="Comparison workouts">
         {loading && <div className={styles.pickerEmpty}><Loader2 className={styles.spinner} size={18} /> Loading workouts…</div>}
-        {!loading && filtered.map(option => <button type="button" role="option" key={option.id} className={styles.pickerOption} onClick={() => onSelect(option.id)}>
+        {!loading && filtered.map(option => <button type="button" key={option.id} className={styles.pickerOption} onClick={() => onSelect(option.id)}>
           <span className={styles.pickerOptionTop}>
             <strong><CalendarDays size={13} /> {safeComparisonDate(option.date)}</strong>
             <span className={`${styles.pickerMatch} ${option.comparison_match?.level === 'other' ? styles.pickerMatchOther : ''}`}>{option.comparison_match?.reason}</span>

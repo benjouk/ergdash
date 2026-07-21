@@ -1,9 +1,11 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useMemo, useCallback } from 'react';
 import { scaleQuantize } from 'd3-scale';
 import { api } from '../../api.js';
+import { useProfileQuery } from '../../hooks/useProfileQuery.js';
 import { usePrefs } from '../../context/PrefsContext.jsx';
 import styles from './Charts.module.css';
 import ChartInfo from './ChartInfo.jsx';
+import ChartEmpty from './ChartEmpty.jsx';
 
 const CELL = 11;
 const GAP = 2;
@@ -27,20 +29,18 @@ function gridStart(today, weekStart) {
 }
 
 export default function CalendarHeatmap() {
-  const [days, setDays] = useState(null);
-  const [plans, setPlans] = useState([]);
   const { weekStart } = usePrefs();
-
-  useEffect(() => {
-    const today = new Date();
-    const from = isoDate(gridStart(today, weekStart));
-    api.getCalendar({ from })
-      .then(d => setDays(d.days || []))
-      .catch(() => setDays([]));
-    api.getPlans({ from })
-      .then(d => setPlans(d.plans || []))
-      .catch(() => setPlans([]));
-  }, [weekStart]);
+  const from = isoDate(gridStart(new Date(), weekStart));
+  const daysQuery = useProfileQuery(
+    ['stats', 'calendar', { from }],
+    () => api.getCalendar({ from })
+  );
+  const plansQuery = useProfileQuery(
+    ['plans', { from }],
+    () => api.getPlans({ from })
+  );
+  const days = daysQuery.data?.days || null;
+  const plans = plansQuery.data?.plans || [];
 
   const grid = useMemo(() => {
     if (!days) return null;
@@ -98,10 +98,24 @@ export default function CalendarHeatmap() {
     if (node) node.scrollLeft = node.scrollWidth;
   }, []);
 
-  if (!grid || grid.cells.length === 0) return null;
+  if (daysQuery.error || plansQuery.error) {
+    return (
+      <ChartEmpty
+        title="Training Calendar"
+        message="Couldn't load calendar data."
+        error
+        onRetry={() => Promise.all([daysQuery.refetch(), plansQuery.refetch()])}
+      />
+    );
+  }
+  if (!grid && (daysQuery.loading || plansQuery.loading)) return null;
+  if (!grid || grid.cells.length === 0 || days.length === 0) {
+    return <ChartEmpty title="Training Calendar" message="No sessions in the last 12 months yet." />;
+  }
 
   const width = LEFT_PAD + WEEKS * (CELL + GAP);
   const height = TOP_PAD + 7 * (CELL + GAP);
+  const accessibilitySummary = calendarAccessibilitySummary(grid);
 
   return (
     <div className={styles.chartCard}>
@@ -115,12 +129,13 @@ export default function CalendarHeatmap() {
         </div>
       </div>
       <div ref={scrollRef} style={{ overflowX: 'auto' }}>
+        <p className="sr-only">{accessibilitySummary}</p>
         <svg
           width={width}
           height={height}
           viewBox={`0 0 ${width} ${height}`}
-          role="img"
-          aria-label="Calendar heatmap of daily meters over the last 12 months"
+          aria-hidden="true"
+          focusable="false"
         >
           {grid.monthLabels.map(m => (
             <text
@@ -169,4 +184,16 @@ export default function CalendarHeatmap() {
       <ChartInfo>A year of training at a glance: each cell is one day, shaded by metres rowed. Darker cells were bigger days. Ringed cells had a planned session: green when completed as planned, red when missed.</ChartInfo>
     </div>
   );
+}
+
+export function calendarAccessibilitySummary(grid) {
+  const activeDays = grid.cells.filter(cell => cell.meters > 0);
+  const completedPlans = grid.cells.filter(cell => cell.plan === 'completed').length;
+  const missedPlans = grid.cells.filter(cell => cell.plan === 'missed').length;
+  const completedLabel = `${completedPlans} planned ${completedPlans === 1 ? 'day was' : 'days were'} completed`;
+  const missedLabel = `${missedPlans} ${missedPlans === 1 ? 'was' : 'were'} missed`;
+  const planSummary = completedPlans || missedPlans
+    ? ` ${completedLabel} and ${missedLabel}.`
+    : '';
+  return `Training calendar for the last 12 months: ${grid.total.toLocaleString()} metres across ${activeDays.length} training days.${planSummary}`;
 }

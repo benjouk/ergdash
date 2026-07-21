@@ -16,7 +16,11 @@ export default function ChartEmpty({
       <div className={styles.chartEmpty}>
         <p>{message}</p>
         {error && onRetry && (
-          <button type="button" className={styles.chartRetryButton} onClick={onRetry}>
+          <button
+            type="button"
+            className={styles.chartRetryButton}
+            onClick={() => Promise.resolve(onRetry()).catch(() => {})}
+          >
             Retry
           </button>
         )}

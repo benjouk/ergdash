@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Download, ChevronUp, ChevronDown, Pin, Search, Plus, Upload, GitCompare, X } from 'lucide-react';
+import { Download, ChevronUp, ChevronDown, Pin, Search, Plus, Upload, GitCompare, MoreHorizontal, X } from 'lucide-react';
 import { api } from '../api.js';
 import { paceToWatts } from '../utils/ergMath.js';
 import { useUnits } from '../context/UnitsContext.jsx';
@@ -45,6 +45,80 @@ function formatDateShort(dateStr, dateFormat) {
   return new Date(dateStr).toLocaleDateString('en-GB', options);
 }
 
+export function WorkoutActions({
+  compareMode,
+  panel,
+  menuOpen,
+  menuRef,
+  menuButtonRef,
+  onAdd,
+  onCompare,
+  onMenuToggle,
+  onImport,
+  onExportJson,
+  onExportCsv,
+  demo = false,
+}) {
+  const demoDescription = demo ? 'workouts-demo-note' : undefined;
+  return (
+    <div className={styles.actions}>
+      <button
+        type="button"
+        onClick={onAdd}
+        className={`${styles.exportButton} ${styles.primaryAction}`}
+        aria-expanded={panel === 'add'}
+        aria-describedby={demoDescription}
+        disabled={demo}
+      >
+        <Plus size={14} aria-hidden="true" /> Add
+      </button>
+      <button
+        type="button"
+        onClick={onCompare}
+        className={`${styles.exportButton} ${compareMode ? styles.compareModeActive : ''}`}
+        aria-pressed={compareMode}
+      >
+        {compareMode ? <X size={14} aria-hidden="true" /> : <GitCompare size={14} aria-hidden="true" />}
+        {compareMode ? 'Cancel' : 'Compare'}
+      </button>
+      <div className={styles.actionMenuWrap} ref={menuRef}>
+        <button
+          ref={menuButtonRef}
+          type="button"
+          className={styles.exportButton}
+          aria-expanded={menuOpen}
+          aria-controls={menuOpen ? 'workout-more-actions' : undefined}
+          onClick={onMenuToggle}
+        >
+          <MoreHorizontal size={15} aria-hidden="true" /> More
+        </button>
+        {menuOpen && (
+          <div id="workout-more-actions" className={styles.actionMenu}>
+            <button
+              type="button"
+              className={styles.actionMenuItem}
+              onClick={onImport}
+              aria-describedby={demoDescription}
+              disabled={demo}
+            >
+              <Upload size={15} aria-hidden="true" />
+              <span><strong>Import workouts</strong><small>CSV, TCX, or FIT files</small></span>
+            </button>
+            <button type="button" className={styles.actionMenuItem} onClick={onExportCsv}>
+              <Download size={15} aria-hidden="true" />
+              <span><strong>Export CSV</strong><small>Current filtered results</small></span>
+            </button>
+            <button type="button" className={styles.actionMenuItem} onClick={onExportJson}>
+              <Download size={15} aria-hidden="true" />
+              <span><strong>Export JSON</strong><small>Current filtered results</small></span>
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function Workouts() {
   const [workouts, setWorkouts] = useState([]);
   const [total, setTotal] = useState(0);
@@ -63,6 +137,7 @@ export default function Workouts() {
   const [loadError, setLoadError] = useState('');
   // 'add' | 'import' | null - which inline panel is open above the list.
   const [panel, setPanel] = useState(null);
+  const [actionMenuOpen, setActionMenuOpen] = useState(false);
   const navigate = useNavigate();
   const { formatPace, formatDistanceFull, formatDistance, formatTime } = useUnits();
   const { from, to } = useTimeRange();
@@ -71,6 +146,8 @@ export default function Workouts() {
   const limit = 20;
   const loadRequestRef = useRef(0);
   const mountedRef = useRef(true);
+  const actionMenuRef = useRef(null);
+  const actionMenuButtonRef = useRef(null);
 
   useEffect(() => {
     // Reset on every mount so StrictMode's mount → cleanup → remount cycle
@@ -80,6 +157,26 @@ export default function Workouts() {
       mountedRef.current = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!actionMenuOpen) return undefined;
+    const handlePointerDown = (event) => {
+      if (actionMenuRef.current && !actionMenuRef.current.contains(event.target)) {
+        setActionMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (event) => {
+      if (event.key !== 'Escape') return;
+      setActionMenuOpen(false);
+      actionMenuButtonRef.current?.focus();
+    };
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [actionMenuOpen]);
 
   const load = useCallback(() => {
     const requestId = loadRequestRef.current + 1;
@@ -263,43 +360,32 @@ export default function Workouts() {
         title="Workouts"
         subtitle="Browse, search, and compare every session you've logged."
         actions={(
-          <>
-            <button
-              type="button"
-              onClick={() => compareMode ? exitCompareMode() : setCompareMode(true)}
-              className={`${styles.exportButton} ${compareMode ? styles.compareModeActive : ''}`}
-              aria-pressed={compareMode}
-            >
-              {compareMode ? <X size={14} /> : <GitCompare size={14} />} {compareMode ? 'Cancel' : 'Compare'}
-            </button>
-            {/* Visible-but-disabled in the demo so the feature is discoverable. */}
-            <button
-              onClick={() => setPanel(prev => (prev === 'add' ? null : 'add'))}
-              className={styles.exportButton}
-              aria-expanded={panel === 'add'}
-              disabled={IS_DEMO}
-              title={IS_DEMO ? 'Demo mode - run ErgDash self-hosted to add workouts' : undefined}
-            >
-              <Plus size={14} /> Add
-            </button>
-            <button
-              onClick={() => setPanel(prev => (prev === 'import' ? null : 'import'))}
-              className={styles.exportButton}
-              aria-expanded={panel === 'import'}
-              disabled={IS_DEMO}
-              title={IS_DEMO ? 'Demo mode - run ErgDash self-hosted to import workout files' : undefined}
-            >
-              <Upload size={14} /> Import
-            </button>
-            <button onClick={exportJson} className={styles.exportButton}>
-              <Download size={14} /> JSON
-            </button>
-            <button onClick={exportCsv} className={styles.exportButton}>
-              <Download size={14} /> CSV
-            </button>
-          </>
+          <WorkoutActions
+            compareMode={compareMode}
+            panel={panel}
+            menuOpen={actionMenuOpen}
+            menuRef={actionMenuRef}
+            menuButtonRef={actionMenuButtonRef}
+            onAdd={() => setPanel(prev => (prev === 'add' ? null : 'add'))}
+            onCompare={() => compareMode ? exitCompareMode() : setCompareMode(true)}
+            onMenuToggle={() => setActionMenuOpen(open => !open)}
+            onImport={() => {
+              setActionMenuOpen(false);
+              setPanel(prev => (prev === 'import' ? null : 'import'));
+            }}
+            onExportJson={() => { setActionMenuOpen(false); exportJson(); }}
+            onExportCsv={() => { setActionMenuOpen(false); exportCsv(); }}
+            demo={IS_DEMO}
+          />
         )}
       />
+
+      {IS_DEMO && (
+        <div id="workouts-demo-note" className={styles.demoNotice} role="note">
+          <strong>Demo mode</strong>
+          <span>Adding and importing workouts is available when you self-host ErgDash.</span>
+        </div>
+      )}
 
       {panel === 'add' && (
         <WorkoutForm
