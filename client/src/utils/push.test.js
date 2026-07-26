@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { PUSH_UNAVAILABLE_REASONS, pushSupport, urlBase64ToUint8Array } from './push.js';
+import {
+  PUSH_UNAVAILABLE_REASONS,
+  disablePush,
+  pushSupport,
+  reconcilePushSubscription,
+  urlBase64ToUint8Array,
+} from './push.js';
+import { api } from '../api.js';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -55,5 +62,99 @@ describe('urlBase64ToUint8Array', () => {
 
   it('decodes the base64url alphabet', () => {
     expect([...urlBase64ToUint8Array('-_8')]).toEqual([251, 255]);
+  });
+});
+
+// Stands in for a browser that already holds a push subscription.
+function stubSubscribedBrowser({ permission = 'granted' } = {}) {
+  const subscription = {
+    endpoint: 'https://push.example/abc',
+    toJSON: () => ({ endpoint: 'https://push.example/abc', keys: { p256dh: 'p', auth: 'a' } }),
+    unsubscribe: vi.fn().mockResolvedValue(true),
+  };
+  // pushSupport() feature-detects against `window`, so Notification has to be
+  // on it as well as on the global.
+  vi.stubGlobal('window', {
+    isSecureContext: true,
+    PushManager: function PushManager() {},
+    Notification: { permission },
+  });
+  vi.stubGlobal('navigator', {
+    serviceWorker: { getRegistration: async () => ({ pushManager: { getSubscription: async () => subscription } }) },
+  });
+  vi.stubGlobal('Notification', { permission });
+  return subscription;
+}
+
+describe('reconcilePushSubscription', () => {
+  it('claims the endpoint for a profile that has push enabled', async () => {
+    stubSubscribedBrowser();
+    const subscribe = vi.spyOn(api, 'subscribePush').mockResolvedValue({ subscribed: true });
+    const unsubscribe = vi.spyOn(api, 'unsubscribePush').mockResolvedValue({ remaining: 1 });
+
+    await reconcilePushSubscription(true);
+
+    expect(subscribe).toHaveBeenCalledTimes(1);
+    expect(unsubscribe).not.toHaveBeenCalled();
+    vi.restoreAllMocks();
+  });
+
+  // A claim left behind by a profile that has push switched off keeps the
+  // endpoint's reference count above zero, which stops the last genuinely
+  // enabled profile from ever revoking the browser subscription.
+  it('drops a stale claim for a profile that has push disabled', async () => {
+    stubSubscribedBrowser();
+    const subscribe = vi.spyOn(api, 'subscribePush').mockResolvedValue({ subscribed: true });
+    const unsubscribe = vi.spyOn(api, 'unsubscribePush').mockResolvedValue({ remaining: 0 });
+
+    await reconcilePushSubscription(false);
+
+    expect(unsubscribe).toHaveBeenCalledWith('https://push.example/abc');
+    expect(subscribe).not.toHaveBeenCalled();
+    vi.restoreAllMocks();
+  });
+
+  // Reconciliation is bookkeeping, not the user asking to turn push off.
+  it('never revokes the browser subscription', async () => {
+    const subscription = stubSubscribedBrowser();
+    vi.spyOn(api, 'unsubscribePush').mockResolvedValue({ remaining: 0 });
+
+    await reconcilePushSubscription(false);
+
+    expect(subscription.unsubscribe).not.toHaveBeenCalled();
+    vi.restoreAllMocks();
+  });
+
+  it('does nothing without notification permission', async () => {
+    stubSubscribedBrowser({ permission: 'default' });
+    const subscribe = vi.spyOn(api, 'subscribePush').mockResolvedValue({ subscribed: true });
+
+    expect(await reconcilePushSubscription(true)).toBe(false);
+    expect(subscribe).not.toHaveBeenCalled();
+    vi.restoreAllMocks();
+  });
+});
+
+describe('disablePush', () => {
+  it('revokes the browser subscription once no profile is using it', async () => {
+    const subscription = stubSubscribedBrowser();
+    vi.spyOn(api, 'unsubscribePush').mockResolvedValue({ remaining: 0 });
+
+    await disablePush();
+
+    expect(subscription.unsubscribe).toHaveBeenCalledTimes(1);
+    vi.restoreAllMocks();
+  });
+
+  // Tearing the subscription down here is what previously broke push for the
+  // other household member sharing the browser.
+  it('leaves the browser subscription alone while another profile uses it', async () => {
+    const subscription = stubSubscribedBrowser();
+    vi.spyOn(api, 'unsubscribePush').mockResolvedValue({ remaining: 1 });
+
+    await disablePush();
+
+    expect(subscription.unsubscribe).not.toHaveBeenCalled();
+    vi.restoreAllMocks();
   });
 });

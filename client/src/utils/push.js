@@ -84,16 +84,27 @@ export async function disablePush() {
   return true;
 }
 
-// Re-registers this browser's existing subscription against whichever profile
-// is now active. Switching profiles does not create a new browser
-// subscription, so without this the newly active profile would show push as
-// enabled while having no row to deliver to.
-export async function reconcilePushSubscription() {
+// Brings this browser's subscription rows into line with what the active
+// profile's settings actually say, and is called at profile scope rather than
+// from any one page.
+//
+// Both directions matter. Switching profiles does not mint a new browser
+// subscription, so an enabled profile would otherwise have nothing to deliver
+// to until it happened to visit Settings. And claiming the endpoint for a
+// profile that has push switched off leaves a row nobody wants, which keeps
+// the endpoint's reference count above zero and stops the last genuinely
+// enabled profile from ever revoking the browser subscription.
+//
+// Never revokes the browser-side subscription: this is reconciliation, not a
+// user asking to turn push off. Only disablePush() revokes, and only once no
+// profile is left using the endpoint.
+export async function reconcilePushSubscription(enabled) {
   if (!pushSupport().supported || Notification.permission !== 'granted') return false;
 
   const subscription = await getExistingSubscription();
   if (!subscription) return false;
 
-  await api.subscribePush(subscription.toJSON());
+  if (enabled) await api.subscribePush(subscription.toJSON());
+  else await api.unsubscribePush(subscription.endpoint);
   return true;
 }

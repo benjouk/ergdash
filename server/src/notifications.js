@@ -14,7 +14,7 @@
 import cron from 'node-cron';
 import webpush from 'web-push';
 import { getDb, getInstanceSetting, setInstanceSetting } from './db.js';
-import { NOTIFY_CHANNELS, NOTIFY_KINDS } from './notificationTypes.js';
+import { NOTIFY_CHANNELS, NOTIFY_KINDS, TEST_KIND } from './notificationTypes.js';
 import { WEBHOOK_FORMATS, buildWebhookRequest } from './webhookFormats.js';
 import { formatDistance, formatDuration, formatPace } from './format.js';
 
@@ -112,14 +112,16 @@ export function getVapidKeys() {
 // has already been seen. Delivery is fire-and-forget: callers (the sync path,
 // the cron) are synchronous and must not wait on the network.
 export function notify(profileId, { kind, title, body = null, link = null, dedupeKey }) {
-  if (!NOTIFY_KINDS.includes(kind)) {
+  if (kind !== TEST_KIND && !NOTIFY_KINDS.includes(kind)) {
     throw new Error(`Unknown notification kind: ${kind}`);
   }
   if (!dedupeKey) throw new Error('notify() requires a dedupeKey');
 
   const channels = enabledChannels(profileId);
   if (channels.length === 0) return null;
-  if (!enabledKinds(profileId).includes(kind)) return null;
+  // A test is requested by hand, so it skips the per-kind subscription filter -
+  // but still honours the channels, since that is what it is testing.
+  if (kind !== TEST_KIND && !enabledKinds(profileId).includes(kind)) return null;
 
   // The row is written whatever the channels are: it is what makes delivery
   // idempotent. `inapp` records whether the in-app centre was one of them, so
@@ -146,6 +148,30 @@ export function notify(profileId, { kind, title, body = null, link = null, dedup
   }
 
   return row;
+}
+
+// Writes the row behind "Send test" and returns it, without fanning out to
+// push or webhook. The test endpoint delivers to those itself so it can await
+// each one and report what actually happened; notify()'s fire-and-forget
+// delivery would both double-send and hide the outcome.
+//
+// Each press gets a unique dedupe key, so testing twice gives two rows.
+export function recordTestNotification(profileId, now = Date.now()) {
+  const inapp = enabledChannels(profileId).includes('inapp');
+  const info = getDb().prepare(`
+    INSERT INTO notifications (profile_id, kind, title, body, link, dedupe_key, inapp)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    profileId,
+    TEST_KIND,
+    'ErgDash test notification',
+    'If you can read this, notifications are working.',
+    '/settings',
+    `${TEST_KIND}:${now}`,
+    inapp ? 1 : 0,
+  );
+
+  return getDb().prepare('SELECT * FROM notifications WHERE id = ?').get(info.lastInsertRowid);
 }
 
 // ---------------------------------------------------------------------------

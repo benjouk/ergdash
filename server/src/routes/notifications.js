@@ -1,6 +1,12 @@
 import { Router } from 'express';
 import { getDb } from '../db.js';
-import { getVapidKeys, deliverPush, deliverWebhook, enabledChannels } from '../notifications.js';
+import {
+  getVapidKeys,
+  deliverPush,
+  deliverWebhook,
+  enabledChannels,
+  recordTestNotification,
+} from '../notifications.js';
 import { webhookFormatDocs } from '../webhookFormats.js';
 
 const router = Router();
@@ -37,12 +43,17 @@ router.get('/', (req, res) => {
     'SELECT COUNT(*) AS c FROM notifications WHERE profile_id = ? AND inapp = 1 AND read_at IS NULL'
   ).get(req.profileId).c;
 
+  const channels = enabledChannels(req.profileId);
   res.json({
     notifications: rows.map(formatNotification),
     unread_count: unread,
     // Lets the client hide the bell entirely rather than showing one that can
     // never fill up.
-    inapp_enabled: enabledChannels(req.profileId).includes('inapp'),
+    inapp_enabled: channels.includes('inapp'),
+    // Carried here so push reconciliation can happen at profile scope, on the
+    // poll this client already makes, instead of waiting for a visit to
+    // Settings.
+    push_enabled: channels.includes('push'),
   });
 });
 
@@ -147,17 +158,18 @@ router.post('/unsubscribe', (req, res) => {
 });
 
 // Round-trips a real notification through every enabled channel so the Settings
-// page can prove the wiring. Deliberately not stored: a test is not history.
+// page can prove the wiring.
+//
+// The in-app arm writes an actual row rather than asserting one was shown:
+// proving the bell and feed work is the whole point, and there is no way to do
+// that without something to read back. Each test gets a unique dedupe key so
+// pressing the button twice produces two.
 router.post('/test', async (req, res) => {
   const channels = enabledChannels(req.profileId);
-  const notification = {
-    id: 0,
-    kind: 'workout_synced',
-    title: 'ErgDash test notification',
-    body: 'If you can read this, notifications are working.',
-    link: '/settings',
-    created_at: new Date().toISOString(),
-  };
+  // Records the row without fanning out. notify() delivers fire-and-forget,
+  // which would both double-send and hide whether delivery actually worked -
+  // and reporting that honestly is the point of this endpoint.
+  const notification = recordTestNotification(req.profileId);
 
   // One entry per enabled channel, each saying whether it actually worked.
   // "Enabled" is not "delivered": an empty webhook URL, an HTTP error, or a
@@ -166,9 +178,11 @@ router.post('/test', async (req, res) => {
   const results = [];
 
   if (channels.includes('inapp')) {
-    // Nothing to deliver - the feed is served by reading rows back - so this
-    // is true whenever the channel is on.
-    results.push({ channel: 'inapp', ok: true, detail: 'Shown in the notification centre' });
+    // Reports on the row that was actually written, so a failure to store
+    // cannot be reported as a success.
+    results.push(notification.id
+      ? { channel: 'inapp', ok: true, detail: 'Added to the notification centre' }
+      : { channel: 'inapp', ok: false, detail: 'Could not store the notification' });
   }
 
   if (channels.includes('push')) {

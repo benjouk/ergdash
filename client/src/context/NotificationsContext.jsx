@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import { api } from '../api.js';
 import { useAuth } from './AuthContext.jsx';
 import { useToast } from './ToastContext.jsx';
+import { reconcilePushSubscription } from '../utils/push.js';
 
 const NotificationsContext = createContext(null);
 
@@ -24,6 +25,8 @@ export function NotificationsProvider({ children }) {
   // Ids already seen by this tab. The first poll after mount seeds it without
   // toasting, or every reload would replay the whole unread list.
   const seenIdsRef = useRef(null);
+  // Guards the once-per-profile push reconciliation below.
+  const reconciledRef = useRef(false);
 
   const refresh = useCallback(async () => {
     if (!activeProfile || !isOnline) return;
@@ -34,6 +37,16 @@ export function NotificationsProvider({ children }) {
       setUnreadCount(data.unread_count || 0);
       setInappEnabled(data.inapp_enabled !== false);
       setError(null);
+
+      // Once per profile: line this browser's push subscription up with what
+      // the profile's settings say. This provider is keyed on the active
+      // profile, so a switch re-runs it - which is the point, since switching
+      // does not mint a new browser subscription and Settings may never be
+      // opened.
+      if (!reconciledRef.current && typeof data.push_enabled === 'boolean') {
+        reconciledRef.current = true;
+        reconcilePushSubscription(data.push_enabled).catch(() => {});
+      }
 
       if (seenIdsRef.current === null) {
         seenIdsRef.current = new Set(list.map(item => item.id));
@@ -66,6 +79,7 @@ export function NotificationsProvider({ children }) {
   // but reset explicitly so a stale list never flashes.
   useEffect(() => {
     seenIdsRef.current = null;
+    reconciledRef.current = false;
     setNotifications([]);
     setUnreadCount(0);
   }, [activeProfile?.id]);

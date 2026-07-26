@@ -13,3 +13,9 @@ export const NOTIFY_KINDS = [
 ];
 
 export const NOTIFY_CHANNELS = ['inapp', 'push', 'webhook'];
+
+// Deliberately outside NOTIFY_KINDS. Nobody subscribes to a test, so it must
+// not appear in Settings' "What to notify" list, and asking for one explicitly
+// is consent enough to bypass that filter. The kind CHECK in
+// migrations/022-notification-test-kind.sql accepts it.
+export const TEST_KIND = 'test';

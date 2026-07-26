@@ -8,7 +8,6 @@ import {
   enablePush,
   getExistingSubscription,
   pushSupport,
-  reconcilePushSubscription,
 } from '../utils/push.js';
 import { useProfileQuery } from '../hooks/useProfileQuery.js';
 import { buildSyncStatusView } from '../components/Ticker/syncStatus.js';
@@ -18,6 +17,7 @@ import { useUnits } from '../context/UnitsContext.jsx';
 import { useSync } from '../context/SyncContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
+import { useNotifications } from '../context/NotificationsContext.jsx';
 import { usePrefs } from '../context/PrefsContext.jsx';
 import { useTimeRange } from '../context/TimeRangeContext.jsx';
 import Segmented from '../components/ui/Segmented.jsx';
@@ -766,6 +766,7 @@ function WebhookDocs({ format, serverDocs }) {
 
 function NotificationsSection() {
   const toast = useToast();
+  const { refresh: refreshNotifications } = useNotifications();
   const { data: settings, refetch } = useProfileQuery(['settings'], api.getSettings);
   const [channels, setChannels] = useState(['inapp']);
   const [kinds, setKinds] = useState(NOTIFY_KIND_ROWS.map(([id]) => id));
@@ -803,9 +804,6 @@ function NotificationsSection() {
     getExistingSubscription()
       .then(subscription => setPushState(state => ({ ...state, subscribed: Boolean(subscription) })))
       .catch(() => {});
-    // A profile switch reuses this browser's subscription but leaves the newly
-    // active profile without a row to deliver to, so claim it here.
-    reconcilePushSubscription().catch(() => {});
     // Unavailable in the demo, which has no server to send webhooks from; the
     // docs simply hide themselves.
     api.getWebhookFormats().then(setWebhookDocs).catch(() => {});
@@ -856,6 +854,9 @@ function NotificationsSection() {
         toast.error('No notification channels are enabled');
         return;
       }
+      // Pull the feed straight away so an in-app test lands in the bell now,
+      // rather than up to a poll interval later.
+      refreshNotifications();
       const failed = results.filter(entry => !entry.ok);
       if (failed.length === 0) {
         toast.success(`Test sent via ${results.map(entry => entry.channel).join(', ')}`);

@@ -536,15 +536,76 @@ describe('POST /api/notifications/test', () => {
     vi.unstubAllGlobals();
   });
 
-  it('succeeds for an in-app-only profile', async () => {
+  // A test that claims the notification centre was updated without writing a
+  // row proves nothing about the bell and feed wiring, which is the only thing
+  // an in-app test can verify.
+  it('actually writes a row the feed returns', async () => {
     setSetting(1, 'notify_channels', JSON.stringify(['inapp']));
 
     const body = await (await fetch(`${base}/api/notifications/test`, { method: 'POST' })).json();
 
     expect(body.ok).toBe(true);
     expect(body.results).toEqual([
-      { channel: 'inapp', ok: true, detail: 'Shown in the notification centre' },
+      { channel: 'inapp', ok: true, detail: 'Added to the notification centre' },
     ]);
+
+    const feed = await (await fetch(`${base}/api/notifications`)).json();
+    expect(feed.notifications.map(n => n.title)).toEqual(['ErgDash test notification']);
+    expect(feed.unread_count).toBe(1);
+  });
+
+  it('produces a separate row each time it is pressed', async () => {
+    setSetting(1, 'notify_channels', JSON.stringify(['inapp']));
+
+    await fetch(`${base}/api/notifications/test`, { method: 'POST' });
+    await new Promise(resolve => setTimeout(resolve, 5));
+    await fetch(`${base}/api/notifications/test`, { method: 'POST' });
+
+    expect(storedFor(1)).toHaveLength(2);
+  });
+
+  // The test row is stored for dedupe/consistency but a webhook-only profile
+  // has not asked to see it in the bell.
+  it('keeps the test out of the feed when in-app is off', async () => {
+    setSetting(1, 'notify_channels', JSON.stringify(['webhook']));
+    setSetting(1, 'notify_webhook_url', '');
+
+    await fetch(`${base}/api/notifications/test`, { method: 'POST' });
+
+    expect(storedFor(1)).toHaveLength(1);
+    const feed = await (await fetch(`${base}/api/notifications`)).json();
+    expect(feed.notifications).toEqual([]);
+  });
+
+  it('sends the test only once per channel', async () => {
+    setSetting(1, 'notify_channels', JSON.stringify(['inapp', 'webhook']));
+    setSetting(1, 'notify_webhook_url', 'https://hook.example/x');
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+    const realFetch = globalThis.fetch;
+    // Only intercept the outbound webhook; the test request itself still needs
+    // the real fetch.
+    vi.stubGlobal('fetch', (url, options) => (
+      String(url).startsWith('https://hook.example')
+        ? fetchMock(url, options)
+        : realFetch(url, options)
+    ));
+
+    await fetch(`${base}/api/notifications/test`, { method: 'POST' });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    vi.unstubAllGlobals();
+  });
+});
+
+describe('push_enabled in the feed response', () => {
+  // Carried so the client can reconcile its push subscription at profile
+  // scope, instead of only when Settings happens to be opened.
+  it('reports whether the profile has push switched on', async () => {
+    setSetting(1, 'notify_channels', JSON.stringify(['inapp']));
+    expect((await (await fetch(`${base}/api/notifications`)).json()).push_enabled).toBe(false);
+
+    setSetting(1, 'notify_channels', JSON.stringify(['inapp', 'push']));
+    expect((await (await fetch(`${base}/api/notifications`)).json()).push_enabled).toBe(true);
   });
 });
 
