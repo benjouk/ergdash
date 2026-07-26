@@ -1,6 +1,7 @@
 // Request-time coaching narrative for a completed session. This module is
 // deliberately pure: it only interprets the formatted workout, its stored
 // execution analysis and the athlete's tag baseline.
+import { formatDistance, formatPace } from './format.js';
 
 // A difference has to clear these thresholds before the prose calls it out.
 const TYPICAL_PACE_GAP_MS = 1500;
@@ -458,15 +459,3 @@ function formatSignedPercent(value) {
   return `${rounded > 0 ? '+' : ''}${formatNumber(rounded)}%`;
 }
 
-function formatPace(paceMs) {
-  const totalTenths = Math.round(paceMs / 100);
-  const minutes = Math.floor(totalTenths / 600);
-  const seconds = (totalTenths % 600) / 10;
-  return `${minutes}:${seconds.toFixed(1).padStart(4, '0')}`;
-}
-
-function formatDistance(meters) {
-  const rounded = Math.round(meters);
-  if (rounded >= 1000 && rounded % 1000 === 0) return `${rounded / 1000} km`;
-  return `${rounded.toLocaleString('en-GB')} m`;
-}

@@ -5,6 +5,7 @@ import { ThemeProvider } from './context/ThemeContext.jsx';
 import { AuthProvider, useAuth } from './context/AuthContext.jsx';
 import { SyncProvider } from './context/SyncContext.jsx';
 import { ToastProvider } from './context/ToastContext.jsx';
+import { NotificationsProvider } from './context/NotificationsContext.jsx';
 import { UnitsProvider } from './context/UnitsContext.jsx';
 import { TimeRangeProvider } from './context/TimeRangeContext.jsx';
 import { PrefsProvider } from './context/PrefsContext.jsx';
@@ -27,15 +28,17 @@ function ProfileScope() {
   return (
     <ThemeProvider>
       <ToastProvider>
-        <SyncProvider>
-          <UnitsProvider>
-            <PrefsProvider>
-              <TimeRangeProvider>
-                <App />
-              </TimeRangeProvider>
-            </PrefsProvider>
-          </UnitsProvider>
-        </SyncProvider>
+        <NotificationsProvider>
+          <SyncProvider>
+            <UnitsProvider>
+              <PrefsProvider>
+                <TimeRangeProvider>
+                  <App />
+                </TimeRangeProvider>
+              </PrefsProvider>
+            </UnitsProvider>
+          </SyncProvider>
+        </NotificationsProvider>
       </ToastProvider>
     </ThemeProvider>
   );

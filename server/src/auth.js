@@ -423,6 +423,12 @@ export function deleteProfile(profileId) {
     db.prepare('DELETE FROM fitness_log WHERE profile_id = ?').run(profileId);
     db.prepare('DELETE FROM predictions WHERE profile_id = ?').run(profileId);
     db.prepare('DELETE FROM settings WHERE profile_id = ?').run(profileId);
+    // Notification history is this member's content, and a push subscription
+    // carries the endpoint plus its encryption keys. Neither has a foreign key
+    // to cascade, so removing them here is what stops a deleted profile
+    // leaving credentials and personal data behind.
+    db.prepare('DELETE FROM notifications WHERE profile_id = ?').run(profileId);
+    db.prepare('DELETE FROM push_subscriptions WHERE profile_id = ?').run(profileId);
     db.prepare("DELETE FROM sync_state WHERE key LIKE ?").run(`profile:${profileId}:%`);
     db.prepare('DELETE FROM profiles WHERE id = ?').run(profileId);
   })();
