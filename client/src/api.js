@@ -255,6 +255,7 @@ export const api = {
   markNotificationsRead: () => request('/api/notifications/read', { method: 'POST' }),
   markNotificationRead: (id) => request(`/api/notifications/${id}/read`, { method: 'POST' }),
   clearNotifications: () => request('/api/notifications', { method: 'DELETE' }),
+  getWebhookFormats: () => request('/api/notifications/webhook-formats'),
   getVapidKey: () => request('/api/notifications/vapid-key'),
   subscribePush: (subscription) => request('/api/notifications/subscribe', {
     method: 'POST',

@@ -180,10 +180,22 @@ There are three ways to receive them, and you can use any combination:
   same restriction that governs offline support below, so a plain LAN IP
   cannot use it; Settings says so rather than offering a dead button. Keys
   are generated automatically on first use — nothing to configure.
-- **Webhook** — ErgDash POSTs each notification as JSON with `title` and
-  `message` fields, which is what ntfy, Gotify, Discord and Home Assistant
-  all accept. This works over plain HTTP and is the simplest way to get
-  notifications on a phone from a LAN-only install.
+- **Webhook** — ErgDash POSTs each notification to a URL you choose. This
+  works over plain HTTP and is the simplest way to get notifications on a
+  phone from a LAN-only install.
+
+  There is no universal webhook format, so pick the one matching your target
+  and Settings shows the exact request ErgDash will send:
+
+  | Format | Works with | Shape |
+  |---|---|---|
+  | ErgDash JSON | Gotify, Home Assistant, scripts | `{title, message, kind, link, url, created_at}` |
+  | ntfy | ntfy.sh or self-hosted ntfy | plain-text body, title in an `X-Title` header |
+  | Discord | Discord channel webhook | `{content}` |
+  | Slack | Slack, Mattermost, Google Chat | `{text}` |
+
+  Set `APP_ORIGIN` to have notifications carry a clickable link back to
+  ErgDash.
 
 Reminder times are set in Settings and fire on the server's clock, so set
 `TZ` on the container to your own zone. Notifications are deduplicated, so a

@@ -756,6 +756,9 @@ async function handleGet(route, params) {
   if (route === '/api/notifications') {
     return { notifications: [], unread_count: 0 };
   }
+  // /api/notifications/webhook-formats is deliberately not stubbed: the docs
+  // describe what the server sends, and the demo has no server to send
+  // anything. WebhookDocs hides itself when the fetch fails.
 
   if (route === '/api/workouts') {
     const all = await loadFixture((await loadManifest())['/api/workouts']);

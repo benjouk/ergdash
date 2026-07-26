@@ -90,6 +90,7 @@ export function seedDefaultSettings(db, profileId) {
     insert.run(profileId, 'notify_plan_hour', '7');
     insert.run(profileId, 'notify_digest_hour', '20');
     insert.run(profileId, 'notify_webhook_url', '');
+    insert.run(profileId, 'notify_webhook_format', 'json');
   })();
 }
 

@@ -15,6 +15,7 @@ import cron from 'node-cron';
 import webpush from 'web-push';
 import { getDb, getInstanceSetting, setInstanceSetting } from './db.js';
 import { NOTIFY_CHANNELS, NOTIFY_KINDS } from './notificationTypes.js';
+import { WEBHOOK_FORMATS, buildWebhookRequest } from './webhookFormats.js';
 import { formatDistance, formatDuration, formatPace } from './format.js';
 
 const WEBHOOK_TIMEOUT_MS = 5000;
@@ -193,22 +194,23 @@ export async function deliverPush(profileId, notification) {
 }
 
 export async function deliverWebhook(profileId, notification) {
-  const url = settingsFor(profileId).notify_webhook_url;
+  const settings = settingsFor(profileId);
+  const url = settings.notify_webhook_url;
   if (!url) return { delivered: false };
 
-  // ntfy, Gotify, Discord and Home Assistant all accept a JSON POST; title and
-  // message are the two fields they agree on, and the rest is there for
-  // anything doing its own templating.
+  // The payload shape is per-target: see webhookFormats.js for why one shape
+  // cannot serve them all.
+  const format = WEBHOOK_FORMATS.includes(settings.notify_webhook_format)
+    ? settings.notify_webhook_format
+    : 'json';
+  const { headers, body } = buildWebhookRequest(format, notification, {
+    appOrigin: process.env.APP_ORIGIN || null,
+  });
+
   const response = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      title: notification.title,
-      message: notification.body,
-      kind: notification.kind,
-      link: notification.link,
-      created_at: notification.created_at,
-    }),
+    headers,
+    body,
     signal: AbortSignal.timeout(WEBHOOK_TIMEOUT_MS),
   });
 

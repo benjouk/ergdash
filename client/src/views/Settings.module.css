@@ -180,6 +180,45 @@
   flex-wrap: wrap;
 }
 
+/* In-page webhook documentation: what ErgDash sends, for the selected format.
+   Reads as a reference panel rather than another settings row. */
+.webhookDocs {
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.webhookDocsLabel {
+  margin-top: var(--space-3);
+  font-family: var(--font-display);
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-2);
+}
+
+.webhookDocsHint {
+  margin: var(--space-1) 0 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--ink-3);
+}
+
+.webhookDocsCode {
+  margin: var(--space-2) 0 0;
+  padding: var(--space-3);
+  background: var(--surface-alt);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  line-height: 1.55;
+  color: var(--ink);
+  /* Payload lines are long; scroll the block, never the page. */
+  overflow-x: auto;
+  white-space: pre;
+}
+
 /* A toggle that cannot be used yet - push on a plain-HTTP LAN address, say.
    The row still explains why in its subtext, so the control is dimmed rather
    than removed. */

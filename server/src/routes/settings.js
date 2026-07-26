@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { getDb, seedDefaultSettings } from '../db.js';
 import { recomputeAllMetrics, recomputeAllZoneTimes } from '../analytics.js';
 import { NOTIFY_CHANNELS, NOTIFY_KINDS } from '../notificationTypes.js';
+import { WEBHOOK_FORMATS } from '../webhookFormats.js';
 
 const router = Router();
 
@@ -16,6 +17,7 @@ router.get('/', (req, res) => {
 });
 
 const ENUMS = {
+  notify_webhook_format: WEBHOOK_FORMATS,
   theme: ['system', 'light', 'dark'],
   units: ['pace', 'watts', 'calhr'],
   time_range: ['30d', '90d', 'season', 'last_season', 'all'],
