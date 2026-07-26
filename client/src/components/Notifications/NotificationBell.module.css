@@ -1,0 +1,184 @@
+.wrapper {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--ticker-dim);
+  cursor: pointer;
+  transition: color 150ms ease;
+}
+
+.button:hover,
+.button[aria-expanded='true'] {
+  color: var(--ticker-text);
+}
+
+/* Sits on the bell glyph, so it is deliberately small and high-contrast
+   against the dark ticker rather than following the surface tokens. */
+.badge {
+  position: absolute;
+  top: 2px;
+  right: 0;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: 7px;
+  background: var(--ticker-accent);
+  color: #1D1D13;
+  font-family: var(--font-mono, var(--font-body));
+  font-size: 0.5625rem;
+  font-weight: 700;
+  line-height: 14px;
+  text-align: center;
+}
+
+.panel {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  z-index: 20;
+  width: 320px;
+  max-height: 420px;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.24);
+  overflow: hidden;
+}
+
+.panelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--rule);
+}
+
+.panelTitle {
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.panelActions {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.panelAction {
+  font-family: var(--font-body);
+  font-size: 0.6875rem;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: color 100ms ease;
+}
+
+.panelAction:hover,
+.panelAction:focus-visible {
+  color: var(--accent);
+  outline: none;
+}
+
+.empty {
+  margin: 0;
+  padding: var(--space-4) var(--space-3);
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  color: var(--ink-2);
+  text-align: center;
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+}
+
+.item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--rule);
+  color: var(--ink);
+  font-family: var(--font-body);
+  text-align: left;
+  cursor: pointer;
+  transition: background 100ms ease;
+}
+
+.item:hover,
+.item:focus-visible {
+  background: var(--surface-alt);
+  outline: none;
+}
+
+.itemUnread {
+  background: var(--accent-bg);
+}
+
+.itemIcon {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--ink-2);
+}
+
+.itemUnread .itemIcon {
+  color: var(--accent);
+}
+
+.itemText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.itemTitle {
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.itemBody {
+  font-size: 0.6875rem;
+  color: var(--ink-2);
+}
+
+.itemTime {
+  font-size: 0.625rem;
+  color: var(--ink-3);
+}
+
+.itemDot {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+@media (max-width: 767px) {
+  .panel {
+    /* The mobile ticker is only 48px tall and the bell sits near its right
+       edge; anchor the panel to the viewport so it cannot overflow. */
+    position: fixed;
+    top: 52px;
+    right: var(--space-3);
+    left: var(--space-3);
+    width: auto;
+  }
+}

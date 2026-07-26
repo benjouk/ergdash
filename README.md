@@ -21,6 +21,7 @@ ErgDash connects to the Concept2 Logbook API to sync your workout history and di
 - **Plans and programs:** Schedule sessions or follow ready-made programs such as The Pete Plan, with automatic workout matching and adherence tracking.
 - **Goals and progress:** Set volume and performance targets, follow fitness trends, estimate race results, and compare personal bests with Concept2 rankings.
 - **Workout management:** Sync with the Concept2 Logbook, add or correct results, tag sessions, import CSV, TCX, and FIT files, and export your history.
+- **Notifications:** Get reminded on plan days and told when a new workout syncs or a personal best lands, in-app, by push, or to a webhook.
 - **Household profiles:** Give each household member separate workouts, goals, plans, and settings in one ErgDash instance.
 - **Personal settings:** Configure heart rate zones, body weight, display units, and light or dark themes.
 - **Self-hosted PWA:** Install ErgDash on a phone or tablet and keep recent data available when the server is unreachable.
@@ -130,6 +131,7 @@ its writes would fail the origin check unless that origin is also added to
 | `PORT` | `3000` | Server listen port |
 | `DATA_DIR` | `/data` (Docker) / `server/data` (local) | SQLite database directory |
 | `SYNC_INTERVAL_MINUTES` | `15` | Auto-sync interval |
+| `TZ` | `UTC` | Container timezone. Notification reminders and nightly backups fire on the server's local clock, so set this to your own zone |
 | `SESSION_SECRET` | - | Session signing secret (required in production, min 16 chars; generate with `openssl rand -base64 32`) |
 | `COOKIE_SECURE` | auto | Force the session cookie's `Secure` flag on/off; auto-detects from `C2_REDIRECT_URI` |
 | `APP_ORIGIN` | - | Canonical public origin for an HTTPS reverse proxy; leave empty for direct LAN HTTP |
@@ -160,6 +162,32 @@ corruption, a bad upgrade, or an accidental wipe, **not** against the disk
 itself dying. For that, copy `DATA_DIR/backups` somewhere else on a schedule
 (rsync to a NAS, restic, a cloud sync client, ...), or download a copy from
 Settings now and then.
+
+## Notifications
+
+ErgDash can tell you about five things: a **plan day reminder** in the
+morning, a **new workout** the sync just picked up, a **new personal best**,
+an **unlogged session** in the evening, and a **streak at risk** on a Sunday
+with nothing logged that week. Each one is switched on or off separately in
+**Settings → Notifications**, per profile.
+
+There are three ways to receive them, and you can use any combination:
+
+- **In ErgDash** — the bell in the header, with an unread badge and a toast
+  while the app is open. Works on every install.
+- **Push notifications** — reach your phone or desktop with ErgDash closed.
+  Browsers only allow push on **secure origins** (HTTPS or `localhost`), the
+  same restriction that governs offline support below, so a plain LAN IP
+  cannot use it; Settings says so rather than offering a dead button. Keys
+  are generated automatically on first use — nothing to configure.
+- **Webhook** — ErgDash POSTs each notification as JSON with `title` and
+  `message` fields, which is what ntfy, Gotify, Discord and Home Assistant
+  all accept. This works over plain HTTP and is the simplest way to get
+  notifications on a phone from a LAN-only install.
+
+Reminder times are set in Settings and fire on the server's clock, so set
+`TZ` on the container to your own zone. Notifications are deduplicated, so a
+re-sync or a restart never repeats one you have already seen.
 
 ## Offline & PWA
 

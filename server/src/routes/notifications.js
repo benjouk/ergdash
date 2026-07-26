@@ -1,0 +1,153 @@
+import { Router } from 'express';
+import { getDb } from '../db.js';
+import { getVapidKeys, deliverPush, deliverWebhook, enabledChannels } from '../notifications.js';
+
+const router = Router();
+
+const MAX_LIMIT = 100;
+const DEFAULT_LIMIT = 30;
+
+function formatNotification(row) {
+  return {
+    id: row.id,
+    kind: row.kind,
+    title: row.title,
+    body: row.body,
+    link: row.link,
+    created_at: row.created_at,
+    read: row.read_at != null,
+  };
+}
+
+router.get('/', (req, res) => {
+  const db = getDb();
+  const limit = Math.min(MAX_LIMIT, Math.max(1, Number(req.query.limit) || DEFAULT_LIMIT));
+  const rows = db.prepare(`
+    SELECT * FROM notifications
+    WHERE profile_id = ?
+    ORDER BY created_at DESC, id DESC
+    LIMIT ?
+  `).all(req.profileId, limit);
+
+  const unread = db.prepare(
+    'SELECT COUNT(*) AS c FROM notifications WHERE profile_id = ? AND read_at IS NULL'
+  ).get(req.profileId).c;
+
+  res.json({ notifications: rows.map(formatNotification), unread_count: unread });
+});
+
+router.post('/read', (req, res) => {
+  const info = getDb().prepare(
+    "UPDATE notifications SET read_at = datetime('now') WHERE profile_id = ? AND read_at IS NULL"
+  ).run(req.profileId);
+  res.json({ marked: info.changes });
+});
+
+router.post('/:id/read', (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid notification id' });
+
+  // profile_id in the WHERE clause is the authorization check: another
+  // household member's notification simply does not match.
+  const info = getDb().prepare(
+    "UPDATE notifications SET read_at = datetime('now') WHERE id = ? AND profile_id = ? AND read_at IS NULL"
+  ).run(id, req.profileId);
+
+  const exists = getDb()
+    .prepare('SELECT 1 FROM notifications WHERE id = ? AND profile_id = ?')
+    .get(id, req.profileId);
+  if (!exists) return res.status(404).json({ error: 'Notification not found' });
+
+  res.json({ marked: info.changes });
+});
+
+router.delete('/', (req, res) => {
+  const info = getDb()
+    .prepare('DELETE FROM notifications WHERE profile_id = ?')
+    .run(req.profileId);
+  res.json({ deleted: info.changes });
+});
+
+// The browser needs the application server's public key to subscribe. Safe to
+// hand out: it is public by definition, and generating it here means a fresh
+// install has working push without any operator setup.
+router.get('/vapid-key', (req, res) => {
+  try {
+    res.json({ public_key: getVapidKeys().publicKey });
+  } catch (err) {
+    console.error('VAPID key generation failed:', err);
+    res.status(500).json({ error: 'Could not generate push keys' });
+  }
+});
+
+router.post('/subscribe', (req, res) => {
+  const { endpoint, keys } = req.body || {};
+  if (typeof endpoint !== 'string' || !endpoint.startsWith('https://')) {
+    return res.status(400).json({ error: 'A push subscription endpoint is required' });
+  }
+  if (!keys || typeof keys.p256dh !== 'string' || typeof keys.auth !== 'string') {
+    return res.status(400).json({ error: 'Subscription keys are missing' });
+  }
+
+  // endpoint is UNIQUE: re-subscribing the same device (a new permission grant,
+  // or a profile switch on a shared browser) moves the row rather than
+  // duplicating it.
+  getDb().prepare(`
+    INSERT INTO push_subscriptions (profile_id, endpoint, p256dh, auth, user_agent)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(endpoint) DO UPDATE SET
+      profile_id = excluded.profile_id,
+      p256dh = excluded.p256dh,
+      auth = excluded.auth,
+      user_agent = excluded.user_agent,
+      failure_count = 0
+  `).run(req.profileId, endpoint, keys.p256dh, keys.auth, req.get('user-agent') || null);
+
+  res.json({ subscribed: true });
+});
+
+router.post('/unsubscribe', (req, res) => {
+  const { endpoint } = req.body || {};
+  if (typeof endpoint !== 'string') {
+    return res.status(400).json({ error: 'A push subscription endpoint is required' });
+  }
+  const info = getDb()
+    .prepare('DELETE FROM push_subscriptions WHERE endpoint = ? AND profile_id = ?')
+    .run(endpoint, req.profileId);
+  res.json({ unsubscribed: info.changes > 0 });
+});
+
+// Round-trips a real notification through every enabled channel so the Settings
+// page can prove the wiring. Deliberately not stored: a test is not history.
+router.post('/test', async (req, res) => {
+  const channels = enabledChannels(req.profileId);
+  const notification = {
+    id: 0,
+    kind: 'workout_synced',
+    title: 'ErgDash test notification',
+    body: 'If you can read this, notifications are working.',
+    link: '/settings',
+    created_at: new Date().toISOString(),
+  };
+
+  const result = { channels, push: null, webhook: null };
+
+  if (channels.includes('push')) {
+    try {
+      result.push = await deliverPush(req.profileId, notification);
+    } catch (err) {
+      result.push = { error: err?.message || 'Push delivery failed' };
+    }
+  }
+  if (channels.includes('webhook')) {
+    try {
+      result.webhook = await deliverWebhook(req.profileId, notification);
+    } catch (err) {
+      result.webhook = { error: err?.message || 'Webhook delivery failed' };
+    }
+  }
+
+  res.json(result);
+});
+
+export default router;

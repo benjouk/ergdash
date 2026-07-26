@@ -1,6 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Download, FileJson, LogOut, Plus, RotateCcw, Trash2, Upload } from 'lucide-react';
+import { Bell, Download, FileJson, LogOut, Plus, RotateCcw, Trash2, Upload } from 'lucide-react';
 import { api } from '../api.js';
+import {
+  PUSH_UNAVAILABLE_REASONS,
+  disablePush,
+  enablePush,
+  getExistingSubscription,
+  pushSupport,
+} from '../utils/push.js';
 import { useProfileQuery } from '../hooks/useProfileQuery.js';
 import { buildSyncStatusView } from '../components/Ticker/syncStatus.js';
 import { parseTimeInput, formatDuration } from '../utils/ergMath.js';
@@ -13,7 +20,7 @@ import { usePrefs } from '../context/PrefsContext.jsx';
 import { useTimeRange } from '../context/TimeRangeContext.jsx';
 import Segmented from '../components/ui/Segmented.jsx';
 import PageHeader from '../components/PageHeader/PageHeader.jsx';
-import { SETTINGS_GROUPS, SettingsGroup } from './settingsGroups.jsx';
+import { SETTINGS_GROUPS, SettingsGroup, settingsGroup } from './settingsGroups.jsx';
 import styles from './Settings.module.css';
 
 const DEFAULT_ZONE_PERCENTS = [60, 70, 80, 90, 100];
@@ -669,6 +676,217 @@ function AutoBackupSection() {
   );
 }
 
+const NOTIFY_KIND_ROWS = [
+  ['plan_reminder', 'Plan day reminder', 'A morning nudge on days your plan or program has a session'],
+  ['workout_synced', 'New workout synced', 'When the Concept2 sync finds a workout ErgDash has not seen'],
+  ['new_pb', 'New personal best', 'When a synced or entered workout beats your best at that distance'],
+  ['missed_session', 'Unlogged session', 'An evening reminder when the day\'s planned session is still open'],
+  ['streak_risk', 'Streak at risk', 'On a Sunday with nothing logged that week'],
+];
+
+const NOTIFY_CHANNEL_ROWS = [
+  ['inapp', 'In ErgDash', 'The bell in the header, plus a toast while the app is open'],
+  ['push', 'Push notifications', 'Reaches your phone or desktop even when ErgDash is closed'],
+  ['webhook', 'Webhook', 'POSTs each notification to a URL — ntfy, Gotify, Discord, Home Assistant'],
+];
+
+function ToggleRow({ label, subtext, checked, onChange, disabled = false }) {
+  return (
+    <div className={styles.row}>
+      <div>
+        <div className={styles.label}>{label}</div>
+        <div className={styles.subtext}>{subtext}</div>
+      </div>
+      <div className={disabled ? styles.toggleDisabled : undefined}>
+        <Segmented
+          ariaLabel={label}
+          options={[['on', 'On'], ['off', 'Off']]}
+          value={checked ? 'on' : 'off'}
+          onChange={value => !disabled && onChange(value === 'on')}
+        />
+      </div>
+    </div>
+  );
+}
+
+function NotificationsSection() {
+  const toast = useToast();
+  const { data: settings, refetch } = useProfileQuery(['settings'], api.getSettings);
+  const [channels, setChannels] = useState(['inapp']);
+  const [kinds, setKinds] = useState(NOTIFY_KIND_ROWS.map(([id]) => id));
+  const [planHour, setPlanHour] = useState('7');
+  const [digestHour, setDigestHour] = useState('20');
+  const [webhookUrl, setWebhookUrl] = useState('');
+  const [pushState, setPushState] = useState({ subscribed: false, busy: false });
+  const [testBusy, setTestBusy] = useState(false);
+
+  const support = pushSupport();
+
+  useEffect(() => {
+    if (!settings) return;
+    const parse = (raw, fallback) => {
+      try {
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : fallback;
+      } catch {
+        return fallback;
+      }
+    };
+    setChannels(parse(settings.notify_channels, ['inapp']));
+    setKinds(parse(settings.notify_kinds, NOTIFY_KIND_ROWS.map(([id]) => id)));
+    setPlanHour(settings.notify_plan_hour ?? '7');
+    setDigestHour(settings.notify_digest_hour ?? '20');
+    setWebhookUrl(settings.notify_webhook_url ?? '');
+  }, [settings]);
+
+  useEffect(() => {
+    getExistingSubscription()
+      .then(subscription => setPushState(state => ({ ...state, subscribed: Boolean(subscription) })))
+      .catch(() => {});
+  }, []);
+
+  const save = (patch) => api.updateSettings(patch)
+    .then(() => {
+      refetch();
+      toast.success('Settings saved');
+    })
+    .catch(err => toast.error(err.message || 'Could not save settings'));
+
+  const toggleIn = (list, setList, key, value, enabled) => {
+    const next = enabled ? [...new Set([...list, value])] : list.filter(item => item !== value);
+    setList(next);
+    save({ [key]: JSON.stringify(next) });
+  };
+
+  // Turning the push channel on is not enough on its own: the browser also has
+  // to grant permission and register a subscription, so do both from one click.
+  const toggleChannel = async (channel, enabled) => {
+    if (channel === 'push' && enabled) {
+      setPushState(state => ({ ...state, busy: true }));
+      try {
+        await enablePush();
+        setPushState({ subscribed: true, busy: false });
+      } catch (err) {
+        setPushState(state => ({ ...state, busy: false }));
+        toast.error(err.message || 'Could not enable push notifications');
+        return;
+      }
+    }
+    if (channel === 'push' && !enabled) {
+      disablePush().catch(() => {});
+      setPushState(state => ({ ...state, subscribed: false }));
+    }
+    toggleIn(channels, setChannels, 'notify_channels', channel, enabled);
+  };
+
+  const sendTest = async () => {
+    setTestBusy(true);
+    try {
+      const result = await api.sendTestNotification();
+      if (result.channels.length === 0) toast.error('No notification channels are enabled');
+      else toast.success(`Test sent via ${result.channels.join(', ')}`);
+    } catch (err) {
+      toast.error(err.message || 'Could not send a test notification');
+    } finally {
+      setTestBusy(false);
+    }
+  };
+
+  const hourOptions = Array.from({ length: 24 }, (_, hour) => ({
+    value: String(hour),
+    label: `${String(hour).padStart(2, '0')}:00`,
+  }));
+
+  return (
+    <>
+      <div className={styles.section}>
+        <h3 className={styles.sectionTitle}>Delivery</h3>
+        {NOTIFY_CHANNEL_ROWS.map(([id, label, subtext]) => (
+          <ToggleRow
+            key={id}
+            label={label}
+            subtext={id === 'push' && !support.supported
+              ? PUSH_UNAVAILABLE_REASONS[support.reason]
+              : subtext}
+            checked={channels.includes(id)}
+            disabled={id === 'push' && (!support.supported || pushState.busy)}
+            onChange={enabled => toggleChannel(id, enabled)}
+          />
+        ))}
+        {channels.includes('webhook') && (
+          <div className={styles.row}>
+            <div>
+              <div className={styles.label}>Webhook URL</div>
+              <div className={styles.subtext}>
+                Each notification is POSTed as JSON with <code>title</code> and{' '}
+                <code>message</code> fields.
+              </div>
+            </div>
+            <input
+              type="url"
+              className={styles.fileInput}
+              placeholder="https://ntfy.sh/my-topic"
+              value={webhookUrl}
+              onChange={event => setWebhookUrl(event.target.value)}
+              onBlur={() => {
+                if (webhookUrl !== (settings?.notify_webhook_url ?? '')) {
+                  save({ notify_webhook_url: webhookUrl });
+                }
+              }}
+            />
+          </div>
+        )}
+        <div className={styles.row}>
+          <div>
+            <div className={styles.label}>Test</div>
+            <div className={styles.subtext}>
+              Send a notification through every channel you have enabled
+            </div>
+          </div>
+          <button type="button" className={styles.button} onClick={sendTest} disabled={testBusy}>
+            <Bell size={14} /> {testBusy ? 'Sending...' : 'Send test'}
+          </button>
+        </div>
+      </div>
+
+      <div className={styles.section}>
+        <h3 className={styles.sectionTitle}>What To Notify</h3>
+        {NOTIFY_KIND_ROWS.map(([id, label, subtext]) => (
+          <ToggleRow
+            key={id}
+            label={label}
+            subtext={subtext}
+            checked={kinds.includes(id)}
+            onChange={enabled => toggleIn(kinds, setKinds, 'notify_kinds', id, enabled)}
+          />
+        ))}
+      </div>
+
+      <div className={styles.section}>
+        <h3 className={styles.sectionTitle}>Timing</h3>
+        <SelectRow
+          label="Plan Reminder"
+          subtext="When the morning reminder for today's session is sent (server time)"
+          value={String(planHour)}
+          onChange={value => { setPlanHour(value); save({ notify_plan_hour: value }); }}
+          options={hourOptions}
+        />
+        <SelectRow
+          label="Evening Digest"
+          subtext="When unlogged-session and streak reminders are sent (server time)"
+          value={String(digestHour)}
+          onChange={value => { setDigestHour(value); save({ notify_digest_hour: value }); }}
+          options={hourOptions}
+        />
+        <div className={styles.subtext}>
+          Times follow the server's clock — set the <code>TZ</code> environment variable on
+          your ErgDash container so they match yours.
+        </div>
+      </div>
+    </>
+  );
+}
+
 function SelectRow({ label, subtext, value, onChange, options }) {
   return (
     <div className={styles.row}>
@@ -862,7 +1080,7 @@ export default function Settings() {
 
         <div className={styles.settingsContent}>
           <SettingsGroup
-            group={SETTINGS_GROUPS[0]}
+            group={settingsGroup('appearance')}
             active={activeGroup === 'appearance'}
             open={openGroups.has('appearance')}
             onToggle={() => toggleGroup('appearance')}
@@ -978,7 +1196,7 @@ export default function Settings() {
           </SettingsGroup>
 
           <SettingsGroup
-            group={SETTINGS_GROUPS[1]}
+            group={settingsGroup('athlete')}
             active={activeGroup === 'athlete'}
             open={openGroups.has('athlete')}
             onToggle={() => toggleGroup('athlete')}
@@ -987,7 +1205,7 @@ export default function Settings() {
           </SettingsGroup>
 
           <SettingsGroup
-            group={SETTINGS_GROUPS[2]}
+            group={settingsGroup('training')}
             active={activeGroup === 'training'}
             open={openGroups.has('training')}
             onToggle={() => toggleGroup('training')}
@@ -998,7 +1216,7 @@ export default function Settings() {
           </SettingsGroup>
 
           <SettingsGroup
-            group={SETTINGS_GROUPS[3]}
+            group={settingsGroup('connection')}
             active={activeGroup === 'connection'}
             open={openGroups.has('connection')}
             onToggle={() => toggleGroup('connection')}
@@ -1062,7 +1280,16 @@ export default function Settings() {
           </SettingsGroup>
 
           <SettingsGroup
-            group={SETTINGS_GROUPS[4]}
+            group={settingsGroup('notifications')}
+            active={activeGroup === 'notifications'}
+            open={openGroups.has('notifications')}
+            onToggle={() => toggleGroup('notifications')}
+          >
+            <NotificationsSection />
+          </SettingsGroup>
+
+          <SettingsGroup
+            group={settingsGroup('backup')}
             active={activeGroup === 'backup'}
             open={openGroups.has('backup')}
             onToggle={() => toggleGroup('backup')}
@@ -1180,7 +1407,7 @@ export default function Settings() {
           </SettingsGroup>
 
           <SettingsGroup
-            group={SETTINGS_GROUPS[5]}
+            group={settingsGroup('advanced')}
             active={activeGroup === 'advanced'}
             open={openGroups.has('advanced')}
             onToggle={() => toggleGroup('advanced')}

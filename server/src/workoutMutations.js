@@ -375,7 +375,10 @@ export function createManualWorkout(body, profileId) {
     profileId,
   });
 
-  runPostSyncAnalytics(profileId, [id], [], []);
+  // The user typed this workout in and is looking at the result; a "new workout
+  // synced" notification would only tell them what they just did. A PB is still
+  // worth surfacing.
+  runPostSyncAnalytics(profileId, [id], [], [], { notifySynced: false });
 
   return { id, warnings: intervalWarnings(fields, intervals) };
 }

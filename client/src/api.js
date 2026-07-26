@@ -34,6 +34,7 @@ function mutationQueryTags(path) {
   if (route.startsWith('/api/plans') || route.startsWith('/api/programs')) {
     return ['plans', 'programs', 'workouts'];
   }
+  if (route.startsWith('/api/notifications')) return ['notifications'];
   if (route.startsWith('/api/profiles') || route.startsWith('/api/admin/backups')) return [];
   return null;
 }
@@ -249,6 +250,21 @@ export const api = {
 
   triggerSync: () => request('/api/sync', { method: 'POST' }),
   getSyncStatus: () => request('/api/sync/status'),
+
+  getNotifications: (params = {}) => request(`/api/notifications?${new URLSearchParams(params)}`),
+  markNotificationsRead: () => request('/api/notifications/read', { method: 'POST' }),
+  markNotificationRead: (id) => request(`/api/notifications/${id}/read`, { method: 'POST' }),
+  clearNotifications: () => request('/api/notifications', { method: 'DELETE' }),
+  getVapidKey: () => request('/api/notifications/vapid-key'),
+  subscribePush: (subscription) => request('/api/notifications/subscribe', {
+    method: 'POST',
+    body: JSON.stringify(subscription),
+  }),
+  unsubscribePush: (endpoint) => request('/api/notifications/unsubscribe', {
+    method: 'POST',
+    body: JSON.stringify({ endpoint }),
+  }),
+  sendTestNotification: () => request('/api/notifications/test', { method: 'POST' }),
 
   getSettings: () => request('/api/settings'),
   updateSettings: (data) => request('/api/settings', {

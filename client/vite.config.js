@@ -18,6 +18,10 @@ export default defineConfig({
       manifest: false,
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,woff2,webmanifest}'],
+        // Web Push handlers, kept out of the generated worker so the precache
+        // config above stays declarative. importScripts runs them inside the
+        // same service worker, which is the one that receives push events.
+        importScripts: ['/push-sw.js'],
         // SPA routes fall back to the cached shell; server routes never do.
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//, /^\/auth\//, /^\/health/],
@@ -25,12 +29,15 @@ export default defineConfig({
           {
             // Cache API reads for offline viewing. Admin (backup/export
             // downloads) and import are excluded: large, one-shot payloads
-            // that must never be served stale.
+            // that must never be served stale. Notifications are excluded
+            // because a cached unread badge is worse than no badge - it would
+            // survive being marked read and reappear on the next load.
             urlPattern: ({ url, request }) =>
               request.method === 'GET'
               && (url.pathname === '/auth/status'
                 || (url.pathname.startsWith('/api/')
                   && !url.pathname.startsWith('/api/admin/')
+                  && !url.pathname.startsWith('/api/notifications')
                   && !url.pathname.startsWith('/api/import/'))),
             handler: 'NetworkFirst',
             options: {

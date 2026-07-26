@@ -209,7 +209,9 @@ router.post(
     }
 
     if (created.length > 0 || merged.length > 0) {
-      runPostSyncAnalytics(req.profileId, created, merged, []);
+      // A file import is a deliberate bulk action with its own result screen,
+      // so it does not announce each row as newly synced. PBs still do.
+      runPostSyncAnalytics(req.profileId, created, merged, [], { notifySynced: false });
     }
 
     res.json({ created, merged, skipped, errors });

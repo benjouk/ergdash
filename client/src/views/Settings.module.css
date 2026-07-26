@@ -180,6 +180,14 @@
   flex-wrap: wrap;
 }
 
+/* A toggle that cannot be used yet - push on a plain-HTTP LAN address, say.
+   The row still explains why in its subtext, so the control is dimmed rather
+   than removed. */
+.toggleDisabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
 .select,
 .confirmInput,
 .fileInput {

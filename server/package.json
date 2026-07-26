@@ -23,6 +23,7 @@
     "fast-xml-parser": "^5.9.3",
     "helmet": "^8.0.0",
     "morgan": "^1.10.0",
-    "node-cron": "^4.6.0"
+    "node-cron": "^4.6.0",
+    "web-push": "^3.6.7"
   }
 }

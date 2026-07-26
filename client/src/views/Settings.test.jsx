@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { SETTINGS_GROUPS, SettingsGroup } from './settingsGroups.jsx';
+import { SETTINGS_GROUPS, SettingsGroup, settingsGroup } from './settingsGroups.jsx';
 
 describe('settings information architecture', () => {
   it('keeps the settings areas in a focused, stable order', () => {
@@ -9,9 +9,16 @@ describe('settings information architecture', () => {
       'athlete',
       'training',
       'connection',
+      'notifications',
       'backup',
       'advanced',
     ]);
+  });
+
+  it('looks groups up by id so inserting a section cannot mislabel the rest', () => {
+    expect(settingsGroup('backup').label).toBe('Backup');
+    expect(settingsGroup('notifications').label).toBe('Notifications');
+    expect(() => settingsGroup('nope')).toThrow(/Unknown settings group/);
   });
 
   it('renders an accessible mobile accordion control without removing its content', () => {
