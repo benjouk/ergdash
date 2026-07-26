@@ -45,7 +45,11 @@ export function NotificationsProvider({ children }) {
       // opened.
       if (!reconciledRef.current && typeof data.push_enabled === 'boolean') {
         reconciledRef.current = true;
-        reconcilePushSubscription(data.push_enabled).catch(() => {});
+        // Pin the mutation to the profile that issued this feed request. The
+        // provider is remounted on a profile switch, but an old request may
+        // still finish afterwards; using the new global selection here would
+        // otherwise apply the old profile's preference to the new profile.
+        reconcilePushSubscription(data.push_enabled, activeProfile.id).catch(() => {});
       }
 
       if (seenIdsRef.current === null) {

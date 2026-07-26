@@ -6,7 +6,7 @@ import {
   reconcilePushSubscription,
   urlBase64ToUint8Array,
 } from './push.js';
-import { api } from '../api.js';
+import { api, setActiveProfileId } from '../api.js';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -132,6 +132,82 @@ describe('reconcilePushSubscription', () => {
     expect(await reconcilePushSubscription(true)).toBe(false);
     expect(subscribe).not.toHaveBeenCalled();
     vi.restoreAllMocks();
+  });
+
+  it('keeps a delayed reconciliation pinned to the profile that requested it', async () => {
+    const subscription = stubSubscribedBrowser();
+    let resolveSubscription;
+    const delayedSubscription = new Promise(resolve => {
+      resolveSubscription = resolve;
+    });
+    navigator.serviceWorker.getRegistration = async () => ({
+      pushManager: { getSubscription: () => delayedSubscription },
+    });
+
+    let activeProfileId = '1';
+    vi.stubGlobal('localStorage', {
+      getItem: vi.fn(() => activeProfileId),
+      setItem: vi.fn((key, value) => {
+        if (key === 'ergdash_profile') activeProfileId = String(value);
+      }),
+      removeItem: vi.fn(() => {
+        activeProfileId = '';
+      }),
+    });
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ subscribed: true }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    // Profile 1's feed response starts reconciliation, then profile 2 becomes
+    // active before the browser finishes returning its subscription.
+    const staleReconciliation = reconcilePushSubscription(true, 1);
+    setActiveProfileId(2);
+    resolveSubscription(subscription);
+    await staleReconciliation;
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][1].headers['X-Profile-Id']).toBe('1');
+  });
+
+  it('keeps a delayed stale-claim removal pinned to its original profile', async () => {
+    const subscription = stubSubscribedBrowser();
+    let resolveSubscription;
+    const delayedSubscription = new Promise(resolve => {
+      resolveSubscription = resolve;
+    });
+    navigator.serviceWorker.getRegistration = async () => ({
+      pushManager: { getSubscription: () => delayedSubscription },
+    });
+
+    let activeProfileId = '1';
+    vi.stubGlobal('localStorage', {
+      getItem: vi.fn(() => activeProfileId),
+      setItem: vi.fn((key, value) => {
+        if (key === 'ergdash_profile') activeProfileId = String(value);
+      }),
+      removeItem: vi.fn(() => {
+        activeProfileId = '';
+      }),
+    });
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ unsubscribed: true, remaining: 1 }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    // Profile 1 had push disabled, but profile 2 becomes active before the
+    // delayed browser lookup completes. The DELETE must still target profile 1.
+    const staleReconciliation = reconcilePushSubscription(false, 1);
+    setActiveProfileId(2);
+    resolveSubscription(subscription);
+    await staleReconciliation;
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][1].headers['X-Profile-Id']).toBe('1');
   });
 });
 

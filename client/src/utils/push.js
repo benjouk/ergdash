@@ -98,13 +98,19 @@ export async function disablePush() {
 // Never revokes the browser-side subscription: this is reconciliation, not a
 // user asking to turn push off. Only disablePush() revokes, and only once no
 // profile is left using the endpoint.
-export async function reconcilePushSubscription(enabled) {
+export async function reconcilePushSubscription(enabled, profileId) {
   if (!pushSupport().supported || Notification.permission !== 'granted') return false;
 
   const subscription = await getExistingSubscription();
   if (!subscription) return false;
 
-  if (enabled) await api.subscribePush(subscription.toJSON());
-  else await api.unsubscribePush(subscription.endpoint);
+  if (enabled) {
+    if (profileId == null) await api.subscribePush(subscription.toJSON());
+    else await api.subscribePush(subscription.toJSON(), profileId);
+  } else if (profileId == null) {
+    await api.unsubscribePush(subscription.endpoint);
+  } else {
+    await api.unsubscribePush(subscription.endpoint, profileId);
+  }
   return true;
 }
