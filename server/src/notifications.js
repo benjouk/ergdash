@@ -121,10 +121,13 @@ export function notify(profileId, { kind, title, body = null, link = null, dedup
   if (channels.length === 0) return null;
   if (!enabledKinds(profileId).includes(kind)) return null;
 
+  // The row is written whatever the channels are: it is what makes delivery
+  // idempotent. `inapp` records whether the in-app centre was one of them, so
+  // a webhook-only profile does not also collect a bell badge and toasts.
   const info = getDb().prepare(`
-    INSERT OR IGNORE INTO notifications (profile_id, kind, title, body, link, dedupe_key)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(profileId, kind, title, body, link, dedupeKey);
+    INSERT OR IGNORE INTO notifications (profile_id, kind, title, body, link, dedupe_key, inapp)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(profileId, kind, title, body, link, dedupeKey, channels.includes('inapp') ? 1 : 0);
 
   // Already delivered on an earlier pass - the whole point of the dedupe index.
   if (info.changes === 0) return null;

@@ -71,10 +71,29 @@ export async function enablePush() {
   return subscription;
 }
 
+// Gives up only the active profile's claim on this browser. The browser-side
+// PushSubscription is revoked only once no profile is using it: on a shared
+// household browser, tearing it down while another member still relies on it
+// would silently break their push too.
 export async function disablePush() {
   const subscription = await getExistingSubscription();
   if (!subscription) return false;
-  await api.unsubscribePush(subscription.endpoint);
-  await subscription.unsubscribe();
+
+  const { remaining } = await api.unsubscribePush(subscription.endpoint);
+  if (!remaining) await subscription.unsubscribe();
+  return true;
+}
+
+// Re-registers this browser's existing subscription against whichever profile
+// is now active. Switching profiles does not create a new browser
+// subscription, so without this the newly active profile would show push as
+// enabled while having no row to deliver to.
+export async function reconcilePushSubscription() {
+  if (!pushSupport().supported || Notification.permission !== 'granted') return false;
+
+  const subscription = await getExistingSubscription();
+  if (!subscription) return false;
+
+  await api.subscribePush(subscription.toJSON());
   return true;
 }

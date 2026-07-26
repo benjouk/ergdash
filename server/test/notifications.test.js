@@ -332,6 +332,36 @@ describe('runPostSyncAnalytics() notification gating', () => {
   });
 });
 
+// Settings -> wipe & resync removes Concept2 rows but deliberately keeps
+// manual and imported ones, which a resync could not restore. Counting every
+// workout to decide "has this profile synced before" therefore treated a
+// single hand-entered row as prior history, and the following full resync
+// announced the whole re-imported logbook.
+describe('full-sync suppression after a wipe', () => {
+  function hadC2Workouts(profileId) {
+    return db
+      .prepare("SELECT COUNT(*) AS c FROM workouts WHERE profile_id = ? AND source = 'c2'")
+      .get(profileId).c > 0;
+  }
+
+  it('does not count a surviving manual workout as prior sync history', () => {
+    db.prepare(`
+      INSERT INTO workouts (id, profile_id, user_id, date, type, workout_type, source,
+                            distance, time_ms, pace_ms, synced_at)
+      VALUES (77, 1, 0, '2026-07-01', 'rower', 'FixedDistanceSplits', 'manual',
+              5000, 1200000, 120000, datetime('now'))
+    `).run();
+
+    expect(hadC2Workouts(1)).toBe(false);
+  });
+
+  it('still counts real Concept2 history', () => {
+    insertWorkout({ id: 78, date: '2026-07-01', distance: 5000, timeMs: 1_200_000, paceMs: 120_000 });
+
+    expect(hadC2Workouts(1)).toBe(true);
+  });
+});
+
 describe('today()', () => {
   // Reminders fire on the server's local clock. Deriving the date in UTC
   // instead pointed the plan lookup at the wrong calendar day for most of the
@@ -359,6 +389,27 @@ describe('notification settings lookup', () => {
       .run('notifyfoo_channels', JSON.stringify(['webhook']));
 
     expect(notifications.enabledChannels(1)).toEqual(['inapp']);
+  });
+});
+
+describe('deleting a profile', () => {
+  // Neither table has a foreign key to cascade, so without explicit deletes a
+  // removed household member left their notification history and - worse -
+  // their push endpoint and encryption keys sitting in the database.
+  it('takes its notifications and push subscriptions with it', async () => {
+    const { deleteProfile } = await import('../src/auth.js');
+
+    notifications.notify(1, { kind: 'new_pb', title: 'Mine', dedupeKey: 'a' });
+    notifications.notify(2, { kind: 'new_pb', title: 'Theirs', dedupeKey: 'a' });
+    db.prepare(`
+      INSERT INTO push_subscriptions (profile_id, endpoint, p256dh, auth)
+      VALUES (1, 'https://push.example/one', 'k', 'a'), (2, 'https://push.example/two', 'k', 'a')
+    `).run();
+
+    deleteProfile(2);
+
+    expect(db.prepare('SELECT profile_id FROM notifications').all()).toEqual([{ profile_id: 1 }]);
+    expect(db.prepare('SELECT profile_id FROM push_subscriptions').all()).toEqual([{ profile_id: 1 }]);
   });
 });
 
@@ -417,6 +468,86 @@ describe('GET /api/notifications', () => {
   });
 });
 
+describe('in-app channel', () => {
+  // The row still has to be written - it is what dedupes delivery - but a
+  // webhook-only profile should not also collect a badge and a toast.
+  it('keeps webhook-only notifications out of the feed', async () => {
+    setSetting(1, 'notify_channels', JSON.stringify(['webhook']));
+
+    notifications.notify(1, { kind: 'new_pb', title: 'Quiet', dedupeKey: 'a' });
+
+    expect(storedFor(1)).toHaveLength(1);
+    const body = await (await fetch(`${base}/api/notifications`)).json();
+    expect(body.notifications).toEqual([]);
+    expect(body.unread_count).toBe(0);
+    expect(body.inapp_enabled).toBe(false);
+  });
+
+  it('still dedupes notifications that were never shown in-app', () => {
+    setSetting(1, 'notify_channels', JSON.stringify(['webhook']));
+
+    expect(notifications.notify(1, { kind: 'new_pb', title: 'x', dedupeKey: 'a' })).not.toBeNull();
+    expect(notifications.notify(1, { kind: 'new_pb', title: 'x', dedupeKey: 'a' })).toBeNull();
+  });
+
+  it('shows notifications recorded while the channel was on', async () => {
+    notifications.notify(1, { kind: 'new_pb', title: 'Visible', dedupeKey: 'a' });
+
+    const body = await (await fetch(`${base}/api/notifications`)).json();
+    expect(body.notifications.map(n => n.title)).toEqual(['Visible']);
+    expect(body.inapp_enabled).toBe(true);
+  });
+});
+
+describe('POST /api/notifications/test', () => {
+  // "Channel enabled" is not "delivery succeeded". Reporting success for an
+  // unset webhook URL made the test button worse than useless.
+  it('reports failure when the webhook URL is not set', async () => {
+    setSetting(1, 'notify_channels', JSON.stringify(['webhook']));
+    setSetting(1, 'notify_webhook_url', '');
+
+    const body = await (await fetch(`${base}/api/notifications/test`, { method: 'POST' })).json();
+
+    expect(body.ok).toBe(false);
+    expect(body.results).toEqual([
+      { channel: 'webhook', ok: false, detail: 'No webhook URL set' },
+    ]);
+  });
+
+  it('reports failure when push is on but nothing is subscribed', async () => {
+    setSetting(1, 'notify_channels', JSON.stringify(['push']));
+
+    const body = await (await fetch(`${base}/api/notifications/test`, { method: 'POST' })).json();
+
+    expect(body.ok).toBe(false);
+    expect(body.results[0]).toMatchObject({ channel: 'push', ok: false });
+    expect(body.results[0].detail).toMatch(/no push subscription/i);
+  });
+
+  it('reports the status when the webhook target rejects it', async () => {
+    setSetting(1, 'notify_channels', JSON.stringify(['webhook']));
+    setSetting(1, 'notify_webhook_url', 'https://hook.example/x');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 500 }));
+
+    const { deliverWebhook } = notifications;
+    const outcome = await deliverWebhook(1, { kind: 'new_pb', title: 't', body: 'b', created_at: 'x' });
+
+    expect(outcome).toEqual({ delivered: false, status: 500 });
+    vi.unstubAllGlobals();
+  });
+
+  it('succeeds for an in-app-only profile', async () => {
+    setSetting(1, 'notify_channels', JSON.stringify(['inapp']));
+
+    const body = await (await fetch(`${base}/api/notifications/test`, { method: 'POST' })).json();
+
+    expect(body.ok).toBe(true);
+    expect(body.results).toEqual([
+      { channel: 'inapp', ok: true, detail: 'Shown in the notification centre' },
+    ]);
+  });
+});
+
 describe('marking notifications read', () => {
   it('marks everything read for the profile', async () => {
     notifications.notify(1, { kind: 'new_pb', title: 'First', dedupeKey: 'a' });
@@ -467,7 +598,7 @@ describe('push subscriptions', () => {
     expect(rows[0]).toMatchObject({ profile_id: 1, endpoint: subscription.endpoint });
   });
 
-  it('moves an existing endpoint to the profile that re-subscribed it', async () => {
+  it('refreshes an existing subscription in place rather than duplicating it', async () => {
     const post = () => fetch(`${base}/api/notifications/subscribe`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -475,12 +606,9 @@ describe('push subscriptions', () => {
     });
 
     await post();
-    activeProfileId = 2;
     await post();
 
-    const rows = db.prepare('SELECT * FROM push_subscriptions').all();
-    expect(rows).toHaveLength(1);
-    expect(rows[0].profile_id).toBe(2);
+    expect(db.prepare('SELECT * FROM push_subscriptions').all()).toHaveLength(1);
   });
 
   it('rejects a subscription without an https endpoint', async () => {
@@ -506,8 +634,65 @@ describe('push subscriptions', () => {
       body: JSON.stringify({ endpoint: subscription.endpoint }),
     });
 
-    expect(await res.json()).toEqual({ unsubscribed: true });
+    expect(await res.json()).toEqual({ unsubscribed: true, remaining: 0 });
     expect(db.prepare('SELECT * FROM push_subscriptions').all()).toHaveLength(0);
+  });
+
+  // A browser has one push endpoint. Keying it to a single profile meant the
+  // second household member to enable push silently stole it from the first,
+  // whose settings still read "on".
+  it('lets two profiles share one browser endpoint', async () => {
+    const post = () => fetch(`${base}/api/notifications/subscribe`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(subscription),
+    });
+
+    await post();
+    activeProfileId = 2;
+    await post();
+
+    const rows = db.prepare('SELECT profile_id FROM push_subscriptions ORDER BY profile_id').all();
+    expect(rows.map(row => row.profile_id)).toEqual([1, 2]);
+  });
+
+  it('unsubscribing one profile leaves the other subscribed', async () => {
+    const post = () => fetch(`${base}/api/notifications/subscribe`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(subscription),
+    });
+    await post();
+    activeProfileId = 2;
+    await post();
+
+    // Profile 2 turns push off. `remaining` is what stops the client revoking
+    // the browser subscription that profile 1 still depends on.
+    const res = await fetch(`${base}/api/notifications/unsubscribe`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoint: subscription.endpoint }),
+    });
+
+    expect(await res.json()).toEqual({ unsubscribed: true, remaining: 1 });
+    expect(db.prepare('SELECT profile_id FROM push_subscriptions').all())
+      .toEqual([{ profile_id: 1 }]);
+  });
+
+  it('reports no remaining users once the last profile unsubscribes', async () => {
+    await fetch(`${base}/api/notifications/subscribe`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(subscription),
+    });
+
+    const res = await fetch(`${base}/api/notifications/unsubscribe`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoint: subscription.endpoint }),
+    });
+
+    expect(await res.json()).toEqual({ unsubscribed: true, remaining: 0 });
   });
 
   it('serves a VAPID public key and reuses it across calls', async () => {

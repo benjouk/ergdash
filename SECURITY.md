@@ -41,6 +41,9 @@ public origin.
   specific trusted HTTPS origin when it is genuinely required.
 - The unauthenticated `/health` endpoint returns only `{"status":"ok"}`;
   instance metadata requires a session.
+- Deleting a profile removes its notification history and any push
+  subscriptions it holds, so a removed household member leaves no stored
+  notification content or push credentials behind.
 - Web Push uses a VAPID keypair generated on first use and stored unencrypted
   in `instance_settings`. It only identifies this server to push services, so
   it is lower-value than the `SESSION_SECRET`-encrypted OAuth tokens in the

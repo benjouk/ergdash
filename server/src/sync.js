@@ -370,8 +370,14 @@ export async function runFullSync(profileId) {
     // A first full sync imports the whole logbook. None of it is news, so the
     // notification pass is skipped; a re-run against an already-populated
     // profile only inserts genuinely new rows and does notify.
+    //
+    // Counts Concept2 rows specifically. Settings -> wipe & resync deliberately
+    // keeps manual and imported workouts (a resync cannot restore those), so
+    // counting every workout meant a single hand-entered row made the
+    // following full resync look like an ordinary top-up - and announce the
+    // entire re-imported logbook, PBs included.
     const hadWorkouts = db
-      .prepare('SELECT COUNT(*) AS c FROM workouts WHERE profile_id = ?')
+      .prepare("SELECT COUNT(*) AS c FROM workouts WHERE profile_id = ? AND source = 'c2'")
       .get(profileId).c > 0;
     let page = 1;
     let totalSynced = 0;

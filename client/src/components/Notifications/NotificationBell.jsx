@@ -30,7 +30,7 @@ export function timeAgo(isoish) {
 }
 
 export default function NotificationBell() {
-  const { notifications, unreadCount, markRead, markAllRead, clearAll } = useNotifications();
+  const { notifications, unreadCount, inappEnabled, markRead, markAllRead, clearAll } = useNotifications();
   const [open, setOpen] = useState(false);
   const menuRef = useRef(null);
   const buttonRef = useRef(null);
@@ -62,6 +62,10 @@ export default function NotificationBell() {
     if (!notification.read) markRead(notification.id);
     if (notification.link) navigate(notification.link);
   };
+
+  // Switching the in-app channel off should remove it from the header, not
+  // leave a bell that can never fill up.
+  if (!inappEnabled) return null;
 
   const label = unreadCount > 0
     ? `Notifications (${unreadCount} unread)`

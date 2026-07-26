@@ -13,6 +13,9 @@ export function NotificationsProvider({ children }) {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [error, setError] = useState(null);
+  // Whether this profile has the in-app centre switched on. Assumed true until
+  // the first response, so the bell does not flicker in on load.
+  const [inappEnabled, setInappEnabled] = useState(true);
   const [isOnline, setIsOnline] = useState(() => (
     typeof navigator === 'undefined' ? true : navigator.onLine
   ));
@@ -29,6 +32,7 @@ export function NotificationsProvider({ children }) {
       const list = data.notifications || [];
       setNotifications(list);
       setUnreadCount(data.unread_count || 0);
+      setInappEnabled(data.inapp_enabled !== false);
       setError(null);
 
       if (seenIdsRef.current === null) {
@@ -110,6 +114,7 @@ export function NotificationsProvider({ children }) {
     <NotificationsContext.Provider value={{
       notifications,
       unreadCount,
+      inappEnabled,
       error,
       refresh,
       markRead,

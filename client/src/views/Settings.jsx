@@ -8,6 +8,7 @@ import {
   enablePush,
   getExistingSubscription,
   pushSupport,
+  reconcilePushSubscription,
 } from '../utils/push.js';
 import { useProfileQuery } from '../hooks/useProfileQuery.js';
 import { buildSyncStatusView } from '../components/Ticker/syncStatus.js';
@@ -802,6 +803,9 @@ function NotificationsSection() {
     getExistingSubscription()
       .then(subscription => setPushState(state => ({ ...state, subscribed: Boolean(subscription) })))
       .catch(() => {});
+    // A profile switch reuses this browser's subscription but leaves the newly
+    // active profile without a row to deliver to, so claim it here.
+    reconcilePushSubscription().catch(() => {});
     // Unavailable in the demo, which has no server to send webhooks from; the
     // docs simply hide themselves.
     api.getWebhookFormats().then(setWebhookDocs).catch(() => {});
@@ -841,12 +845,23 @@ function NotificationsSection() {
     toggleIn(channels, setChannels, 'notify_channels', channel, enabled);
   };
 
+  // Reports what actually happened per channel. "Enabled" is not "delivered" -
+  // an empty webhook URL or a profile with no push subscription both fail with
+  // the channel switched on.
   const sendTest = async () => {
     setTestBusy(true);
     try {
-      const result = await api.sendTestNotification();
-      if (result.channels.length === 0) toast.error('No notification channels are enabled');
-      else toast.success(`Test sent via ${result.channels.join(', ')}`);
+      const { results = [] } = await api.sendTestNotification();
+      if (results.length === 0) {
+        toast.error('No notification channels are enabled');
+        return;
+      }
+      const failed = results.filter(entry => !entry.ok);
+      if (failed.length === 0) {
+        toast.success(`Test sent via ${results.map(entry => entry.channel).join(', ')}`);
+      } else {
+        for (const entry of failed) toast.error(`${entry.channel}: ${entry.detail}`);
+      }
     } catch (err) {
       toast.error(err.message || 'Could not send a test notification');
     } finally {

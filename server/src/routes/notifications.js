@@ -20,26 +20,35 @@ function formatNotification(row) {
   };
 }
 
+// Only rows written while the in-app centre was an enabled channel are part of
+// the feed. Everything else is still stored - that is what dedupes delivery -
+// but a webhook-only profile has not asked to see it here.
 router.get('/', (req, res) => {
   const db = getDb();
   const limit = Math.min(MAX_LIMIT, Math.max(1, Number(req.query.limit) || DEFAULT_LIMIT));
   const rows = db.prepare(`
     SELECT * FROM notifications
-    WHERE profile_id = ?
+    WHERE profile_id = ? AND inapp = 1
     ORDER BY created_at DESC, id DESC
     LIMIT ?
   `).all(req.profileId, limit);
 
   const unread = db.prepare(
-    'SELECT COUNT(*) AS c FROM notifications WHERE profile_id = ? AND read_at IS NULL'
+    'SELECT COUNT(*) AS c FROM notifications WHERE profile_id = ? AND inapp = 1 AND read_at IS NULL'
   ).get(req.profileId).c;
 
-  res.json({ notifications: rows.map(formatNotification), unread_count: unread });
+  res.json({
+    notifications: rows.map(formatNotification),
+    unread_count: unread,
+    // Lets the client hide the bell entirely rather than showing one that can
+    // never fill up.
+    inapp_enabled: enabledChannels(req.profileId).includes('inapp'),
+  });
 });
 
 router.post('/read', (req, res) => {
   const info = getDb().prepare(
-    "UPDATE notifications SET read_at = datetime('now') WHERE profile_id = ? AND read_at IS NULL"
+    "UPDATE notifications SET read_at = datetime('now') WHERE profile_id = ? AND inapp = 1 AND read_at IS NULL"
   ).run(req.profileId);
   res.json({ marked: info.changes });
 });
@@ -101,14 +110,13 @@ router.post('/subscribe', (req, res) => {
     return res.status(400).json({ error: 'Subscription keys are missing' });
   }
 
-  // endpoint is UNIQUE: re-subscribing the same device (a new permission grant,
-  // or a profile switch on a shared browser) moves the row rather than
-  // duplicating it.
+  // Keyed on (endpoint, profile_id): a shared browser can hold a subscription
+  // for each household member at once. Re-subscribing the same pair refreshes
+  // it in place instead of duplicating, and never disturbs another profile's.
   getDb().prepare(`
     INSERT INTO push_subscriptions (profile_id, endpoint, p256dh, auth, user_agent)
     VALUES (?, ?, ?, ?, ?)
-    ON CONFLICT(endpoint) DO UPDATE SET
-      profile_id = excluded.profile_id,
+    ON CONFLICT(endpoint, profile_id) DO UPDATE SET
       p256dh = excluded.p256dh,
       auth = excluded.auth,
       user_agent = excluded.user_agent,
@@ -118,15 +126,24 @@ router.post('/subscribe', (req, res) => {
   res.json({ subscribed: true });
 });
 
+// Drops only the calling profile's claim on this browser. `remaining` tells the
+// client whether any other profile still uses the endpoint: revoking the
+// browser-side PushSubscription while another profile depends on it would
+// break push for them too, which is exactly what the old code did.
 router.post('/unsubscribe', (req, res) => {
   const { endpoint } = req.body || {};
   if (typeof endpoint !== 'string') {
     return res.status(400).json({ error: 'A push subscription endpoint is required' });
   }
-  const info = getDb()
+  const db = getDb();
+  const info = db
     .prepare('DELETE FROM push_subscriptions WHERE endpoint = ? AND profile_id = ?')
     .run(endpoint, req.profileId);
-  res.json({ unsubscribed: info.changes > 0 });
+  const remaining = db
+    .prepare('SELECT COUNT(*) AS c FROM push_subscriptions WHERE endpoint = ?')
+    .get(endpoint).c;
+
+  res.json({ unsubscribed: info.changes > 0, remaining });
 });
 
 // Round-trips a real notification through every enabled channel so the Settings
@@ -142,24 +159,60 @@ router.post('/test', async (req, res) => {
     created_at: new Date().toISOString(),
   };
 
-  const result = { channels, push: null, webhook: null };
+  // One entry per enabled channel, each saying whether it actually worked.
+  // "Enabled" is not "delivered": an empty webhook URL, an HTTP error, or a
+  // profile with no push subscription all fail while the channel is on, and a
+  // test that reports success anyway is worse than no test at all.
+  const results = [];
+
+  if (channels.includes('inapp')) {
+    // Nothing to deliver - the feed is served by reading rows back - so this
+    // is true whenever the channel is on.
+    results.push({ channel: 'inapp', ok: true, detail: 'Shown in the notification centre' });
+  }
 
   if (channels.includes('push')) {
     try {
-      result.push = await deliverPush(req.profileId, notification);
+      const { sent, pruned } = await deliverPush(req.profileId, notification);
+      results.push(sent > 0
+        ? { channel: 'push', ok: true, detail: `Sent to ${sent} device${sent === 1 ? '' : 's'}` }
+        : {
+            channel: 'push',
+            ok: false,
+            detail: pruned > 0
+              ? 'The subscription for this device has expired - turn push off and on again'
+              : 'No push subscription for this profile - turn push off and on again in this browser',
+          });
     } catch (err) {
-      result.push = { error: err?.message || 'Push delivery failed' };
-    }
-  }
-  if (channels.includes('webhook')) {
-    try {
-      result.webhook = await deliverWebhook(req.profileId, notification);
-    } catch (err) {
-      result.webhook = { error: err?.message || 'Webhook delivery failed' };
+      results.push({ channel: 'push', ok: false, detail: err?.message || 'Push delivery failed' });
     }
   }
 
-  res.json(result);
+  if (channels.includes('webhook')) {
+    try {
+      const outcome = await deliverWebhook(req.profileId, notification);
+      results.push(outcome.delivered
+        ? { channel: 'webhook', ok: true, detail: `Target responded ${outcome.status}` }
+        : {
+            channel: 'webhook',
+            ok: false,
+            detail: outcome.status
+              ? `Target responded ${outcome.status}`
+              : 'No webhook URL set',
+          });
+    } catch (err) {
+      results.push({
+        channel: 'webhook',
+        ok: false,
+        // fetch rejections ("fetch failed") say nothing useful on their own.
+        detail: err?.name === 'TimeoutError'
+          ? 'Timed out after 5s'
+          : `Could not reach the webhook URL (${err?.message || 'request failed'})`,
+      });
+    }
+  }
+
+  res.json({ channels, results, ok: results.length > 0 && results.every(entry => entry.ok) });
 });
 
 export default router;

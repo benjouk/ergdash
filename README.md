@@ -174,12 +174,16 @@ with nothing logged that week. Each one is switched on or off separately in
 There are three ways to receive them, and you can use any combination:
 
 - **In ErgDash** — the bell in the header, with an unread badge and a toast
-  while the app is open. Works on every install.
+  while the app is open. Works on every install. Switch it off and the bell
+  disappears; the other channels keep working.
 - **Push notifications** — reach your phone or desktop with ErgDash closed.
   Browsers only allow push on **secure origins** (HTTPS or `localhost`), the
   same restriction that governs offline support below, so a plain LAN IP
   cannot use it; Settings says so rather than offering a dead button. Keys
-  are generated automatically on first use — nothing to configure.
+  are generated automatically on first use — nothing to configure. Each
+  household profile subscribes separately, so a shared browser can receive
+  push for more than one member and turning it off for one leaves the others
+  working.
 - **Webhook** — ErgDash POSTs each notification to a URL you choose. This
   works over plain HTTP and is the simplest way to get notifications on a
   phone from a LAN-only install.
