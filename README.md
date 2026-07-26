@@ -197,9 +197,14 @@ There are three ways to receive them, and you can use any combination:
   Set `APP_ORIGIN` to have notifications carry a clickable link back to
   ErgDash.
 
-Reminder times are set in Settings and fire on the server's clock, so set
-`TZ` on the container to your own zone. Notifications are deduplicated, so a
-re-sync or a restart never repeats one you have already seen.
+Reminder times are set in Settings and fire on the server's clock — both the
+hour and the calendar day — so set `TZ` on the container to your own zone.
+Notifications are deduplicated, so a re-sync or a restart never repeats one
+you have already seen.
+
+Reminders are only sent while ErgDash is running. If the server is down for
+the hour a reminder was due, that day's reminder is skipped rather than sent
+late.
 
 ## Offline & PWA
 

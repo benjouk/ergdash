@@ -33,9 +33,11 @@ let vapidConfigured = false;
 // ---------------------------------------------------------------------------
 
 function settingsFor(profileId) {
+  // ESCAPE matters: '_' is a LIKE wildcard, so an unescaped 'notify_%' would
+  // also match a future key like 'notifyfoo'.
   const rows = getDb()
-    .prepare('SELECT key, value FROM settings WHERE profile_id = ? AND key LIKE ?')
-    .all(profileId, 'notify_%');
+    .prepare("SELECT key, value FROM settings WHERE profile_id = ? AND key LIKE ? ESCAPE '\\'")
+    .all(profileId, 'notify\\_%');
   const settings = {};
   for (const { key, value } of rows) settings[key] = value;
   return settings;
@@ -291,10 +293,16 @@ export function notifyNewPbs(profileId, pbEvents = []) {
 // Triggers: schedule-driven
 // ---------------------------------------------------------------------------
 
-// Plans are looked up with the same UTC date string routes/plans.js uses, so a
-// reminder always refers to the day the Plan view is highlighting as today.
-function today() {
-  return new Date().toISOString().slice(0, 10);
+// The server's local calendar date.
+//
+// Deliberately not toISOString().slice(0,10), which is UTC. Reminders fire on
+// the local clock, so pairing a local hour with a UTC date gets the wrong day
+// for most of the world: a 07:00 reminder in UTC+12 would look up yesterday's
+// plans, and a 20:00 digest anywhere in the Americas tomorrow's. Plans are
+// authored against the user's local calendar, so that is what to match.
+export function today(now = new Date()) {
+  const pad = value => String(value).padStart(2, '0');
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
 
 function planSummary(plan) {
@@ -384,7 +392,7 @@ export function notifyStreakRisk(profileId, date = today()) {
 
 export function runNotificationSchedule(now = new Date()) {
   const hour = now.getHours();
-  const date = today();
+  const date = today(now);
   const results = [];
 
   for (const { id } of getDb().prepare('SELECT id FROM profiles').all()) {
@@ -409,10 +417,10 @@ export function startNotificationSchedule() {
   // digest hour in Settings takes effect without a restart. Same shape as
   // startBackupSchedule().
   //
-  // Hours are server-local (set TZ in the container), while plan lookups use
-  // the app-wide UTC date string. For installs many hours off UTC with an
-  // extreme reminder hour those can disagree by a day - documented in the
-  // README's notification section.
+  // Both the hour and the date come from the server's local clock, so set TZ
+  // in the container. Note this only fires while the process is running: a
+  // server down across the reminder hour skips that day rather than sending
+  // late.
   cron.schedule('0 * * * *', () => {
     const fired = runNotificationSchedule();
     if (fired.length > 0) {

@@ -332,6 +332,36 @@ describe('runPostSyncAnalytics() notification gating', () => {
   });
 });
 
+describe('today()', () => {
+  // Reminders fire on the server's local clock. Deriving the date in UTC
+  // instead pointed the plan lookup at the wrong calendar day for most of the
+  // world - yesterday east of ~UTC+7 in the morning, tomorrow across the
+  // Americas in the evening.
+  it('uses the local calendar date, not the UTC one', () => {
+    // 2026-07-27 07:00 in UTC+12 is still 2026-07-26 in UTC.
+    const morningInPlusTwelve = new Date('2026-07-26T19:00:00Z');
+    expect(morningInPlusTwelve.toISOString().slice(0, 10)).toBe('2026-07-26');
+
+    const local = new Date(2026, 6, 27, 7, 0, 0);
+    expect(notifications.today(local)).toBe('2026-07-27');
+  });
+
+  it('zero-pads month and day', () => {
+    expect(notifications.today(new Date(2026, 0, 5, 12, 0, 0))).toBe('2026-01-05');
+  });
+});
+
+describe('notification settings lookup', () => {
+  // '_' is a LIKE wildcard; an unescaped 'notify_%' also matches 'notifyfoo'.
+  it('does not pick up keys that merely start with "notify"', () => {
+    setSetting(1, 'notify_channels', JSON.stringify(['inapp']));
+    db.prepare('INSERT OR REPLACE INTO settings (profile_id, key, value) VALUES (1, ?, ?)')
+      .run('notifyfoo_channels', JSON.stringify(['webhook']));
+
+    expect(notifications.enabledChannels(1)).toEqual(['inapp']);
+  });
+});
+
 describe('runNotificationSchedule()', () => {
   it('fires plan reminders only in the configured hour', () => {
     const date = new Date().toISOString().slice(0, 10);
