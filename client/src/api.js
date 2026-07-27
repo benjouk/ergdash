@@ -13,8 +13,8 @@ export function setActiveProfileId(id) {
   else localStorage.setItem('ergdash_profile', String(id));
 }
 
-function profileHeaders() {
-  const id = getActiveProfileId();
+function profileHeaders(profileId = getActiveProfileId()) {
+  const id = profileId == null ? '' : String(profileId);
   return id ? { 'X-Profile-Id': id } : {};
 }
 
@@ -34,6 +34,7 @@ function mutationQueryTags(path) {
   if (route.startsWith('/api/plans') || route.startsWith('/api/programs')) {
     return ['plans', 'programs', 'workouts'];
   }
+  if (route.startsWith('/api/notifications')) return ['notifications'];
   if (route.startsWith('/api/profiles') || route.startsWith('/api/admin/backups')) return [];
   return null;
 }
@@ -83,21 +84,31 @@ function apiError(message, status) {
 
 async function request(path, options = {}) {
   const method = (options.method || 'GET').toUpperCase();
-  const profileId = getActiveProfileId();
+  // Most calls use the currently selected profile. A caller may pin a request
+  // to the profile that produced an earlier async response, preventing a
+  // profile switch while that response is in flight from retargeting a
+  // follow-up mutation to the newly active household member.
+  const {
+    profileId: requestedProfileId,
+    headers = {},
+    ...fetchOptions
+  } = options;
+  const profileId = requestedProfileId == null
+    ? getActiveProfileId()
+    : String(requestedProfileId);
 
   if (import.meta.env.VITE_DEMO === '1') {
     const { demoRequest } = await import('./demoApi.js');
-    const data = await demoRequest(path, options);
+    const data = await demoRequest(path, { ...fetchOptions, headers });
     if (method !== 'GET') invalidateAfterMutation(path, profileId);
     return data;
   }
 
-  const { headers = {}, ...fetchOptions } = options;
   const fetchPath = method === 'GET' ? addProfileCacheKey(path, profileId) : path;
   const res = await fetch(fetchPath, {
     credentials: 'include',
     ...fetchOptions,
-    headers: { 'Content-Type': 'application/json', ...profileHeaders(), ...headers },
+    headers: { 'Content-Type': 'application/json', ...profileHeaders(profileId), ...headers },
   });
 
   if (res.status === 401) {
@@ -249,6 +260,24 @@ export const api = {
 
   triggerSync: () => request('/api/sync', { method: 'POST' }),
   getSyncStatus: () => request('/api/sync/status'),
+
+  getNotifications: (params = {}) => request(`/api/notifications?${new URLSearchParams(params)}`),
+  markNotificationsRead: () => request('/api/notifications/read', { method: 'POST' }),
+  markNotificationRead: (id) => request(`/api/notifications/${id}/read`, { method: 'POST' }),
+  clearNotifications: () => request('/api/notifications', { method: 'DELETE' }),
+  getWebhookFormats: () => request('/api/notifications/webhook-formats'),
+  getVapidKey: () => request('/api/notifications/vapid-key'),
+  subscribePush: (subscription, profileId) => request('/api/notifications/subscribe', {
+    method: 'POST',
+    body: JSON.stringify(subscription),
+    profileId,
+  }),
+  unsubscribePush: (endpoint, profileId) => request('/api/notifications/unsubscribe', {
+    method: 'POST',
+    body: JSON.stringify({ endpoint }),
+    profileId,
+  }),
+  sendTestNotification: () => request('/api/notifications/test', { method: 'POST' }),
 
   getSettings: () => request('/api/settings'),
   updateSettings: (data) => request('/api/settings', {

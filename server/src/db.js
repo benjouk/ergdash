@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import { mkdirSync, readFileSync, readdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { NOTIFY_KINDS } from './notificationTypes.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = process.env.DATA_DIR || join(__dirname, '..', 'data');
@@ -81,6 +82,15 @@ export function seedDefaultSettings(db, profileId) {
     insert.run(profileId, 'feed_limit', '50');
     insert.run(profileId, 'week_start', 'monday');
     insert.run(profileId, 'date_format', 'day-month');
+    // Notifications default to the in-app centre only: it is the one channel
+    // that works on every install. Push needs a secure origin and a granted
+    // permission, and a webhook needs a URL, so both are opt-in.
+    insert.run(profileId, 'notify_channels', JSON.stringify(['inapp']));
+    insert.run(profileId, 'notify_kinds', JSON.stringify(NOTIFY_KINDS));
+    insert.run(profileId, 'notify_plan_hour', '7');
+    insert.run(profileId, 'notify_digest_hour', '20');
+    insert.run(profileId, 'notify_webhook_url', '');
+    insert.run(profileId, 'notify_webhook_format', 'json');
   })();
 }
 

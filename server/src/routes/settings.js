@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { getDb, seedDefaultSettings } from '../db.js';
 import { recomputeAllMetrics, recomputeAllZoneTimes } from '../analytics.js';
+import { NOTIFY_CHANNELS, NOTIFY_KINDS } from '../notificationTypes.js';
+import { WEBHOOK_FORMATS } from '../webhookFormats.js';
 
 const router = Router();
 
@@ -15,6 +17,7 @@ router.get('/', (req, res) => {
 });
 
 const ENUMS = {
+  notify_webhook_format: WEBHOOK_FORMATS,
   theme: ['system', 'light', 'dark'],
   units: ['pace', 'watts', 'calhr'],
   time_range: ['30d', '90d', 'season', 'last_season', 'all'],
@@ -119,6 +122,41 @@ function validateSetting(key, value) {
       (typeof item === 'string' && /^[a-z0-9_-]+$/i.test(item))
       || (item && typeof item === 'object' && typeof item.id === 'string' && /^[a-z0-9_-]+$/i.test(item.id))
     )));
+  }
+
+  if (key === 'notify_channels') {
+    return validateJsonArray(value, key, items =>
+      items.every(item => NOTIFY_CHANNELS.includes(item)));
+  }
+
+  if (key === 'notify_kinds') {
+    return validateJsonArray(value, key, items =>
+      items.every(item => NOTIFY_KINDS.includes(item)));
+  }
+
+  if (key === 'notify_plan_hour' || key === 'notify_digest_hour') {
+    const n = parseNumber(value);
+    if (!Number.isInteger(n) || n < 0 || n > 23) return { error: `${key} must be an integer between 0 and 23` };
+    return { value: String(n) };
+  }
+
+  // The server POSTs to this URL, so it is an outbound request the operator is
+  // asking for. Restrict it to http(s) - anything else (file:, and the rest)
+  // has no business being fetched.
+  if (key === 'notify_webhook_url') {
+    if (value === '' || value == null) return { value: '' };
+    const raw = String(value);
+    if (raw.length > 500) return { error: 'notify_webhook_url must be at most 500 characters' };
+    let parsed;
+    try {
+      parsed = new URL(raw);
+    } catch {
+      return { error: 'notify_webhook_url must be a valid URL' };
+    }
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return { error: 'notify_webhook_url must be an http or https URL' };
+    }
+    return { value: raw };
   }
 
   return { error: `Unsupported setting: ${key}` };

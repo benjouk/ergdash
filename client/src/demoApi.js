@@ -751,6 +751,15 @@ async function handleGet(route, params) {
     return { ...fixture, ...getSettingsOverlay() };
   }
 
+  // The demo has no server to produce notifications and no service worker to
+  // deliver them, so the bell is always empty rather than 404ing every poll.
+  if (route === '/api/notifications') {
+    return { notifications: [], unread_count: 0 };
+  }
+  // /api/notifications/webhook-formats is deliberately not stubbed: the docs
+  // describe what the server sends, and the demo has no server to send
+  // anything. WebhookDocs hides itself when the fetch fails.
+
   if (route === '/api/workouts') {
     const all = await loadFixture((await loadManifest())['/api/workouts']);
     const plans = await loadDemoPlans();
@@ -979,6 +988,9 @@ export async function demoRequest(path, options = {}) {
     }
     if (route === '/auth/logout') {
       return { ok: true };
+    }
+    if (route.startsWith('/api/notifications')) {
+      return { ok: true, channels: [] };
     }
     if (/^\/api\/workouts\/\d+\/enrich$/.test(route)) {
       return { ok: true };

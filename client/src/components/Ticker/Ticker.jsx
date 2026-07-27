@@ -9,6 +9,7 @@ import { api } from '../../api.js';
 import { useProfileQuery } from '../../hooks/useProfileQuery.js';
 import PaceTrace from './PaceTrace.jsx';
 import SyncStatusControl from './SyncStatusControl.jsx';
+import NotificationBell from '../Notifications/NotificationBell.jsx';
 import styles from './Ticker.module.css';
 
 function initialsOf(name) {
@@ -181,6 +182,8 @@ export default function Ticker() {
       </nav>
 
       <SyncStatusControl />
+
+      <NotificationBell />
 
       {activeProfile && (
         <div className={styles.profileWrapper} ref={profileMenuRef}>

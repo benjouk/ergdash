@@ -41,6 +41,20 @@ public origin.
   specific trusted HTTPS origin when it is genuinely required.
 - The unauthenticated `/health` endpoint returns only `{"status":"ok"}`;
   instance metadata requires a session.
+- Deleting a profile removes its notification history and any push
+  subscriptions it holds, so a removed household member leaves no stored
+  notification content or push credentials behind.
+- Web Push uses a VAPID keypair generated on first use and stored unencrypted
+  in `instance_settings`. It only identifies this server to push services, so
+  it is lower-value than the `SESSION_SECRET`-encrypted OAuth tokens in the
+  same database — but it is still a private key in your backups. Anyone
+  holding it could send notifications to browsers already subscribed to this
+  instance; deleting both `vapid_*` rows forces a fresh keypair, after which
+  every device re-subscribes from Settings.
+- A configured notification webhook is an outbound request the instance makes
+  on your behalf. The URL is restricted to `http`/`https`, but it is not
+  otherwise restricted — do not point it at an internal address you would not
+  want the ErgDash container to reach.
 
 Cross-site request forgery is mitigated by `SameSite=Lax` HttpOnly session
 cookies, a JSON-only request body parser, and CORS being disabled by default,

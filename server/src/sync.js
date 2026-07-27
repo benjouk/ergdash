@@ -13,6 +13,7 @@ import {
 } from './analytics.js';
 import { detectNewPbs, reconcilePbDistances } from './pbDetection.js';
 import { matchNewWorkouts } from './planMatching.js';
+import { notifyNewPbs, notifyNewWorkouts } from './notifications.js';
 import { parseEditedFields, computePaceMs } from './workoutFields.js';
 
 // Per-profile sync locks. Sync state is namespaced per profile in sync_state
@@ -366,6 +367,18 @@ export async function runFullSync(profileId) {
     }
 
     const db = getDb();
+    // A first full sync imports the whole logbook. None of it is news, so the
+    // notification pass is skipped; a re-run against an already-populated
+    // profile only inserts genuinely new rows and does notify.
+    //
+    // Counts Concept2 rows specifically. Settings -> wipe & resync deliberately
+    // keeps manual and imported workouts (a resync cannot restore those), so
+    // counting every workout meant a single hand-entered row made the
+    // following full resync look like an ordinary top-up - and announce the
+    // entire re-imported logbook, PBs included.
+    const hadWorkouts = db
+      .prepare("SELECT COUNT(*) AS c FROM workouts WHERE profile_id = ? AND source = 'c2'")
+      .get(profileId).c > 0;
     let page = 1;
     let totalSynced = 0;
     const insertedWorkoutIds = [];
@@ -403,7 +416,10 @@ export async function runFullSync(profileId) {
     }
 
     console.log(`Full sync complete for profile ${profileId}: ${totalSynced} workouts synced`);
-    runPostSyncAnalytics(profileId, insertedWorkoutIds, updatedWorkoutIds, affectedPbDistances);
+    runPostSyncAnalytics(profileId, insertedWorkoutIds, updatedWorkoutIds, affectedPbDistances, {
+      notifySynced: hadWorkouts,
+      notifyPbs: hadWorkouts,
+    });
     setSyncState(profileId, 'last_sync_completed', new Date().toISOString());
     setSyncState(profileId, 'sync_status', 'idle');
   } catch (err) {
@@ -486,7 +502,17 @@ export async function runIncrementalSync(profileId) {
   }
 }
 
-export function runPostSyncAnalytics(profileId, insertedWorkoutIds = [], updatedWorkoutIds = [], affectedPbDistances = []) {
+// notifySynced/notifyPbs let the callers that are *not* a background sync opt
+// out: a manual entry or a file import is something the user is already
+// watching happen, and the very first full sync of a logbook is a decade of
+// history rather than news.
+export function runPostSyncAnalytics(
+  profileId,
+  insertedWorkoutIds = [],
+  updatedWorkoutIds = [],
+  affectedPbDistances = [],
+  { notifySynced = true, notifyPbs = true } = {}
+) {
   try {
     const retaggedPbDistances = tagAllWorkouts(profileId);
     computeAllMetrics(profileId);
@@ -512,6 +538,15 @@ export function runPostSyncAnalytics(profileId, insertedWorkoutIds = [], updated
     const matchedPlans = matchNewWorkouts(insertedWorkoutIds);
     if (matchedPlans > 0) {
       console.log(`Auto-matched ${matchedPlans} planned workout${matchedPlans === 1 ? '' : 's'}`);
+    }
+    // After plan matching, so a synced workout that completes today's plan no
+    // longer counts as an unlogged session. Notification failures must not
+    // discard the analytics that already succeeded.
+    try {
+      if (notifySynced) notifyNewWorkouts(profileId, insertedWorkoutIds);
+      if (notifyPbs) notifyNewPbs(profileId, newPbs);
+    } catch (err) {
+      console.error('Notification dispatch error:', err);
     }
     console.log('Post-sync analytics complete');
   } catch (err) {

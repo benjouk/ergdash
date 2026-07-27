@@ -9,6 +9,7 @@ import { initDb, getDb, closeDb } from './src/db.js';
 import { startSyncSchedule } from './src/sync.js';
 import { startRankingRefreshSchedule } from './src/rankingsLive.js';
 import { startBackupSchedule } from './src/backupSchedule.js';
+import { startNotificationSchedule } from './src/notifications.js';
 import { initAuth, hasValidSession, hasConnectedProfile } from './src/auth.js';
 import { errorHandler } from './src/middleware/error.js';
 import { resolveProfile } from './src/middleware/profile.js';
@@ -36,6 +37,7 @@ import plansRouter from './src/routes/plans.js';
 import programsRouter from './src/routes/programs.js';
 import importRouter from './src/routes/import.js';
 import profilesRouter from './src/routes/profiles.js';
+import notificationsRouter from './src/routes/notifications.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = parseInt(process.env.PORT || '3000', 10);
@@ -116,6 +118,7 @@ app.use('/api/goals', requireAuth, resolveProfile, goalsRouter);
 app.use('/api/plans', requireAuth, resolveProfile, plansRouter);
 app.use('/api/programs', requireAuth, resolveProfile, programsRouter);
 app.use('/api/import', requireAuth, resolveProfile, importRouter);
+app.use('/api/notifications', requireAuth, resolveProfile, notificationsRouter);
 
 const distPath = join(__dirname, 'dist');
 // Vite content-hashes everything under assets/, so those files can be cached
@@ -157,6 +160,7 @@ if (hasConnectedProfile()) {
 
 startRankingRefreshSchedule();
 startBackupSchedule();
+startNotificationSchedule();
 
 function recomputePacesIfMissing() {
   const db = getDb();
